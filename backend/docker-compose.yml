@@ -8,6 +8,11 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      # Override .env values - inside Docker's network, services are reached
+      # by service name, never "localhost" (that would mean the container itself)
+      DATABASE_URL: postgresql://courier_user:courier_pass@db:5432/courier_db
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       - db
       - redis
@@ -38,6 +43,9 @@ services:
     command: celery -A app.tasks.celery_app worker --loglevel=info
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql://courier_user:courier_pass@db:5432/courier_db
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       - redis
       - db
