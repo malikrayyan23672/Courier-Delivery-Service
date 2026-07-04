@@ -4,7 +4,14 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.models.role import Role
-from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse, RefreshRequest
+from app.schemas.auth import (
+    RegisterRequest,
+    LoginRequest,
+    TokenResponse,
+    RefreshRequest,
+    SendOTPRequest,
+    VerifyOTPRequest,
+)
 from app.core.security import (
     hash_password,
     verify_password,
@@ -12,6 +19,7 @@ from app.core.security import (
     create_refresh_token,
     decode_token,
 )
+from app.services.otp_service import send_otp, verify_otp
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -34,12 +42,38 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         phone=payload.phone,
         hashed_password=hash_password(payload.password),
         role_id=customer_role.id,
+        is_verified=False,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    return {"message": "Registered successfully", "user_id": str(user.id)}
+    # Automatically send the first OTP so the user can verify right away
+    send_otp(db, payload.phone)
+
+    return {
+        "message": "Registered successfully. An OTP has been sent to your phone for verification.",
+        "user_id": str(user.id),
+    }
+
+
+@router.post("/send-otp")
+def request_otp(payload: SendOTPRequest, db: Session = Depends(get_db)):
+    """Resend an OTP - used if the first one expired or wasn't received."""
+    send_otp(db, payload.phone)
+    return {"message": "OTP sent"}
+
+
+@router.post("/verify-otp")
+def confirm_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
+    verify_otp(db, payload.phone, payload.otp_code)
+
+    user = db.query(User).filter(User.phone == payload.phone).first()
+    if user:
+        user.is_verified = True
+        db.commit()
+
+    return {"message": "Phone number verified successfully"}
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -52,6 +86,12 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")
+
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="Phone number not verified. Please verify via /auth/verify-otp before logging in.",
+        )
 
     token_data = {"sub": str(user.id), "role": user.role.name}
     return TokenResponse(

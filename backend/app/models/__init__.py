@@ -6,6 +6,7 @@ from app.models.address import Address
 from app.models.order import Order
 from app.models.payment import Payment
 from app.models.tracking_event import TrackingEvent
+from app.models.phone_otp import PhoneOTP
 
 __all__ = [
     "Role",
@@ -16,4 +17,5 @@ __all__ = [
     "Order",
     "Payment",
     "TrackingEvent",
+    "PhoneOTP",
 ]
