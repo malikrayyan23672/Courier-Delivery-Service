@@ -1,0 +1,14 @@
+meta {
+  name: 4. Customer - List My Orders
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/customer/orders
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{customer_access_token}}
+}

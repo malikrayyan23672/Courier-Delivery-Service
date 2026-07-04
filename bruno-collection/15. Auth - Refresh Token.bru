@@ -1,0 +1,21 @@
+meta {
+  name: 15. Auth - Refresh Token
+  type: http
+  seq: 15
+}
+
+post {
+  url: {{base_url}}/auth/refresh
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "refresh_token": "{{customer_refresh_token}}"
+  }
+}

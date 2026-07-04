@@ -1,0 +1,33 @@
+meta {
+  name: 2. Customer - Login
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "ali@example.com",
+    "password": "SecurePass123"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("customer_access_token", res.body.access_token);
+  bru.setEnvVar("customer_refresh_token", res.body.refresh_token);
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

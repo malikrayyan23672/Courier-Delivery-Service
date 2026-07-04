@@ -1,0 +1,14 @@
+meta {
+  name: 10. Rider - View My Deliveries
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{base_url}}/rider/deliveries
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{rider_access_token}}
+}

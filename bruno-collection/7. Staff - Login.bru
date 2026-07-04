@@ -1,0 +1,26 @@
+meta {
+  name: 7. Staff - Login
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{base_url}}/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "bilal.staff@example.com",
+    "password": "StaffPass123"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("staff_access_token", res.body.access_token);
+}

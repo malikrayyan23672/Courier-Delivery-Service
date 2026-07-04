@@ -1,0 +1,14 @@
+meta {
+  name: 13. Admin - List All Orders
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{base_url}}/admin/orders
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{admin_access_token}}
+}

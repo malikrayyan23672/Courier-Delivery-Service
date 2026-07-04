@@ -1,0 +1,34 @@
+meta {
+  name: 6. Staff - Register
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{base_url}}/auth/register
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "full_name": "Bilal Staff",
+    "email": "bilal.staff@example.com",
+    "phone": "03111234567",
+    "password": "StaffPass123"
+  }
+}
+
+docs {
+  Registers as a "customer" role by default (that's how /auth/register
+  is designed - public sign-up can't self-assign privileged roles).
+
+  Before logging in as staff, manually promote this user in Postgres:
+
+  UPDATE users SET role_id = (SELECT id FROM roles WHERE name = 'staff')
+  WHERE email = 'bilal.staff@example.com';
+}

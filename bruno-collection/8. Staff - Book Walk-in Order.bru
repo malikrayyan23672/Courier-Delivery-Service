@@ -1,0 +1,34 @@
+meta {
+  name: 8. Staff - Book Walk-in Order
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{base_url}}/staff/orders
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{staff_access_token}}
+}
+
+body:json {
+  {
+    "guest_full_name": "Walk In Customer",
+    "guest_phone": "03219998888",
+    "pickup_address": {
+      "full_address": "Shop 4, Main Market, Rawalpindi",
+      "city": "Rawalpindi"
+    },
+    "dropoff_address": {
+      "full_address": "House 9, Model Town, Lahore",
+      "city": "Lahore"
+    },
+    "package_weight_kg": 1.0,
+    "package_description": "Small parcel",
+    "payment_method": "cash"
+  }
+}

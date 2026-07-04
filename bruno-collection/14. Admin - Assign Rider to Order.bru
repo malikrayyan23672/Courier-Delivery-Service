@@ -1,0 +1,14 @@
+meta {
+  name: 14. Admin - Assign Rider to Order
+  type: http
+  seq: 14
+}
+
+patch {
+  url: {{base_url}}/admin/orders/{{order_id}}/assign-rider/{{rider_id}}
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{admin_access_token}}
+}

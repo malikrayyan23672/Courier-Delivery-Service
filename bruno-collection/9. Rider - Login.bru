@@ -1,0 +1,32 @@
+meta {
+  name: 9. Rider - Login
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{base_url}}/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "rider1@example.com",
+    "password": "RiderPass123"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("rider_access_token", res.body.access_token);
+}
+
+docs {
+  Like staff, this account must be promoted to the "rider" role in
+  Postgres first, and needs a linked RiderProfile row to actually
+  receive deliveries. See README for rider onboarding notes.
+}

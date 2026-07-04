@@ -1,0 +1,42 @@
+meta {
+  name: 3. Customer - Book Order
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{base_url}}/customer/orders
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{customer_access_token}}
+}
+
+body:json {
+  {
+    "pickup_address": {
+      "label": "Home",
+      "full_address": "House 12, Street 5, F-7, Islamabad",
+      "city": "Islamabad",
+      "contact_name": "Ali Raza",
+      "contact_phone": "03001234567"
+    },
+    "dropoff_address": {
+      "label": "Office",
+      "full_address": "Plot 3, Blue Area, Islamabad",
+      "city": "Islamabad",
+      "contact_name": "Sara Khan",
+      "contact_phone": "03007654321"
+    },
+    "package_weight_kg": 2.5,
+    "package_description": "Documents"
+  }
+}
+
+script:post-response {
+  if (res.body.id) bru.setEnvVar("order_id", res.body.id);
+  if (res.body.tracking_number) bru.setEnvVar("tracking_number", res.body.tracking_number);
+}

@@ -1,0 +1,14 @@
+meta {
+  name: 11. Rider - Update Delivery Status
+  type: http
+  seq: 11
+}
+
+patch {
+  url: {{base_url}}/rider/deliveries/{{order_id}}/status?new_status=picked_up&note=Picked up from sender
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{rider_access_token}}
+}
