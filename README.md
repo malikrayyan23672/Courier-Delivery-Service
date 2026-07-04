@@ -4,10 +4,11 @@ Full-stack courier/delivery service: **FastAPI + PostgreSQL backend**, **Next.js
 
 ## Structure
 
-- `backend/` — FastAPI API (see `backend/README.md` for setup)
-- `frontend/` — Next.js customer-facing app (see `frontend/README.md` for setup)
+- `backend/` — FastAPI API
+- `frontend/` — Next.js customer-facing app (see `frontend/README.md` for frontend-specific detail)
 - `bruno-collection/` — API test collection for the Bruno client
 - `design-reference/` — original FastEx HTML mockups the frontend theme is based on
+- `docker-compose.yml` (root) — runs the entire stack together in one command
 
 Backend supports four roles: **customer**, **staff** (office walk-in booking), **rider**, and **admin/super_admin**.
 
@@ -27,27 +28,34 @@ See `backend/app/` — organized by domain:
 - `services/` — business logic (order creation, pricing) shared across routers
 - `tasks/` — Celery background jobs
 
-## Getting Started (Docker — recommended)
+## Getting Started — Full Stack (Docker, recommended)
+
+Runs backend, frontend, PostgreSQL, Redis, and the Celery worker together with one command.
 
 ```bash
-cd backend
-cp .env.example .env          # then edit SECRET_KEY and other values
+# from the project root
+cp backend/.env.example backend/.env      # edit SECRET_KEY at minimum
+cp frontend/.env.local.example frontend/.env.local
+
 docker-compose up --build
 ```
 
-This starts FastAPI (port 8000), PostgreSQL (port 5432), Redis, and a Celery worker.
-
-Once containers are up, run migrations and seed roles:
+Once containers are up, run migrations and seed roles (one-time, or after model changes):
 
 ```bash
+docker exec -it courier_api mkdir -p alembic/versions
 docker exec -it courier_api alembic revision --autogenerate -m "initial tables"
 docker exec -it courier_api alembic upgrade head
 docker exec -it courier_api python seed_roles.py
 ```
 
-API docs available at: **http://localhost:8000/docs**
+Now visit:
+- **http://localhost:3000** — the Next.js frontend (login/register/dashboard)
+- **http://localhost:8000/docs** — FastAPI's interactive Swagger docs
 
-## Getting Started (without Docker)
+The frontend's `NEXT_PUBLIC_API_URL` points at `http://localhost:8000/api/v1` — this is resolved **in your browser**, not inside Docker's internal network, so it must use the port your host machine sees (`localhost:8000`), not the `api` service name. This is already set correctly in the compose file; just don't change it to `http://api:8000` or the browser won't be able to reach it.
+
+## Getting Started — Backend Only (without Docker)
 
 ```bash
 cd backend
@@ -62,6 +70,16 @@ python seed_roles.py
 
 uvicorn app.main:app --reload
 ```
+
+## Getting Started — Frontend Only (without Docker)
+
+```bash
+cd frontend
+npm install
+cp .env.local.example .env.local
+npm run dev
+```
+Requires the backend to already be running and reachable at the URL in `.env.local`.
 
 ## Roles Implemented (v1)
 | Role | Access |
@@ -88,4 +106,5 @@ Roles live in the `roles` table (data, not hardcoded) — add new ones (dispatch
 - File upload for proof-of-delivery images (S3 + signed URLs)
 - Rate limiting on public endpoints (`slowapi` is installed but not yet wired into routes)
 - Real notification sending (SMS/email — Celery task stub exists in `tasks/notification_tasks.py`)
-- Frontend applications for each of the four panels
+- QR code tracking
+- Frontend: staff panel, rider panel, admin panel, public tracking page, refresh-token handling (see `frontend/README.md`)

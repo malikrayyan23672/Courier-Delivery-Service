@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  api:
+    build: ./backend
+    container_name: courier_api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      # Inside Docker's network, services are reached by service name,
+      # never "localhost" (that would mean the container itself)
+      DATABASE_URL: postgresql://courier_user:courier_pass@db:5432/courier_db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend:/app
+
+  celery_worker:
+    build: ./backend
+    container_name: courier_celery_worker
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://courier_user:courier_pass@db:5432/courier_db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+      - db
+    volumes:
+      - ./backend:/app
+
+  db:
+    image: postgres:16-alpine
+    container_name: courier_db
+    environment:
+      POSTGRES_USER: courier_user
+      POSTGRES_PASSWORD: courier_pass
+      POSTGRES_DB: courier_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: courier_redis
+    ports:
+      - "6379:6379"
+
+  frontend:
+    build: ./frontend
+    container_name: courier_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      # Runs in the BROWSER, not inside Docker's network - so it must point
+      # at the backend's port as published on your host machine, not "api"
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    depends_on:
+      - api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  postgres_data:
