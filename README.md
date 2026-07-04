@@ -1,6 +1,15 @@
 # Courier Service Platform
 
-Backend for a courier/delivery service supporting four roles: **customer**, **staff** (office walk-in booking), **rider**, and **admin/super_admin**.
+Full-stack courier/delivery service: **FastAPI + PostgreSQL backend**, **Next.js frontend** (FastEx brand theme).
+
+## Structure
+
+- `backend/` — FastAPI API (see `backend/README.md` for setup)
+- `frontend/` — Next.js customer-facing app (see `frontend/README.md` for setup)
+- `bruno-collection/` — API test collection for the Bruno client
+- `design-reference/` — original FastEx HTML mockups the frontend theme is based on
+
+Backend supports four roles: **customer**, **staff** (office walk-in booking), **rider**, and **admin/super_admin**.
 
 ## Tech Stack
 - FastAPI (async Python web framework)
