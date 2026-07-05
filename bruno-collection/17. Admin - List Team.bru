@@ -1,0 +1,14 @@
+meta {
+  name: 17. Admin - List Team
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{base_url}}/admin/users
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{admin_access_token}}
+}

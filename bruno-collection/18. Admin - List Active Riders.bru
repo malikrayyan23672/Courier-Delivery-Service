@@ -1,0 +1,14 @@
+meta {
+  name: 18. Admin - List Active Riders
+  type: http
+  seq: 18
+}
+
+get {
+  url: {{base_url}}/admin/riders
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{admin_access_token}}
+}

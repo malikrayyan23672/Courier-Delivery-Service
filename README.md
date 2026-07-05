@@ -82,23 +82,43 @@ npm run dev
 Requires the backend to already be running and reachable at the URL in `.env.local`.
 
 ## Roles Implemented (v1)
-| Role | Access |
-|---|---|
-| `customer` | Book orders online, view own order history, track shipments |
-| `staff` | Book walk-in orders on behalf of customers, collect cash payments |
-| `rider` | View assigned deliveries, update delivery status |
-| `admin` / `super_admin` | View all orders, assign riders to orders |
+| Role | Frontend Panel | Backend Access |
+|---|---|---|
+| `customer` | `/dashboard` | Book orders online, view own order history, track shipments |
+| `staff` | `/staff` | Book walk-in orders on behalf of customers, collect cash payments |
+| `rider` | `/rider` | View assigned deliveries, advance delivery status step by step |
+| `admin` / `super_admin` | `/admin` | View all orders, assign riders, onboard staff/rider/admin accounts |
 
 Roles live in the `roles` table (data, not hardcoded) — add new ones (dispatcher, finance, support) without code changes to the permission system.
 
+After login, the frontend decodes the JWT's `role` claim and redirects to the matching panel automatically. Each panel is protected client-side by `RoleGuard` — a customer visiting `/admin` gets bounced back to `/dashboard`, not shown an error page.
+
+## How to onboard staff/rider accounts
+
+Public registration (`/auth/register`) always creates a `customer` account — by design, so nobody can self-assign a privileged role. To create staff/rider/admin accounts:
+
+1. Log in as an existing admin (see below for creating the first one)
+2. Go to `/admin` → **Team** tab → **Onboard Team Member**
+3. Fill in their details and pick a role — the account is created immediately, active, and pre-verified (no OTP step, since the admin is vouching for them)
+
+**Creating your very first admin account** (before any admin exists) still requires direct DB access once:
+```sql
+UPDATE users SET role_id = (SELECT id FROM roles WHERE name = 'admin') WHERE email = 'youremail@example.com';
+```
+After that, all further staff/rider/admin accounts can be created through the UI.
+
 ## Key Endpoints
 - `POST /api/v1/auth/register` — customer self-registration
+- `POST /api/v1/auth/send-otp` / `verify-otp` — phone verification
 - `POST /api/v1/auth/login` — returns access + refresh JWT
 - `POST /api/v1/customer/orders` — customer books a shipment
 - `POST /api/v1/staff/orders` — staff books on behalf of a walk-in customer
 - `GET /api/v1/tracking/{tracking_number}` — public tracking, no auth required
-- `PATCH /api/v1/rider/deliveries/{order_id}/status` — rider updates delivery status
+- `GET /api/v1/rider/deliveries` / `PATCH .../status` — rider views and updates deliveries
+- `GET /api/v1/admin/orders` — admin views all orders
 - `PATCH /api/v1/admin/orders/{order_id}/assign-rider/{rider_id}` — admin assigns a rider
+- `GET /api/v1/admin/riders` — active riders available for assignment
+- `GET /api/v1/admin/users` / `POST /api/v1/admin/users` — list/onboard staff, rider, admin accounts
 
 ## Not Yet Implemented (next steps)
 - Real geocoding/distance calc for pricing (currently a placeholder in `pricing_service.py`)
@@ -107,4 +127,6 @@ Roles live in the `roles` table (data, not hardcoded) — add new ones (dispatch
 - Rate limiting on public endpoints (`slowapi` is installed but not yet wired into routes)
 - Real notification sending (SMS/email — Celery task stub exists in `tasks/notification_tasks.py`)
 - QR code tracking
-- Frontend: staff panel, rider panel, admin panel, public tracking page, refresh-token handling (see `frontend/README.md`)
+- Public tracking page in the frontend (backend endpoint already exists)
+- Refresh-token handling in the frontend (access token isn't silently refreshed before it expires)
+- Deactivating/editing team member accounts from the admin panel (currently create + list only)

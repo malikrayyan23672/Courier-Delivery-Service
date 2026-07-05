@@ -1,0 +1,32 @@
+meta {
+  name: 16. Admin - Create Staff or Rider Account
+  type: http
+  seq: 16
+}
+
+post {
+  url: {{base_url}}/admin/users
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{admin_access_token}}
+}
+
+body:json {
+  {
+    "full_name": "Bilal Staff",
+    "email": "bilal.staff@example.com",
+    "phone": "03111234567",
+    "password": "StaffPass123",
+    "role": "staff"
+  }
+}
+
+docs {
+  Skips OTP verification entirely - the admin is vouching for this
+  person directly (typically onboarded in person or via HR).
+  role must be one of: staff | rider | admin
+}
