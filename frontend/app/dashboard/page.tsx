@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { RoleGuard } from '@/components/RoleGuard';
 import { Logo } from '@/components/Logo';
 import { Field } from '@/components/Field';
 import { bookOrder, listMyOrders, Order, ApiError } from '@/lib/api';
@@ -24,6 +25,14 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function DashboardPage() {
+  return (
+    <RoleGuard allowedRoles={['customer']}>
+      <DashboardContent />
+    </RoleGuard>
+  );
+}
+
+function DashboardContent() {
   const { token, isLoading, setToken } = useAuth();
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);

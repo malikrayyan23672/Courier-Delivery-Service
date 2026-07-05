@@ -122,6 +122,88 @@ export function listMyOrders(token: string) {
   return request<Order[]>('/customer/orders', { method: 'GET' }, token);
 }
 
+// ---- Staff (walk-in booking) ----
+
+export interface StaffOrderPayload extends OrderCreatePayload {
+  customer_id?: string;
+  guest_full_name?: string;
+  guest_phone?: string;
+  guest_email?: string;
+  payment_method: 'cash' | 'card' | 'online_gateway' | 'wallet';
+}
+
+export function bookStaffOrder(payload: StaffOrderPayload, token: string) {
+  return request<Order>('/staff/orders', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+// ---- Rider ----
+
+export function listMyDeliveries(token: string) {
+  return request<Order[]>('/rider/deliveries', { method: 'GET' }, token);
+}
+
+export function updateDeliveryStatus(orderId: string, newStatus: string, note: string | undefined, token: string) {
+  const params = new URLSearchParams({ new_status: newStatus, ...(note ? { note } : {}) });
+  return request<{ message: string; status: string }>(
+    `/rider/deliveries/${orderId}/status?${params.toString()}`,
+    { method: 'PATCH' },
+    token
+  );
+}
+
+// ---- Admin ----
+
+export function listAllOrders(token: string) {
+  return request<Order[]>('/admin/orders', { method: 'GET' }, token);
+}
+
+export interface AdminRider {
+  rider_id: string;
+  full_name: string;
+  phone: string;
+  vehicle_type: string | null;
+  is_available: boolean;
+  rating: number;
+}
+
+export function listRiders(token: string) {
+  return request<AdminRider[]>('/admin/riders', { method: 'GET' }, token);
+}
+
+export function assignRider(orderId: string, riderId: string, token: string) {
+  return request<{ message: string }>(
+    `/admin/orders/${orderId}/assign-rider/${riderId}`,
+    { method: 'PATCH' },
+    token
+  );
+}
+
+export interface AdminUser {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  role: string;
+  is_active: boolean;
+  is_verified: boolean;
+}
+
+export function listStaffAndRiders(token: string) {
+  return request<AdminUser[]>('/admin/users', { method: 'GET' }, token);
+}
+
+export interface AdminCreateUserPayload {
+  full_name: string;
+  email: string;
+  phone: string;
+  password: string;
+  role: 'staff' | 'rider' | 'admin';
+}
+
+export function createStaffOrRider(payload: AdminCreateUserPayload, token: string) {
+  return request<AdminUser>('/admin/users', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
 // ---- Public tracking ----
 
 export interface TrackingEvent {

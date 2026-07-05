@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { HeroPanel } from '@/components/HeroPanel';
 import { Field } from '@/components/Field';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, panelPathForRole } from '@/context/AuthContext';
 import { loginUser, ApiError } from '@/lib/api';
 
 const MAIL_ICON = (
@@ -34,7 +34,8 @@ export default function LoginPage() {
     try {
       const tokens = await loginUser(email, password);
       setToken(tokens.access_token);
-      router.push('/dashboard');
+      const payload = JSON.parse(atob(tokens.access_token.split('.')[1]));
+      router.push(panelPathForRole(payload.role ?? null));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Login failed.');
     } finally {

@@ -2,16 +2,16 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, panelPathForRole } from '@/context/AuthContext';
 
 export default function HomePage() {
-  const { token, isLoading } = useAuth();
+  const { token, role, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (isLoading) return;
-    router.push(token ? '/dashboard' : '/login');
-  }, [isLoading, token, router]);
+    router.push(token ? panelPathForRole(role) : '/login');
+  }, [isLoading, token, role, router]);
 
   return null;
 }
