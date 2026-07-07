@@ -64,6 +64,11 @@ class Order(Base, TimestampMixin):
     # None = offer awaiting rider response, True = accepted. Declining unassigns the order entirely.
     rider_accepted = Column(Boolean, nullable=True)
 
+    zone_id = Column(UUID_TYPE, ForeignKey("zones.id"), nullable=True)
+    branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=True)
+    zone = relationship("Zone")
+    branch = relationship("Branch")
+
     estimated_price = Column(Float, nullable=True)
     final_price = Column(Float, nullable=True)
 

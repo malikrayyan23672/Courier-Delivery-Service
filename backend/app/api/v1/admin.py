@@ -12,6 +12,9 @@ from app.models.role import Role
 from app.models.order import Order, OrderStatus
 from app.models.rider import RiderProfile, RiderStatus
 from app.models.tracking_event import TrackingEvent
+from app.models.staff import StaffProfile
+from app.models.branch import Branch
+from app.models.zone import Zone
 from app.schemas.order import OrderOut
 from app.schemas.auth import AdminCreateUserRequest
 from app.schemas.user import UserOut
@@ -123,7 +126,9 @@ def create_staff_or_rider(
     db.flush()
 
     if payload.role == "rider":
-        db.add(RiderProfile(user_id=user.id, status=RiderStatus.active, is_available=False))
+        db.add(RiderProfile(user_id=user.id, status=RiderStatus.active, is_available=False, branch_id=payload.branch_id))
+    elif payload.role == "staff":
+        db.add(StaffProfile(user_id=user.id, branch_id=payload.branch_id))
 
     db.commit()
     db.refresh(user)
@@ -195,3 +200,71 @@ def analytics(
         "daily_last_7_days": daily,
         "top_riders": top_riders,
     }
+
+
+@router.get("/zones")
+def list_zones(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    return db.query(Zone).all()
+
+
+@router.post("/zones", status_code=201)
+def create_zone(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    name = payload.get("name")
+    description = payload.get("description")
+    if not name:
+        raise HTTPException(status_code=400, detail="Zone name is required")
+    
+    existing = db.query(Zone).filter(Zone.name == name).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Zone name already exists")
+    
+    zone = Zone(name=name, description=description)
+    db.add(zone)
+    db.commit()
+    db.refresh(zone)
+    return zone
+
+
+@router.get("/branches")
+def list_branches_admin(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    branches = db.query(Branch).all()
+    return [
+        {
+            "id": str(b.id),
+            "name": b.name,
+            "address": b.address,
+            "zone_id": str(b.zone_id) if b.zone_id else None,
+            "zone_name": b.zone.name if b.zone else None,
+            "status": b.status
+        }
+        for b in branches
+    ]
+
+
+@router.post("/branches", status_code=201)
+def create_branch(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    name = payload.get("name")
+    address = payload.get("address")
+    zone_id = payload.get("zone_id")
+    if not name:
+        raise HTTPException(status_code=400, detail="Branch name is required")
+    
+    branch = Branch(name=name, address=address, zone_id=zone_id)
+    db.add(branch)
+    db.commit()
+    db.refresh(branch)
+    return branch

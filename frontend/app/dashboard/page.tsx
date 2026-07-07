@@ -77,7 +77,7 @@ type BookingForm = {
   dropoff_contact_phone: string;
   weight: string;
   description: string;
-  package_size: string;
+  // package_size: string;
 };
 
 const EMPTY_FORM: BookingForm = {
@@ -91,7 +91,7 @@ const EMPTY_FORM: BookingForm = {
   dropoff_contact_phone: '',
   weight: '',
   description: '',
-  package_size: '',
+  // package_size: '',
 };
 
 export default function DashboardPage() {
@@ -163,7 +163,7 @@ function DashboardContent() {
             contact_phone: form.dropoff_contact_phone || undefined,
           },
           package_weight_kg: form.weight ? parseFloat(form.weight) : undefined,
-          package_size: form.package_size || undefined,
+          // package_size: form.package_size || undefined,
           package_description: form.description || undefined,
         },
         token
@@ -424,7 +424,7 @@ function BookingFormFields({
           value={form.description}
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
         />
-        <Field
+        {/* <Field
           id="package_size"
           type="text"
           label="Package Size"
@@ -432,7 +432,7 @@ function BookingFormFields({
           placeholder="e.g. Medium"
           value={form.package_size}
           onChange={(e) => setForm((f) => ({ ...f, package_size: e.target.value }))}
-        />
+        /> */}
       </div>
 
       {formError && <p className="text-sm text-danger mb-4">{formError}</p>}

@@ -38,6 +38,7 @@ class OrderCreateRequest(BaseModel):
     pickup_address: AddressInput
     dropoff_address: AddressInput
     package_weight_kg: Optional[float] = Field(None, gt=0, le=MAX_PACKAGE_WEIGHT_KG)
+    # package_size: Optional[str] = Field(None, max_length=50)
     package_description: Optional[str] = Field(None, max_length=255)
 
 
@@ -83,10 +84,13 @@ class OrderOut(BaseModel):
     pickup_address: Optional[AddressOut] = None
     dropoff_address: Optional[AddressOut] = None
     package_weight_kg: Optional[float] = None
+    package_size: Optional[str] = None
     package_description: Optional[str] = None
     estimated_price: Optional[float] = None
     final_price: Optional[float] = None
     rider_accepted: Optional[bool] = None
+    zone_id: Optional[str] = None
+    branch_id: Optional[str] = None
     created_at: Optional[datetime] = None
 
     class Config:

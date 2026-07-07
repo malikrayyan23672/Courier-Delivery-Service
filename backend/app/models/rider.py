@@ -19,8 +19,8 @@ class RiderProfile(Base, TimestampMixin):
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
     user_id = Column(UUID_TYPE, ForeignKey("users.id"), unique=True, nullable=False)
 
-    # branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), unique=True, nullable=True)
-    # branch = relationship("Branch", back_populates="rider")
+    branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=True)
+    branch = relationship("Branch", back_populates="riders")
 
     vehicle_type = Column(String(50), nullable=True)   # bike, van, truck
     license_number = Column(String(100), nullable=True)

@@ -3,12 +3,14 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 # E.164-ish format: optional +, 7-15 digits total. Adjust to your target country if needed.
 PHONE_REGEX = re.compile(r"^\+?[0-9]{7,15}$")
+CNIC_REGEX = re.compile(r"/^([0-9]{5})[\-]([0-9]{7})[\-]([0-9]{1})+/")
 
 
 class RegisterRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=150)
     email: EmailStr
     phone: str = Field(..., min_length=7, max_length=20)
+    cnic: str = Field(..., min_length=13, max_length=13)
     password: str = Field(..., min_length=8, max_length=72)
 
     @field_validator("full_name")
@@ -28,6 +30,15 @@ class RegisterRequest(BaseModel):
         if not PHONE_REGEX.match(v):
             raise ValueError("Phone number must be 7-15 digits, optionally starting with +")
         return v
+    
+    @field_validator("cnic")
+    @classmethod
+    def cnic_valid_format(cls, v: str) -> str:
+        v = v.strip()
+        if not CNIC_REGEX.match(v):
+            raise ValueError("CNIC must be 13 digits")
+        
+        return v
 
     @field_validator("password")
     @classmethod
@@ -44,6 +55,7 @@ class AdminCreateUserRequest(RegisterRequest):
     """Used by admins to onboard staff/rider/admin accounts directly.
     Skips OTP verification since the admin is vouching for this person in person."""
     role: str = Field(..., pattern="^(staff|rider|admin|customer)$")
+    # branch_id: Optional[str] = None
 
 
 class LoginRequest(BaseModel):

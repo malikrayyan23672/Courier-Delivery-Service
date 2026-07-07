@@ -34,7 +34,7 @@ const LOCK_ICON = (
 export default function RegisterPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('form');
-  const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ full_name: '', email: '', phone: '', cnic: '', password: '', confirm: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
@@ -149,6 +149,14 @@ export default function RegisterPage() {
                   value={form.phone}
                   onChange={(e) => updateField('phone', e.target.value)}
                 />
+                <Field
+                  id="cnic"
+                  type="tel"
+                  label="CNIC"
+                  icon={null}
+                  placeholder='e.g 1620434324'
+                  required
+                  onChange={(e) => updateField('cnic', e.target.value)}/>
                 <Field
                   id="password"
                   type="password"

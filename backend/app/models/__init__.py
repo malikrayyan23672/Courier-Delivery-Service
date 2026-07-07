@@ -7,6 +7,10 @@ from app.models.order import Order
 from app.models.payment import Payment
 from app.models.tracking_event import TrackingEvent
 from app.models.phone_otp import PhoneOTP
+from app.models.zone import Zone
+from app.models.branch import Branch
+from app.models.pricing_rule import PricingRule
+from app.models.warehouse import Warehouse
 
 __all__ = [
     "Role",
@@ -18,4 +22,8 @@ __all__ = [
     "Payment",
     "TrackingEvent",
     "PhoneOTP",
+    "Zone",
+    "Branch",
+    "PricingRule",
+    "Warehouse",
 ]

@@ -256,6 +256,31 @@ export function bookStaffOrder(payload: StaffOrderPayload, token: string) {
   return request<Order>('/staff/orders', { method: 'POST', body: JSON.stringify(payload) }, token);
 }
 
+export function listStaffOrders(token: string) {
+  return request<Order[]>('/staff/orders', { method: 'GET' }, token);
+}
+
+export interface StaffRider {
+  rider_id: string;
+  full_name: string;
+  phone: string;
+  vehicle_type: string | null;
+  is_available: boolean;
+  rating: number;
+}
+
+export function listStaffRiders(token: string) {
+  return request<StaffRider[]>('/staff/riders', { method: 'GET' }, token);
+}
+
+export function staffAssignRider(orderId: string, riderId: string, token: string) {
+  return request<{ message: string }>(
+    `/staff/orders/${orderId}/assign-rider/${riderId}`,
+    { method: 'PATCH' },
+    token
+  );
+}
+
 // ---- Rider ----
 
 export interface RiderStats {

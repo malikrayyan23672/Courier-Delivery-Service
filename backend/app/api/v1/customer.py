@@ -42,7 +42,7 @@ def book_order(
         pickup=payload.pickup_address,
         dropoff=payload.dropoff_address,
         package_weight_kg=payload.package_weight_kg,
-        package_size=payload.package_size,
+        # package_size=payload.package_size,
         package_description=payload.package_description,
     )
     return order
@@ -87,7 +87,7 @@ def get_my_order(
         pickup_address=AddressOut.model_validate(order.pickup_address) if order.pickup_address else None,
         dropoff_address=AddressOut.model_validate(order.dropoff_address) if order.dropoff_address else None,
         package_weight_kg=order.package_weight_kg,
-        package_size=order.package_size,
+        # package_size=order.package_size,
         package_description=order.package_description,
         estimated_price=order.estimated_price,
         final_price=order.final_price,

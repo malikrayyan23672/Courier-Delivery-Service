@@ -11,6 +11,24 @@ sys.path.append(os.getcwd())
 from app.config import settings
 from app.database import Base
 from app import models  # noqa: F401 - ensures all models are registered on Base.metadata
+from app.models import User
+from app.models import activity_log
+from app.models import Address
+from app.models import branch
+from app.models import address
+from app.models import business
+from app.models import customer
+from app.models import invoice
+from app.models import notification
+from app.models import order_status_history
+from app.models import payment
+from app.models import rider_assignment
+from app.models import zone
+from app.models import warehouse
+from app.models import system_setting
+from app.models import pricing_rule
+from app.models import live_tracking
+
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

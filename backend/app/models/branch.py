@@ -17,5 +17,11 @@ class Branch(Base, TimestampMixin):
     latitude = Column(String(50), nullable=True)
     longitude = Column(String(50), nullable=True)
     opening_time = Column(String(10), nullable=True)  # e.g., "09:00 AM"
-    closing_time = Column(String(10), nullable=True)  # e.g., "05
+    closing_time = Column(String(10), nullable=True)  
     status = Column(String(50), default="active")  # e.g., "active", "inactive"
+
+    zone_id = Column(UUID_TYPE, ForeignKey("zones.id"), nullable=True)
+    zone = relationship("Zone", back_populates="branches")
+    staff_members = relationship("StaffProfile", back_populates="branch")
+    riders = relationship("RiderProfile", back_populates="branch")
+    warehouses = relationship("Warehouse", back_populates="branch")

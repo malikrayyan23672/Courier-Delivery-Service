@@ -40,6 +40,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         full_name=payload.full_name,
         email=payload.email,
         phone=payload.phone,
+        cnic=payload.cnic,
         hashed_password=hash_password(payload.password),
         role_id=customer_role.id,
         is_verified=False,
