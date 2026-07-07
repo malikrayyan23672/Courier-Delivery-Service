@@ -54,8 +54,8 @@ class RegisterRequest(BaseModel):
 class AdminCreateUserRequest(RegisterRequest):
     """Used by admins to onboard staff/rider/admin accounts directly.
     Skips OTP verification since the admin is vouching for this person in person."""
-    role: str = Field(..., pattern="^(staff|rider|admin|customer)$")
-    # branch_id: Optional[str] = None
+    role: str = Field(..., pattern="^(staff|rider|admin|customer|super_admin)$")
+    # branch_id: int = Field(...)
 
 
 class LoginRequest(BaseModel):

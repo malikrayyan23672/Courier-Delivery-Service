@@ -153,7 +153,7 @@ export default function RegisterPage() {
                 <Field
                   id="cnic"
                   type="tel"
-                  label="CNIC"
+                  label="cnic"
                   icon={null}
                   placeholder='e.g 1620434324'
                   // required

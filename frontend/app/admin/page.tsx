@@ -239,7 +239,7 @@ function TeamTab({ token }: { token: string }) {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ full_name: '', email: '', phone: '', CNIC: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer' });
+  const [form, setForm] = useState({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer' });
 
   useEffect(() => {
     loadUsers();
@@ -261,7 +261,7 @@ function TeamTab({ token }: { token: string }) {
       const newUser = await createStaffOrRider(form, token);
       setUsers((prev) => [newUser, ...prev]);
       setShowForm(false);
-      setForm({ full_name: '', email: '', phone: '', CNIC: '', password: '', role: 'staff' });
+      setForm({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create account.');
     } finally {
@@ -318,13 +318,13 @@ function TeamTab({ token }: { token: string }) {
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
             />
             <Field
-              id="CNIC"
-              label="CNIC"
+              id="cnic"
+              label="cnic"
               placeholder="e.g. 12345-1234567-1"
               icon={CNIC_ICON}
               required
-              value={form.CNIC}
-              onChange={(e) => setForm((f) => ({ ...f, CNIC: e.target.value }))}
+              value={form.cnic}
+              onChange={(e) => setForm((f) => ({ ...f, cnic: e.target.value }))}
             />
             <Field
               id="password"
@@ -376,7 +376,7 @@ function TeamTab({ token }: { token: string }) {
                 <th className="px-6 py-3 font-semibold">Name</th>
                 <th className="px-6 py-3 font-semibold">Email</th>
                 <th className="px-6 py-3 font-semibold">Phone</th>
-                <th className="px-6 py-3 font-semibold">CNIC</th>
+                <th className="px-6 py-3 font-semibold">cnic</th>
                 <th className="px-6 py-3 font-semibold">Role</th>
                 <th className="px-6 py-3 font-semibold">Actions</th>
               </tr>
@@ -387,19 +387,24 @@ function TeamTab({ token }: { token: string }) {
                   <td className="px-6 py-3.5 text-ink font-semibold">{u.full_name}</td>
                   <td className="px-6 py-3.5 text-muted">{u.email}</td>
                   <td className="px-6 py-3.5 text-muted">{u.phone}</td>
-                  <td className="px-6 py-3.5 text-muted">{u.CNIC}</td>
+                  <td className="px-6 py-3.5 text-muted">{u.cnic}</td>
                   <td className="px-6 py-3.5">
                     <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-[#EAF1FC] text-navy capitalize">
                       {u.role.replace('_', ' ')}
                     </span>
                   </td>
                   <td className='px-6 py-3.5'>
-                    <button 
+                    {u.role === "Staff" ? (
+                      <button 
                       onClick={() => handleDeleteUser(u.id)}
                       className="text-danger hover:text-danger-light focus:outline-none"
                     >
                       Delete
                     </button>
+                    ) : (
+                      <button></button>
+                    )}
+                    
                   </td>
                 </tr>
               ))}

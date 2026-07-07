@@ -364,7 +364,7 @@ export interface AdminUser {
   full_name: string;
   email: string;
   phone: string;
-  CNIC: string;
+  cnic: string;
   role: string;
   is_active: boolean;
   is_verified: boolean;
@@ -378,7 +378,7 @@ export interface AdminCreateUserPayload {
   full_name: string;
   email: string;
   phone: string;
-  CNIC: string;
+  cnic: string;
   password: string;
   role: 'staff' | 'rider' | 'admin' | 'customer';
 }
