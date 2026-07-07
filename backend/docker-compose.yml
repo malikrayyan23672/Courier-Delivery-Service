@@ -1,0 +1,56 @@
+# version: "3.9"
+
+services:
+  api:
+    build: .
+    container_name: courier_api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - .:/app
+
+    environment:
+      DATABASE_URL: postgresql://courier_user:courier_pass@db:5432/courier_db
+      REDIS_URL: redis://redis:6379/0
+
+  db:
+    image: postgres:16-alpine
+    container_name: courier_db
+    environment:
+      POSTGRES_USER: courier_user
+      POSTGRES_PASSWORD: courier_pass
+      POSTGRES_DB: courier_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: courier_redis
+    ports:
+      - "6379:6379"
+
+  celery_worker:
+    build: .
+    container_name: courier_celery_worker
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - db
+    volumes:
+      - .:/app
+    
+    environment:
+      DATABASE_URL: postgresql://courier_user:courier_pass@db:5432/courier_db
+      REDIS_URL: redis://redis:6379/0
+
+volumes:
+  postgres_data:

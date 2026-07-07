@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
@@ -63,13 +64,69 @@ class StaffOrderCreateRequest(OrderCreateRequest):
         return v
 
 
+class AddressOut(BaseModel):
+    label: Optional[str] = None
+    full_address: str
+    city: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class OrderOut(BaseModel):
     id: str
     tracking_number: str
     status: str
     booking_channel: str
+    pickup_address: Optional[AddressOut] = None
+    dropoff_address: Optional[AddressOut] = None
+    package_weight_kg: Optional[float] = None
+    package_description: Optional[str] = None
     estimated_price: Optional[float] = None
     final_price: Optional[float] = None
+    rider_accepted: Optional[bool] = None
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+class TrackingEventOut(BaseModel):
+    status: str
+    note: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PaymentOut(BaseModel):
+    amount: float
+    method: str
+    status: str
+    gateway_reference: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class RiderContactOut(BaseModel):
+    full_name: str
+    phone: str
+    vehicle_type: Optional[str] = None
+    rating: float
+
+    class Config:
+        from_attributes = True
+
+
+class OrderDetailOut(OrderOut):
+    """Full detail view for a single order - drives the customer-facing tracking timeline."""
+    tracking_events: list[TrackingEventOut] = []
+    payment: Optional[PaymentOut] = None
+    rider: Optional[RiderContactOut] = None
+

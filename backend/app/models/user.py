@@ -17,6 +17,7 @@ class User(Base, TimestampMixin):
     full_name = Column(String(150), nullable=False)
     email = Column(String(150), unique=True, nullable=False, index=True)
     phone = Column(String(20), unique=True, nullable=False, index=True)
+    cnic = Column(String(15), unique=True, default=None, nullable=True, index=True)
     hashed_password = Column(String(255), nullable=False)
 
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)

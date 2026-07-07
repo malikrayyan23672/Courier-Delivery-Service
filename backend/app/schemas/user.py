@@ -6,6 +6,7 @@ class UserOut(BaseModel):
     full_name: str
     email: EmailStr
     phone: str
+    cnic: str
     role: str
     is_active: bool
     is_verified: bool
@@ -20,6 +21,7 @@ class UserOut(BaseModel):
             full_name=user.full_name,
             email=user.email,
             phone=user.phone,
+            cnic=str(user.cnic),
             role=user.role.name,
             is_active=user.is_active,
             is_verified=user.is_verified,

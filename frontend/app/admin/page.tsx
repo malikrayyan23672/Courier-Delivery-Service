@@ -12,13 +12,15 @@ import {
   assignRider,
   listStaffAndRiders,
   createStaffOrRider,
+  getAdminAnalytics,
   Order,
   AdminRider,
   AdminUser,
+  AdminAnalytics,
   ApiError,
 } from '@/lib/api';
 
-type Tab = 'orders' | 'team';
+type Tab = 'orders' | 'team' | 'settings' | 'analytics';
 
 const STATUS_COLORS: Record<string, string> = {
   created: 'bg-[#EAF1FC] text-navy',
@@ -35,6 +37,12 @@ const USER_ICON = (
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
   </svg>
 );
+const CNIC_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 10h-6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2z" /><path d="M7 21H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2z" />
+    <line x1="7" y1="7" x2="7" y2="7" /><line x1="11" y1="7" x2="11" y2="7" /><line x1="7" y1="11" x2="7" y2="11" /><line x1="11" y1="11" x2="11" y2="11" />
+  </svg>
+)
 const MAIL_ICON = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 6-10 7L2 6" />
@@ -85,7 +93,7 @@ function AdminContent() {
 
       <main className="max-w-5xl mx-auto px-6 md:px-10 py-8">
         <div className="flex gap-2 mb-6 border-b border-line">
-          {(['orders', 'team'] as Tab[]).map((t) => (
+          {(['orders', 'team', 'settings', 'analytics'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -93,12 +101,20 @@ function AdminContent() {
                 tab === t ? 'border-orange text-orange' : 'border-transparent text-muted hover:text-ink'
               }`}
             >
-              {t === 'orders' ? 'All Orders' : 'Team'}
+              {t === 'orders' ? 'All Orders' : t === 'team' ? 'Team' : t === 'settings' ? 'Settings' : 'Analytics'}
             </button>
           ))}
         </div>
 
-        {tab === 'orders' ? <OrdersTab token={token!} /> : <TeamTab token={token!} />}
+        {tab === 'orders' ? (
+          <OrdersTab token={token!} />
+        ) : tab === 'team' ? (
+          <TeamTab token={token!} />
+        ) : tab === 'settings' ? (
+          <SettingsTab token={token!} />
+        ) : (
+          <AnalyticsTab token={token!} />
+        )}
       </main>
     </div>
   );
@@ -194,13 +210,21 @@ function OrdersTab({ token }: { token: string }) {
   );
 }
 
+function SettingsTab({token}: {token: string}){
+  return(
+    <div>
+      <p className="text-muted text-sm">Settings will be available in a future update.</p>
+    </div>
+  );
+}
+
 function TeamTab({ token }: { token: string }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' });
+  const [form, setForm] = useState({ full_name: '', email: '', phone: '', CNIC: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer' });
 
   useEffect(() => {
     loadUsers();
@@ -222,7 +246,7 @@ function TeamTab({ token }: { token: string }) {
       const newUser = await createStaffOrRider(form, token);
       setUsers((prev) => [newUser, ...prev]);
       setShowForm(false);
-      setForm({ full_name: '', email: '', phone: '', password: '', role: 'staff' });
+      setForm({ full_name: '', email: '', phone: '', CNIC: '', password: '', role: 'staff' });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create account.');
     } finally {
@@ -230,10 +254,16 @@ function TeamTab({ token }: { token: string }) {
     }
   }
 
+  function handleDeleteUser(id: string): void {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    setError('');
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
-        <p className="text-muted text-sm">Staff, rider, and admin accounts</p>
+        <p className="text-muted text-sm">Customer, Staff, rider, and admin accounts</p>
         <button
           onClick={() => setShowForm((s) => !s)}
           className="bg-orange hover:bg-orange-light text-white font-bold text-sm px-5 py-2.5 rounded-[10px] transition-colors"
@@ -273,6 +303,15 @@ function TeamTab({ token }: { token: string }) {
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
             />
             <Field
+              id="CNIC"
+              label="CNIC"
+              placeholder="e.g. 12345-1234567-1"
+              icon={CNIC_ICON}
+              required
+              value={form.CNIC}
+              onChange={(e) => setForm((f) => ({ ...f, CNIC: e.target.value }))}
+            />
+            <Field
               id="password"
               type="password"
               label="Temporary Password"
@@ -294,6 +333,7 @@ function TeamTab({ token }: { token: string }) {
               <option value="staff">Staff (counter/office)</option>
               <option value="rider">Rider (delivery)</option>
               <option value="admin">Admin</option>
+              <option value="customer">Customer</option>
             </select>
           </div>
 
@@ -321,7 +361,9 @@ function TeamTab({ token }: { token: string }) {
                 <th className="px-6 py-3 font-semibold">Name</th>
                 <th className="px-6 py-3 font-semibold">Email</th>
                 <th className="px-6 py-3 font-semibold">Phone</th>
+                <th className="px-6 py-3 font-semibold">CNIC</th>
                 <th className="px-6 py-3 font-semibold">Role</th>
+                <th className="px-6 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -330,15 +372,144 @@ function TeamTab({ token }: { token: string }) {
                   <td className="px-6 py-3.5 text-ink font-semibold">{u.full_name}</td>
                   <td className="px-6 py-3.5 text-muted">{u.email}</td>
                   <td className="px-6 py-3.5 text-muted">{u.phone}</td>
+                  <td className="px-6 py-3.5 text-muted">{u.CNIC}</td>
                   <td className="px-6 py-3.5">
                     <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-[#EAF1FC] text-navy capitalize">
                       {u.role.replace('_', ' ')}
                     </span>
                   </td>
+                  <td className='px-6 py-3.5'>
+                    <button 
+                      onClick={() => handleDeleteUser(u.id)}
+                      className="text-danger hover:text-danger-light focus:outline-none"
+                    >
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsTab({ token }: { token: string }) {
+  const [data, setData] = useState<AdminAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    getAdminAnalytics(token)
+      .then(setData)
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load analytics.'))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return <p className="text-muted text-sm">Loading analytics…</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (!data) return null;
+
+  const maxDaily = Math.max(1, ...data.daily_last_7_days.map((d) => d.revenue));
+  const statusEntries = Object.entries(data.status_counts);
+  const maxStatus = Math.max(1, ...statusEntries.map(([, c]) => c));
+  const channelEntries = Object.entries(data.channel_counts);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-white rounded-card shadow-card p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-1">Total orders</p>
+          <p className="font-display text-3xl font-bold text-navy">{data.total_orders}</p>
+        </div>
+        <div className="bg-white rounded-card shadow-card p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-1">Total revenue (delivered)</p>
+          <p className="font-display text-3xl font-bold text-success">${data.total_revenue.toFixed(2)}</p>
+        </div>
+      </div>
+
+      {/* revenue last 7 days */}
+      <div className="bg-white rounded-card shadow-card p-5">
+        <p className="font-display font-bold text-ink mb-4">Revenue — last 7 days</p>
+        {data.daily_last_7_days.length === 0 ? (
+          <p className="text-sm text-muted">No delivered orders in the last 7 days yet.</p>
+        ) : (
+          <div className="flex items-end gap-3" style={{ height: 140 }}>
+            {data.daily_last_7_days.map((d) => (
+              <div key={d.date} className="flex-1 flex flex-col items-center gap-2">
+                <div
+                  className="w-full rounded-md bg-orange"
+                  style={{ height: `${Math.max(4, (d.revenue / maxDaily) * 100)}px` }}
+                  title={`$${d.revenue.toFixed(2)} · ${d.orders} orders`}
+                />
+                <span className="text-[10px] text-muted">{d.date.slice(5)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* orders by status */}
+        <div className="bg-white rounded-card shadow-card p-5">
+          <p className="font-display font-bold text-ink mb-4">Orders by status</p>
+          <div className="flex flex-col gap-2.5">
+            {statusEntries.map(([status, count]) => (
+              <div key={status} className="flex items-center gap-3">
+                <span className="w-24 text-xs text-muted capitalize shrink-0">{status.replace('_', ' ')}</span>
+                <div className="flex-1 bg-page rounded-full h-2.5 overflow-hidden">
+                  <div className="h-full bg-navy rounded-full" style={{ width: `${(count / maxStatus) * 100}%` }} />
+                </div>
+                <span className="text-xs font-semibold text-ink w-6 text-right">{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* booking channel mix */}
+        <div className="bg-white rounded-card shadow-card p-5">
+          <p className="font-display font-bold text-ink mb-4">Booking channel mix</p>
+          <div className="flex flex-col gap-2.5">
+            {channelEntries.map(([channel, count]) => (
+              <div key={channel} className="flex items-center gap-3">
+                <span className="w-24 text-xs text-muted capitalize shrink-0">{channel.replace('_', ' ')}</span>
+                <div className="flex-1 bg-page rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className="h-full bg-orange rounded-full"
+                    style={{ width: `${(count / Math.max(1, ...channelEntries.map(([, c]) => c))) * 100}%` }}
+                  />
+                </div>
+                <span className="text-xs font-semibold text-ink w-6 text-right">{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* top riders */}
+      <div className="bg-white rounded-card shadow-card p-5">
+        <p className="font-display font-bold text-ink mb-4">Top riders (by delivered orders)</p>
+        {data.top_riders.length === 0 ? (
+          <p className="text-sm text-muted">No delivered orders yet.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {data.top_riders.map((r, i) => (
+              <div key={r.full_name + i} className="flex items-center justify-between border-b border-line last:border-0 py-2.5">
+                <div className="flex items-center gap-3">
+                  <span className="w-6 h-6 rounded-full bg-[#EAF1FC] text-navy text-xs font-bold flex items-center justify-center">
+                    {i + 1}
+                  </span>
+                  <span className="text-sm font-semibold text-ink">{r.full_name}</span>
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="text-muted">{r.deliveries} deliveries</span>
+                  <span className="font-semibold text-success">${r.earnings.toFixed(2)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

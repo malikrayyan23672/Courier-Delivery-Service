@@ -2,7 +2,7 @@ import enum
 import random
 import string
 
-from sqlalchemy import Column, String, Float, ForeignKey, Enum
+from sqlalchemy import Column, String, Float, Boolean, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -61,6 +61,8 @@ class Order(Base, TimestampMixin):
 
     rider_id = Column(UUID_TYPE, ForeignKey("rider_profiles.id"), nullable=True)
     rider = relationship("RiderProfile", back_populates="deliveries")
+    # None = offer awaiting rider response, True = accepted. Declining unassigns the order entirely.
+    rider_accepted = Column(Boolean, nullable=True)
 
     estimated_price = Column(Float, nullable=True)
     final_price = Column(Float, nullable=True)

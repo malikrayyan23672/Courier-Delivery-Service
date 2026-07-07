@@ -1,4 +1,7 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -6,7 +9,7 @@ from app.core.permissions import require_roles
 from app.core.security import hash_password
 from app.models.user import User
 from app.models.role import Role
-from app.models.order import Order
+from app.models.order import Order, OrderStatus
 from app.models.rider import RiderProfile, RiderStatus
 from app.models.tracking_event import TrackingEvent
 from app.schemas.order import OrderOut
@@ -43,6 +46,7 @@ def assign_rider(
 
     order.rider_id = rider.id
     order.status = "assigned"
+    order.rider_accepted = None
     db.add(TrackingEvent(order_id=order.id, status="assigned", note=f"Assigned to rider {rider_id}"))
     db.commit()
 
@@ -78,7 +82,7 @@ def list_staff_and_riders(
     users = (
         db.query(User)
         .join(Role)
-        .filter(Role.name.in_(["staff", "rider", "admin", "super_admin"]))
+        .filter(Role.name.in_(["staff", "rider", "admin", "super_admin", "customer"]))
         .order_by(User.created_at.desc())
         .all()
     )
@@ -109,6 +113,7 @@ def create_staff_or_rider(
         full_name=payload.full_name,
         email=payload.email,
         phone=payload.phone,
+        cnic=payload.cnic,
         hashed_password=hash_password(payload.password),
         role_id=role.id,
         is_active=True,
@@ -124,3 +129,69 @@ def create_staff_or_rider(
     db.refresh(user)
 
     return UserOut.from_orm_with_role(user)
+
+
+@router.get("/analytics")
+def analytics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    """Dashboard summary: order volume, revenue, channel mix, and top riders."""
+    status_rows = db.query(Order.status, func.count(Order.id)).group_by(Order.status).all()
+    status_counts = {(s.value if hasattr(s, "value") else s): c for s, c in status_rows}
+    total_orders = sum(status_counts.values())
+
+    total_revenue = (
+        db.query(func.sum(Order.final_price)).filter(Order.status == OrderStatus.delivered).scalar() or 0.0
+    )
+
+    since = datetime.now(timezone.utc) - timedelta(days=7)
+    daily_rows = (
+        db.query(
+            func.date(Order.created_at).label("day"),
+            func.count(Order.id),
+            func.sum(Order.final_price),
+        )
+        .filter(Order.created_at >= since, Order.status == OrderStatus.delivered)
+        .group_by("day")
+        .order_by("day")
+        .all()
+    )
+    daily = [
+        {"date": str(day), "orders": count, "revenue": round(revenue or 0.0, 2)}
+        for day, count, revenue in daily_rows
+    ]
+
+    channel_rows = db.query(Order.booking_channel, func.count(Order.id)).group_by(Order.booking_channel).all()
+    channel_counts = {(ch.value if hasattr(ch, "value") else ch): c for ch, c in channel_rows}
+
+    top_rider_rows = (
+        db.query(
+            RiderProfile,
+            func.count(Order.id).label("deliveries"),
+            func.sum(Order.final_price).label("earnings"),
+        )
+        .join(Order, Order.rider_id == RiderProfile.id)
+        .filter(Order.status == OrderStatus.delivered)
+        .group_by(RiderProfile.id)
+        .order_by(func.count(Order.id).desc())
+        .limit(5)
+        .all()
+    )
+    top_riders = [
+        {
+            "full_name": rider.user.full_name,
+            "deliveries": deliveries,
+            "earnings": round(earnings or 0.0, 2),
+        }
+        for rider, deliveries, earnings in top_rider_rows
+    ]
+
+    return {
+        "total_orders": total_orders,
+        "total_revenue": round(total_revenue, 2),
+        "status_counts": status_counts,
+        "channel_counts": channel_counts,
+        "daily_last_7_days": daily,
+        "top_riders": top_riders,
+    }

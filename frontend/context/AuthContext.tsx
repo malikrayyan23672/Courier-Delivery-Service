@@ -1,10 +1,14 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { storeTokens, clearStoredTokens } from '@/lib/api';
 
 interface AuthContextValue {
   token: string | null;
   role: string | null;
+  /** Log in: persists both tokens and updates state. */
+  setTokens: (accessToken: string, refreshToken: string) => void;
+  /** Legacy setter: pass null to log out, or a raw access token to set it directly. */
   setToken: (token: string | null) => void;
   isLoading: boolean;
 }
@@ -12,11 +16,12 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue>({
   token: null,
   role: null,
+  setTokens: () => {},
   setToken: () => {},
   isLoading: true,
 });
 
-const STORAGE_KEY = 'fastex_access_token';
+const ACCESS_STORAGE_KEY = 'fastex_access_token';
 
 function decodeRole(token: string | null): string | null {
   if (!token) return null;
@@ -33,22 +38,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(ACCESS_STORAGE_KEY);
     setTokenState(stored);
     setIsLoading(false);
+
+    // Keep state in sync when lib/api.ts silently refreshes or force-logs-out
+    // after a failed refresh (e.g. the refresh token itself expired).
+    function onTokensUpdated(e: Event) {
+      const detail = (e as CustomEvent<{ accessToken: string }>).detail;
+      if (detail?.accessToken) setTokenState(detail.accessToken);
+    }
+    function onLogout() {
+      setTokenState(null);
+    }
+
+    window.addEventListener('auth:tokens-updated', onTokensUpdated);
+    window.addEventListener('auth:logout', onLogout);
+    return () => {
+      window.removeEventListener('auth:tokens-updated', onTokensUpdated);
+      window.removeEventListener('auth:logout', onLogout);
+    };
   }, []);
 
+  function setTokens(accessToken: string, refreshToken: string) {
+    storeTokens(accessToken, refreshToken);
+    setTokenState(accessToken);
+  }
+
   function setToken(next: string | null) {
-    setTokenState(next);
     if (next) {
-      localStorage.setItem(STORAGE_KEY, next);
+      setTokenState(next);
+      localStorage.setItem(ACCESS_STORAGE_KEY, next);
     } else {
-      localStorage.removeItem(STORAGE_KEY);
+      clearStoredTokens();
+      setTokenState(null);
     }
   }
 
   return (
-    <AuthContext.Provider value={{ token, role: decodeRole(token), setToken, isLoading }}>
+    <AuthContext.Provider value={{ token, role: decodeRole(token), setTokens, setToken, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

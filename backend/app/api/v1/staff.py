@@ -64,6 +64,7 @@ def book_walk_in_order(
         pickup=payload.pickup_address,
         dropoff=payload.dropoff_address,
         package_weight_kg=payload.package_weight_kg,
+        package_size=payload.package_size,
         package_description=payload.package_description,
         payment_method=PaymentMethod(payload.payment_method),
         collected_by_staff_id=current_user.id if payload.payment_method == "cash" else None,

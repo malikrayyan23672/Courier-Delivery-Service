@@ -48,6 +48,7 @@ function StaffContent() {
     weight: '',
     description: '',
     payment_method: 'cash',
+    package_size: 'small',
   });
 
   function update(key: keyof typeof form, value: string) {
@@ -74,6 +75,7 @@ function StaffContent() {
           dropoff_address: { full_address: form.dropoff_address, city: form.dropoff_city },
           package_weight_kg: form.weight ? parseFloat(form.weight) : undefined,
           package_description: form.description || undefined,
+          package_size: form.package_size as 'small' | 'medium' | 'large' | 'documents',
           payment_method: form.payment_method as 'cash' | 'card' | 'online_gateway',
         },
         token
@@ -90,6 +92,7 @@ function StaffContent() {
         weight: '',
         description: '',
         payment_method: 'cash',
+        package_size: 'small',
       });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not book order.');
@@ -217,6 +220,20 @@ function StaffContent() {
               <option value="cash">Cash</option>
               <option value="card">Card</option>
               <option value="online_gateway">Online payment link</option>
+            </select>
+          </div>
+
+          <div className="mb-5">
+            <label className="text-[0.82rem] font-semibold text-ink block mb-1.5">Package Size</label>
+            <select
+              value={form.package_size}
+              onChange={(e) => setForm((f) => ({ ...f, package_size: e.target.value }))}
+              className="w-full text-[0.92rem] py-3 px-3.5 rounded-[10px] border-[1.5px] border-line bg-[#FBFCFE] text-ink outline-none focus:border-orange"
+            >
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+              <option value="documents">Documents</option>
             </select>
           </div>
 

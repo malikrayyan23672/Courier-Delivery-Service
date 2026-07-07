@@ -1,8 +1,10 @@
 from sqlalchemy.orm import Session
 
 from app.models.address import Address
-from app.models.order import Order, CreatedByType, BookingChannel
+from app.models.order import Order, CreatedByType, BookingChannel, OrderStatus
 from app.models.payment import Payment, PaymentMethod, PaymentStatus
+from app.models.rider import RiderProfile, RiderStatus
+from app.models.tracking_event import TrackingEvent
 from app.services.pricing_service import estimate_price
 from app.schemas.order import AddressInput
 
@@ -16,6 +18,7 @@ def create_order(
     pickup: AddressInput,
     dropoff: AddressInput,
     package_weight_kg: float | None,
+    package_size: str | None,
     package_description: str | None,
     payment_method: PaymentMethod = PaymentMethod.online_gateway,
     collected_by_staff_id: str | None = None,
@@ -35,6 +38,7 @@ def create_order(
         pickup_address_id=pickup_address.id,
         dropoff_address_id=dropoff_address.id,
         package_weight_kg=package_weight_kg,
+        package_size=package_size,
         package_description=package_description,
         estimated_price=price,
     )
@@ -52,4 +56,29 @@ def create_order(
 
     db.commit()
     db.refresh(order)
+
+    _auto_assign_rider(db, order)
     return order
+
+
+def _auto_assign_rider(db: Session, order: Order) -> RiderProfile | None:
+    rider = (
+        db.query(RiderProfile)
+        .filter(RiderProfile.status == RiderStatus.active, RiderProfile.is_available.is_(True))
+        .order_by(RiderProfile.rating.desc(), RiderProfile.created_at.asc())
+        .first()
+    )
+    if not rider:
+        return None
+
+    order.rider_id = rider.id
+    order.status = OrderStatus.assigned
+    order.rider_accepted = None
+    db.add(
+        TrackingEvent(
+            order_id=order.id,
+            status=OrderStatus.assigned.value,
+            note=f"Auto-assigned to rider {rider.user.full_name}",
+        )
+    )
+    return rider

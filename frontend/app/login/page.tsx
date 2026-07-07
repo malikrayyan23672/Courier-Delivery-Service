@@ -21,7 +21,7 @@ const LOCK_ICON = (
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setToken } = useAuth();
+  const { setTokens } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -33,7 +33,7 @@ export default function LoginPage() {
     setError('');
     try {
       const tokens = await loginUser(email, password);
-      setToken(tokens.access_token);
+      setTokens(tokens.access_token, tokens.refresh_token);
       const payload = JSON.parse(atob(tokens.access_token.split('.')[1]));
       router.push(panelPathForRole(payload.role ?? null));
     } catch (err) {
