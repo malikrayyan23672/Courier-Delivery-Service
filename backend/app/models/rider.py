@@ -19,6 +19,9 @@ class RiderProfile(Base, TimestampMixin):
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
     user_id = Column(UUID_TYPE, ForeignKey("users.id"), unique=True, nullable=False)
 
+    # branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), unique=True, nullable=True)
+    # branch = relationship("Branch", back_populates="rider")
+
     vehicle_type = Column(String(50), nullable=True)   # bike, van, truck
     license_number = Column(String(100), nullable=True)
     id_document_url = Column(String(500), nullable=True)
@@ -33,3 +36,5 @@ class RiderProfile(Base, TimestampMixin):
 
     user = relationship("User", back_populates="rider_profile")
     deliveries = relationship("Order", back_populates="rider")
+
+    status = Column(Enum(RiderStatus), default=RiderStatus.pending_verification)

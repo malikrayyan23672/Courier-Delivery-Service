@@ -167,6 +167,7 @@ function OrdersTab({ token }: { token: string }) {
                 <th className="px-6 py-3 font-semibold">Status</th>
                 <th className="px-6 py-3 font-semibold">Channel</th>
                 <th className="px-6 py-3 font-semibold">Assign Rider</th>
+                <th className="px-6 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -199,6 +200,20 @@ function OrdersTab({ token }: { token: string }) {
                     ) : (
                       <span className="text-muted text-xs">—</span>
                     )}
+                  </td>
+                  <td className="px-6 py-3.5">
+                    <a
+                      href={`/admin/orders/${order.id}`}
+                      className="text-sm font-semibold text-navy hover:text-navy-light transition-colors"
+                    >
+                      View
+                    </a>
+                    <a href={`/admin/orders/${order.id}/edit`} className="ml-4 text-sm font-semibold text-orange hover:text-orange-light transition-colors">
+                      Edit
+                    </a>
+                    <a href={`/admin/orders/${order.id}/delete`} className="ml-4 text-sm font-semibold text-danger hover:text-danger-light transition-colors">
+                      Delete
+                    </a>
                   </td>
                 </tr>
               ))}

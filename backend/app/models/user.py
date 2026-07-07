@@ -19,6 +19,7 @@ class User(Base, TimestampMixin):
     phone = Column(String(20), unique=True, nullable=False, index=True)
     cnic = Column(String(15), unique=True, default=None, nullable=True, index=True)
     hashed_password = Column(String(255), nullable=False)
+    avatar = Column(String(255), default=None, nullable=True)
 
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     role = relationship("Role")
@@ -35,3 +36,7 @@ class User(Base, TimestampMixin):
 
     rider_profile = relationship("RiderProfile", back_populates="user", uselist=False)
     staff_profile = relationship("StaffProfile", back_populates="user", uselist=False)
+
+    # last_login_at = Column(TimestampMixin.TIMESTAMP_TYPE, default=None, nullable=True)
+    # deleted_at = Column(TimestampMixin.TIMESTAMP_TYPE, default=None, nullable=True)
+
