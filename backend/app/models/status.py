@@ -10,3 +10,4 @@ class Status(Base):
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
     name = Column(String(50), unique=True, nullable=False)  # e.g., "pending", "shipped", "delivered"
     description = Column(String(255), nullable=True)  # Optional description of the status
+    

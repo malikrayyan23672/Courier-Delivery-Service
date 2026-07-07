@@ -10,7 +10,7 @@ class RegisterRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=150)
     email: EmailStr
     phone: str = Field(..., min_length=7, max_length=20)
-    cnic: str = Field(..., min_length=13, max_length=13)
+    cnic: str = Field(..., min_length=13, max_length=20)
     password: str = Field(..., min_length=8, max_length=72)
 
     @field_validator("full_name")
@@ -35,8 +35,8 @@ class RegisterRequest(BaseModel):
     @classmethod
     def cnic_valid_format(cls, v: str) -> str:
         v = v.strip()
-        if not CNIC_REGEX.match(v):
-            raise ValueError("CNIC must be 13 digits")
+        # if not CNIC_REGEX.match(v):
+        #     raise ValueError("Please enter correct CNIC")
         
         return v
 

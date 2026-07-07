@@ -108,6 +108,7 @@ export interface RegisterPayload {
   full_name: string;
   email: string;
   phone: string;
+  cnic: string;
   password: string;
 }
 

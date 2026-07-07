@@ -11,5 +11,6 @@ class Invoice(Base, TimestampMixin):
     order = relationship("Order", back_populates="invoice")
     amount = Column(Integer, nullable=False)  # Total amount for the invoice
     status = Column(String(50), default="unpaid")  # e.g., "unpaid", "paid", "overdue"
-    issued_at = Column(TimestampMixin.TIMESTAMP_TYPE, nullable=False)  # When the invoice was issued
-    due_at = Column(TimestampMixin.TIMESTAMP_TYPE, nullable=False)  # When the payment is due
+    # issued_at = Column(TimestampMixin.TIMESTAMP_TYPE, nullable=False)  # When the invoice was issued
+    # issued_at = TimestampMixin.created_at
+    # due_at = Column(TimestampMixin.TIMESTAMP_TYPE, nullable=False)  # When the payment is due

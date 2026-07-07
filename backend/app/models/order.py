@@ -59,7 +59,7 @@ class Order(Base, TimestampMixin):
 
     status = Column(Enum(OrderStatus), default=OrderStatus.created, index=True)
 
-    rider_id = Column(UUID_TYPE, ForeignKey("rider_profiles.id"), nullable=True)
+    rider_id = Column(UUID_TYPE, ForeignKey("riders.id"), nullable=True)
     rider = relationship("RiderProfile", back_populates="deliveries")
     # None = offer awaiting rider response, True = accepted. Declining unassigns the order entirely.
     rider_accepted = Column(Boolean, nullable=True)

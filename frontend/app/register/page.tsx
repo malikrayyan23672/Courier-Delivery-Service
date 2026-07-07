@@ -62,6 +62,7 @@ export default function RegisterPage() {
         full_name: form.full_name,
         email: form.email,
         phone: form.phone,
+        cnic: form.cnic,
         password: form.password,
       });
       setStep('otp');
@@ -155,7 +156,8 @@ export default function RegisterPage() {
                   label="CNIC"
                   icon={null}
                   placeholder='e.g 1620434324'
-                  required
+                  // required
+                  value={form.cnic}
                   onChange={(e) => updateField('cnic', e.target.value)}/>
                 <Field
                   id="password"

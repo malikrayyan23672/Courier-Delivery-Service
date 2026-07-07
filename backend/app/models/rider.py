@@ -14,7 +14,7 @@ class RiderStatus(str, enum.Enum):
 
 
 class RiderProfile(Base, TimestampMixin):
-    __tablename__ = "rider_profiles"
+    __tablename__ = "riders"
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
     user_id = Column(UUID_TYPE, ForeignKey("users.id"), unique=True, nullable=False)

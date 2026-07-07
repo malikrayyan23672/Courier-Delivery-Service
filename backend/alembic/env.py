@@ -28,6 +28,7 @@ from app.models import warehouse
 from app.models import system_setting
 from app.models import pricing_rule
 from app.models import live_tracking
+from app.models import status
 
 
 config = context.config

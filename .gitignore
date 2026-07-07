@@ -22,6 +22,7 @@ env/
 
 ## Alembic
 backend/alembic/versions/*.pyc
+backend/alembic/versions/*.py
 
 ## Node (frontend, once added)
 node_modules/
