@@ -12,6 +12,3 @@ class Route(Base, TimestampMixin):
     destination = Column(String(150), nullable=False)
     distance_km = Column(Integer, nullable=False)  # Distance in kilometers
     estimated_time_min = Column(Integer, nullable=False)  # Estimated time in minutes
-
-    # Relationship to the Order model
-    orders = relationship("Order", back_populates="route")

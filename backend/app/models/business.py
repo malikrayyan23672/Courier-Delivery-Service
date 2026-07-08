@@ -18,6 +18,3 @@ class Business(Base, TimestampMixin):
     credit_limit = Column(Integer, default=0)
     status = Column(String(50), default="active")
     is_active = Column(Boolean, default=True)
-
-    # Relationship to the User model
-    users = relationship("User", back_populates="business")

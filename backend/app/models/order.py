@@ -76,3 +76,8 @@ class Order(Base, TimestampMixin):
 
     payment = relationship("Payment", back_populates="order", uselist=False)
     tracking_events = relationship("TrackingEvent", back_populates="order", order_by="TrackingEvent.created_at")
+    delivery_attempts = relationship("DeliveryAttempt", back_populates="order")
+    invoice = relationship("Invoice", back_populates="order", uselist=False)
+    live_tracking = relationship("LiveTracking", back_populates="order")
+    status_history = relationship("OrderStatusHistory", back_populates="order")
+    rider_assignments = relationship("RiderAssignment", back_populates="order")
