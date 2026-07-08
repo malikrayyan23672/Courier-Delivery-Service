@@ -57,6 +57,7 @@ class AdminCreateUserRequest(RegisterRequest):
     role: str = Field(..., pattern="^(staff|rider|admin|customer|super_admin)$")
     zone_id: str | None = Field(None, description="Zone ID for staff/rider assignment")
     branch_id: str | None = Field(None, description="Branch ID for staff/rider assignment")
+    designation: str | None = Field(None, description="Designation of each staff")
     branch_name: str | None = Field(None, description="Branch name for staff/rider assignment")
     branch_location: str | None = Field(None, description="Branch location for staff/rider assignmet")
 

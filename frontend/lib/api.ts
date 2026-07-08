@@ -387,6 +387,7 @@ export interface StaffProfile{
   branch_name: string;
   branch_location: string;
   branch_id: string;
+  designation: string
 
 }
 

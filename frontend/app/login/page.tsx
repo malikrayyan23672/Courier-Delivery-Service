@@ -35,7 +35,7 @@ export default function LoginPage() {
       const tokens = await loginUser(email, password);
       setTokens(tokens.access_token, tokens.refresh_token);
       const payload = JSON.parse(atob(tokens.access_token.split('.')[1]));
-      router.push(panelPathForRole(payload.role ?? null));
+      router.push(panelPathForRole(payload.role ?? null, payload.designation ?? null));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Login failed.');
     } finally {

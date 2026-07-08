@@ -15,6 +15,8 @@ class StaffProfile(Base, TimestampMixin):
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
     user_id = Column(UUID_TYPE, ForeignKey("users.id"), unique=True, nullable=False)
 
+    designation = Column(String(150), nullable=True)
+
     employee_code = Column(String(50), unique=True, nullable=True)
     branch_name = Column(String(150), nullable=True)
     branch_location = Column(String(255), nullable=True)

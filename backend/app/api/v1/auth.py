@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.models.role import Role
+from app.models.staff import StaffProfile
 from app.schemas.auth import (
     RegisterRequest,
     LoginRequest,
@@ -81,6 +82,7 @@ def confirm_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
 
+
     # Deliberately vague error - don't reveal whether email exists
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
@@ -94,7 +96,19 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             detail="Phone number not verified. Please verify via /auth/verify-otp before logging in.",
         )
 
-    token_data = {"sub": str(user.id), "role": user.role.name}
+    if(user.role_id == 2):
+
+        staff_profile = db.query(StaffProfile).filter(StaffProfile.user_id == user.id).first()
+        print("Role id = 2")
+        token_data = {"sub": str(user.id), "role": user.role.name, "designation": staff_profile.designation}
+        
+    else:
+        print("Role id = something")
+
+        token_data = {"sub": str(user.id), "role": user.role.name}
+
+
+
     return TokenResponse(
         access_token=create_access_token(token_data),
         refresh_token=create_refresh_token(token_data),

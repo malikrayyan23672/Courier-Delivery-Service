@@ -128,7 +128,7 @@ def create_staff_or_rider(
     if payload.role == "rider":
         db.add(RiderProfile(user_id=user.id, status=RiderStatus.active, is_available=False, branch_id=payload.branch_id))
     elif payload.role == "staff":
-        db.add(StaffProfile(user_id=user.id, branch_id=payload.branch_id))
+        db.add(StaffProfile(user_id=user.id, branch_id=payload.branch_id, designation=payload.designation))
 
     db.commit()
     db.refresh(user)

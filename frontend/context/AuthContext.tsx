@@ -87,9 +87,14 @@ export function useAuth() {
 }
 
 /** Maps a backend role name to its panel route. */
-export function panelPathForRole(role: string | null): string {
+export function panelPathForRole(role: string | null, designation: string | null): string {
   switch (role) {
     case 'staff':
+
+      if(designation === "manager"){
+        return '/branch';
+      }
+      
       return '/staff';
     case 'rider':
       return '/rider';

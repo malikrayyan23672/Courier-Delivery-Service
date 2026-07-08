@@ -252,6 +252,7 @@ function SettingsTab({token}: {token: string}){
 function TeamTab({ token }: { token: string }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [staffProfiles, setStaffProfiles] = useState<StaffProfile[]>([])
+  const [showDesignationSelector, setShowDesignationSelector] = useState(true)
   const [branches, setBranches] = useState<Branch[]>([]);
   const [filteredBranches, setFilteredBranches] = useState<Branch[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
@@ -261,7 +262,7 @@ function TeamTab({ token }: { token: string }) {
   const [showStaffBranchSelector, setShowStaffBranchSelector] = useState(true)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer', zone_id: '', branch_id: '' });
+  const [form, setForm] = useState({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer', designation: '', zone_id: '', branch_id: '' });
 
   useEffect(() => {
     loadUsers();
@@ -309,7 +310,7 @@ function TeamTab({ token }: { token: string }) {
       const newUser = await createStaffOrRider(form, token);
       setUsers((prev) => [newUser, ...prev]);
       setShowForm(false);
-      setForm({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff', zone_id: '', branch_id: '' });
+      setForm({ full_name: '', email: '', phone: '', cnic: '', password: '', designation: '', role: 'staff', zone_id: '', branch_id: '' });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create account.');
     } finally {
@@ -393,9 +394,10 @@ function TeamTab({ token }: { token: string }) {
               onChange={(e) => {
                 const newRole = e.target.value as typeof form.role;
                 setForm((f) => ({
-                  ...f, role: newRole, zone_id: '', branch_id: ''
+                  ...f, role: newRole, zone_id: '', branch_id: '', designation: ''
                 }))
                 setShowStaffZoneSelector(newRole === "staff" || newRole === "rider")
+                setShowDesignationSelector(newRole === "staff")
                 setShowStaffBranchSelector(false)
               }}
               className="w-full text-[0.92rem] py-3 px-3.5 rounded-[10px] border-[1.5px] border-line bg-[#FBFCFE] text-ink outline-none focus:border-orange"
@@ -442,6 +444,21 @@ function TeamTab({ token }: { token: string }) {
               {filteredBranches.map((e) => (
                 <option key={e.id} value={e.id}>{e.name}</option>
               ))}
+            </select>
+          </div>           
+          )}
+
+          {showDesignationSelector && (
+            <div className="mb-5">
+            <label className="text-[0.82rem] font-semibold text-ink block mb-1.5">Designation</label>
+            <select
+              value={form.designation}
+              onChange={(e) => setForm((f) => ({ ...f, designation: e.target.value }))}
+              className="w-full text-[0.92rem] py-3 px-3.5 rounded-[10px] border-[1.5px] border-line bg-[#FBFCFE] text-ink outline-none focus:border-orange"
+            >
+              <option value="">Select a designation</option>
+              <option value="manager">Manager</option>
+              <option value="manager">Operator</option>
             </select>
           </div>           
           )}
