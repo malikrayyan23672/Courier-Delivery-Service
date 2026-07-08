@@ -9,6 +9,28 @@ body {
   background: #f3f5f9;
 }
 
+:root{
+    --ink:#0F2648;
+    --slate:#16233D;
+    --muted:#6B7686;
+    --faint:#97A0B0;
+    --border:#E4E8F0;
+    --bg:#F3F5F9;
+    --surface:#FFFFFF;
+    --sidebar:#0F2648;
+    --sidebar-2:#173868;
+    --blue-50:#FDEBDE;
+    --blue-100:#FBDCC4;
+    --blue-500:#F2701A;
+    --blue-600:#F2701A;
+    --blue-700:#C85A10;
+    --success:#1E8E5A; --success-tint:#E4F4EC;
+    --danger:#D8432C; --danger-tint:#FBE9E5;
+    --warn:#B9770E; --warn-tint:#FBF0DC;
+    --gray-tint:#EEF0F4;
+    --radius:12px;
+  }
+
 ::selection {
   background: #ff8a3d;
   color: #fff;
