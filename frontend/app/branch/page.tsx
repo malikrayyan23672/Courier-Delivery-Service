@@ -11,6 +11,8 @@ import {
   listStaffRiders,
   Order as ApiOrder,
   StaffRider,
+  AdminRider,
+  RiderCard,
 } from '@/lib/api';
 import {
   INITIAL_RIDERS, INITIAL_PICKUPS, INITIAL_DELIVERIES, RECEIVING_QUEUE, DISPATCH_QUEUE,
@@ -111,18 +113,44 @@ function mapOrdersToDeliveries(orders: ApiOrder[]): Delivery[] {
   });
 }
 
-function mapApiRiders(apiRiders: StaffRider[]) {
-  if (apiRiders.length === 0) return [];
+// function mapApiRiders(apiRiders: StaffRider[]) {
+//   if (apiRiders.length === 0) return [];
 
-  return apiRiders.map((rider) => ({
-    name: rider.full_name,
-    vehicle: `${rider.vehicle_type || 'vehicle'} · ${rider.phone}`,
-    status: rider.is_available ? 'online' as const : 'offline' as const,
-    score: rider.rating || 5,
-    success: Math.round((rider.rating || 5) * 20),
-    deliveries: 0,
-    gps: rider.is_available ? 'Available for assignment' : 'Unavailable',
-  }));
+//   return apiRiders.map((rider) => ({
+//     name: rider.full_name,
+//     vehicle: `${rider.vehicle_type || 'vehicle'} · ${rider.phone}`,
+//     status: rider.is_available ? 'online' as const : 'offline' as const,
+//     score: rider.rating || 5,
+//     success: Math.round((rider.rating || 5) * 20),
+//     deliveries: 0,
+//     gps: rider.is_available ? 'Available for assignment' : 'Unavailable',
+//   }));
+// }
+
+// function mapApiRiders(apiRiders: AdminRider[]): RiderCard[] {
+//     return apiRiders.map((rider) => ({
+//         name: rider.full_name,
+//         vehicle: `${rider.vehicle_type} · ${rider.phone}`,
+//         status: rider.is_available ? "online" : "offline",
+//         score: rider.rating ?? 5,
+//         success: Math.round((rider.rating ?? 5) * 20),
+//         deliveries: rider.completed_deliveries ?? 0,
+//         gps: rider.current_location ?? "Unknown",
+//     }));
+// }
+
+function mapApiRiders(apiRiders: StaffRider[]): RiderCard[] {
+    return apiRiders.map((rider) => ({
+        name: rider.full_name,
+        vehicle: `${rider.vehicle_type} · ${rider.phone}`,
+        status: rider.is_available ? "online" : "offline",
+        score: rider.rating ?? 5,
+        success: Math.round((rider.rating ?? 5) * 20),
+        deliveries: rider.rating ?? 0,
+        gps: rider.is_available
+            ? "Available for assignment"
+            : "Unavailable",
+    }));
 }
 
 export default function BranchDashboardPage() {
@@ -140,7 +168,10 @@ function BranchDashboardContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
 
-  const [riders, setRiders] = useState(INITIAL_RIDERS);
+  // const [riders, setRiders] = useState(INITIAL_RIDERS);
+  // const [riders, setRiders] = useState<AdminRider[]>([]);
+  const [riders, setRiders] = useState<RiderCard[]>([]);
+
   const [pickups, setPickups] = useState<Pickup[]>(INITIAL_PICKUPS);
   const [deliveries, setDeliveries] = useState<Delivery[]>(INITIAL_DELIVERIES);
   const [scanLog, setScanLog] = useState<ScanLogEntry[]>([]);

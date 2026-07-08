@@ -347,6 +347,16 @@ export interface AdminRider {
   rating: number;
 }
 
+export interface RiderCard{
+  name: string;
+  vehicle: string;
+  status: "online" | "busy" | "offline";
+  score: number;
+  success: number;
+  deliveries: number;
+  gps: string;
+}
+
 export function listRiders(token: string) {
   return request<AdminRider[]>('/admin/riders', { method: 'GET' }, token);
 }
