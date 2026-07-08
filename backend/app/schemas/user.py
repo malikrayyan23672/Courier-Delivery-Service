@@ -4,7 +4,8 @@ from pydantic import BaseModel, EmailStr
 class UserOut(BaseModel):
     id: str
     full_name: str
-    email: EmailStr
+    # email: EmailStr
+    email: str
     phone: str
     cnic: str
     role: str
@@ -18,16 +19,16 @@ class UserOut(BaseModel):
 
     @classmethod
     def from_orm_with_role(cls, user):
-        branch_id = None
-        zone_id = None
-        if user.role.name == "staff" and user.staff_profile:
-            branch_id = str(user.staff_profile.branch_id) if user.staff_profile.branch_id else None
-            if user.staff_profile.branch:
-                zone_id = str(user.staff_profile.branch.zone_id) if user.staff_profile.branch.zone_id else None
-        elif user.role.name == "rider" and user.rider_profile:
-            branch_id = str(user.rider_profile.branch_id) if user.rider_profile.branch_id else None
-            if user.rider_profile.branch:
-                zone_id = str(user.rider_profile.branch.zone_id) if user.rider_profile.branch.zone_id else None
+        # branch_id = None
+        # zone_id = None
+        # if user.role.name == "staff" and user.staff_profile:
+            # branch_id = str(user.staff_profile.branch_id) if user.staff_profile.branch_id else None
+            # if user.staff_profile.branch:
+                # zone_id = str(user.staff_profile.branch.zone_id) if user.staff_profile.branch.zone_id else None
+        # elif user.role.name == "rider" and user.rider_profile:
+            # branch_id = str(user.rider_profile.branch_id) if user.rider_profile.branch_id else None
+            # if user.rider_profile.branch:
+                # zone_id = str(user.rider_profile.branch.zone_id) if user.rider_profile.branch.zone_id else None
 
         return cls(
             id=str(user.id),
@@ -38,6 +39,6 @@ class UserOut(BaseModel):
             role=user.role.name,
             is_active=user.is_active,
             is_verified=user.is_verified,
-            branch_id=branch_id,
-            zone_id=zone_id,
+            # branch_id=branch_id,
+            # zone_id=zone_id,
         )
