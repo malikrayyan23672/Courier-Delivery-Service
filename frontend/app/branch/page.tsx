@@ -2,6 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { RoleGuard } from '@/components/RoleGuard';
+import { useAuth } from '@/context/AuthContext';
+import {
+  ApiError,
+  listAllOrders,
+  listRiders,
+  listStaffOrders,
+  listStaffRiders,
+  Order as ApiOrder,
+  StaffRider,
+} from '@/lib/api';
 import {
   INITIAL_RIDERS, INITIAL_PICKUPS, INITIAL_DELIVERIES, RECEIVING_QUEUE, DISPATCH_QUEUE,
   TRANSFER_HISTORY, AGING_PARCELS, STAFF, ZONES, ACTIVITY, ALERTS,
@@ -47,6 +57,74 @@ const PAGE_META: Record<View, { title: string; sub: string }> = {
   alerts: { title: 'Alerts & Notifications', sub: 'Everything flagged for review' },
 };
 
+function titleStatus(status: string) {
+  return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function deliveryProgress(status: string) {
+  if (status === 'delivered') return 100;
+  if (status === 'in_transit') return 65;
+  if (status === 'picked_up') return 45;
+  if (status === 'assigned') return 25;
+  if (status === 'failed' || status === 'cancelled') return 100;
+  return 0;
+}
+
+function mapOrdersToPickups(orders: ApiOrder[]): Pickup[] {
+  return orders.map((order) => {
+    const status: Pickup['status'] =
+      order.status === 'created' ? 'Pending'
+        : order.status === 'assigned' ? 'Assigned'
+          : order.status === 'failed' || order.status === 'cancelled' ? 'Failed'
+            : 'Picked Up';
+
+    return {
+      id: order.tracking_number,
+      customer: order.pickup_address?.contact_name || order.dropoff_address?.contact_name || 'Walk-in customer',
+      zone: order.pickup_address?.city || order.dropoff_address?.city || 'Branch zone',
+      slot: order.created_at ? new Date(order.created_at).toLocaleString() : 'Today',
+      rider: order.rider_accepted === false ? null : 'Assigned rider',
+      arrival: status === 'Pending' ? 'Not Started' : status === 'Assigned' ? 'En Route' : titleStatus(order.status),
+      status,
+      fail: status === 'Failed' ? titleStatus(order.status) : undefined,
+    };
+  });
+}
+
+function mapOrdersToDeliveries(orders: ApiOrder[]): Delivery[] {
+  return orders.map((order) => {
+    const status: Delivery['status'] =
+      order.status === 'created' ? 'Ready'
+        : order.status === 'delivered' ? 'Delivered'
+          : order.status === 'failed' || order.status === 'cancelled' ? 'Failed'
+            : 'Out for Delivery';
+
+    return {
+      id: order.tracking_number,
+      customer: order.dropoff_address?.contact_name || order.pickup_address?.contact_name || 'Customer',
+      zone: order.dropoff_address?.city || order.pickup_address?.city || 'Branch zone',
+      rider: order.rider_accepted === false ? null : 'Assigned rider',
+      progress: deliveryProgress(order.status),
+      status,
+      proof: order.status === 'delivered' ? 'Recorded' : '-',
+    };
+  });
+}
+
+function mapApiRiders(apiRiders: StaffRider[]) {
+  if (apiRiders.length === 0) return [];
+
+  return apiRiders.map((rider) => ({
+    name: rider.full_name,
+    vehicle: `${rider.vehicle_type || 'vehicle'} · ${rider.phone}`,
+    status: rider.is_available ? 'online' as const : 'offline' as const,
+    score: rider.rating || 5,
+    success: Math.round((rider.rating || 5) * 20),
+    deliveries: 0,
+    gps: rider.is_available ? 'Available for assignment' : 'Unavailable',
+  }));
+}
+
 export default function BranchDashboardPage() {
   return (
     // Branch console needs admin oversight too, not just the branch's own staff
@@ -57,14 +135,18 @@ export default function BranchDashboardPage() {
 }
 
 function BranchDashboardContent() {
+  const { token, role } = useAuth();
   const [view, setView] = useState<View>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
 
+  const [riders, setRiders] = useState(INITIAL_RIDERS);
   const [pickups, setPickups] = useState<Pickup[]>(INITIAL_PICKUPS);
   const [deliveries, setDeliveries] = useState<Delivery[]>(INITIAL_DELIVERIES);
   const [scanLog, setScanLog] = useState<ScanLogEntry[]>([]);
   const [scanInput, setScanInput] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState('');
 
   const [pickupSearch, setPickupSearch] = useState('');
   const [pickupStatusFilter, setPickupStatusFilter] = useState('');
@@ -84,6 +166,28 @@ function BranchDashboardContent() {
     setShelfCells(cells);
   }, []);
 
+  useEffect(() => {
+    if (!token || !role) return;
+
+    setSyncing(true);
+    setSyncError('');
+
+    const isAdminScope = role === 'admin' || role === 'super_admin';
+    const ordersRequest = isAdminScope ? listAllOrders(token) : listStaffOrders(token);
+    const ridersRequest = isAdminScope ? listRiders(token) : listStaffRiders(token);
+
+    Promise.all([ordersRequest, ridersRequest])
+      .then(([ordersData, ridersData]) => {
+        setPickups(mapOrdersToPickups(ordersData));
+        setDeliveries(mapOrdersToDeliveries(ordersData));
+        setRiders(mapApiRiders(ridersData));
+      })
+      .catch((err) => {
+        setSyncError(err instanceof ApiError ? err.message : 'Could not sync branch data with backend.');
+      })
+      .finally(() => setSyncing(false));
+  }, [token, role]);
+
   function toast(msg: string) {
     const id = Date.now();
     setToasts((t) => [...t, { id, msg }]);
@@ -96,9 +200,9 @@ function BranchDashboardContent() {
   }
 
   // ---- derived values (computed every render - never goes stale) ----
-  const onlineRiders = INITIAL_RIDERS.filter((r) => r.status === 'online').length;
-  const busyRiders = INITIAL_RIDERS.filter((r) => r.status === 'busy').length;
-  const offlineRiders = INITIAL_RIDERS.filter((r) => r.status === 'offline').length;
+  const onlineRiders = riders.filter((r) => r.status === 'online').length;
+  const busyRiders = riders.filter((r) => r.status === 'busy').length;
+  const offlineRiders = riders.filter((r) => r.status === 'offline').length;
 
   const pendingPickups = pickups.filter((p) => p.status === 'Pending').length;
   const pickedUpCount = pickups.filter((p) => p.status === 'Picked Up').length;
@@ -123,7 +227,7 @@ function BranchDashboardContent() {
   }), [deliveries, deliverySearch, deliveryStatusFilter]);
 
   function handleQuickAssign(pickupId: string) {
-    const freeRider = INITIAL_RIDERS.find((r) => r.status === 'online');
+    const freeRider = riders.find((r) => r.status === 'online');
     if (!freeRider) {
       toast('No available rider right now.');
       return;
@@ -221,6 +325,14 @@ function BranchDashboardContent() {
         </div>
 
         <div className="p-5 md:p-8 flex flex-col gap-6">
+          {(syncing || syncError) && (
+            <div className={`rounded-xl border px-4 py-3 text-sm ${
+              syncError ? 'bg-[#FBEAE7] border-danger/30 text-danger' : 'bg-[#EAF1FC] border-[#2563EB]/20 text-navy'
+            }`}>
+              {syncError || 'Syncing branch data with backend...'}
+            </div>
+          )}
+
           {view === 'overview' && (
             <OverviewView pendingPickups={pendingPickups} pickedUpCount={pickedUpCount}
               outForDelivery={outForDelivery} deliveredCount={deliveredCount} failedDeliveries={failedDeliveries}
@@ -252,15 +364,15 @@ function BranchDashboardContent() {
 
           {view === 'warehouse' && <WarehouseView shelfCells={shelfCells} />}
 
-          {view === 'riders' && <RidersView onlineRiders={onlineRiders} busyRiders={busyRiders} offlineRiders={offlineRiders} toast={toast} />}
+          {view === 'riders' && <RidersView riders={riders} onlineRiders={onlineRiders} busyRiders={busyRiders} offlineRiders={offlineRiders} toast={toast} />}
 
           {view === 'staff' && <StaffView />}
 
           {view === 'servicearea' && <ServiceAreaView />}
 
-          {view === 'map' && <MapView />}
+          {view === 'map' && <MapView riders={riders} />}
 
-          {view === 'reports' && <ReportsView />}
+          {view === 'reports' && <ReportsView riders={riders} />}
 
           {view === 'alerts' && <AlertsView />}
         </div>
@@ -334,7 +446,7 @@ function OverviewView({ pendingPickups, pickedUpCount, outForDelivery, delivered
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-        {kpis.map((k) => <KpiCard key={k.label} icon={<NavIcon name={k.icon} />} {...k} />)}
+        {kpis.map(({ icon, ...k }) => <KpiCard key={k.label} icon={<NavIcon name={icon} />} {...k} />)}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -679,11 +791,11 @@ function WarehouseView({ shelfCells }: { shelfCells: ('low' | 'mid' | 'high')[] 
 // ============================================================
 // VIEW: RIDERS
 // ============================================================
-function RidersView({ onlineRiders, busyRiders, offlineRiders, toast }: any) {
+function RidersView({ riders, onlineRiders, busyRiders, offlineRiders, toast }: any) {
   return (
     <>
       <StatStrip items={[
-        { num: INITIAL_RIDERS.length, label: 'Total Riders Assigned' },
+        { num: riders.length, label: 'Total Riders Assigned' },
         { num: onlineRiders, label: 'Online / Available' },
         { num: busyRiders, label: 'On Delivery' },
         { num: offlineRiders, label: 'Offline' },
@@ -692,7 +804,7 @@ function RidersView({ onlineRiders, busyRiders, offlineRiders, toast }: any) {
         <h2 className="font-display font-bold text-base mb-1">Rider Roster</h2>
         <p className="text-xs text-muted mb-4">Availability, live status and performance</p>
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {INITIAL_RIDERS.map((r) => {
+          {riders.map((r: typeof INITIAL_RIDERS[number]) => {
             const dotColor = r.status === 'online' ? '#1E8E5A' : r.status === 'busy' ? '#F2A93B' : '#8A94A6';
             return (
               <div key={r.name} className="border border-line rounded-xl p-4">
@@ -785,8 +897,8 @@ function ServiceAreaView() {
 // ============================================================
 // VIEW: MAP
 // ============================================================
-function MapView() {
-  const activeRiders = INITIAL_RIDERS.filter((r) => r.status !== 'offline').slice(0, 7).map((r, i) => ({
+function MapView({ riders }: { riders: typeof INITIAL_RIDERS }) {
+  const activeRiders = riders.filter((r) => r.status !== 'offline').slice(0, 7).map((r, i) => ({
     x: 15 + (i * 11) % 80, y: 15 + (i * 23) % 75, busy: r.status === 'busy', name: r.name,
   }));
   const pickupPins = [{ x: 22, y: 30, label: 'PK-70233' }, { x: 70, y: 20, label: 'PK-70234' }];
@@ -830,10 +942,10 @@ function MapPin({ x, y, color, label }: { x: number; y: number; color: string; l
 // ============================================================
 // VIEW: REPORTS
 // ============================================================
-function ReportsView() {
+function ReportsView({ riders }: { riders: typeof INITIAL_RIDERS }) {
   const week = [{ d: 'Mon', v: 360 }, { d: 'Tue', v: 388 }, { d: 'Wed', v: 410 }, { d: 'Thu', v: 395 }, { d: 'Fri', v: 430 }, { d: 'Sat', v: 448 }, { d: 'Sun', v: 412 }];
   const max = Math.max(...week.map((w) => w.v));
-  const topRiders = [...INITIAL_RIDERS].sort((a, b) => b.deliveries - a.deliveries).slice(0, 6);
+  const topRiders = [...riders].sort((a, b) => b.deliveries - a.deliveries).slice(0, 6);
   const comparisons = [
     { label: 'Delivery Success Rate', branch: 91, network: 87 },
     { label: 'On-Time Pickup Rate', branch: 88, network: 84 },
