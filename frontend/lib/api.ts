@@ -370,8 +370,51 @@ export interface AdminUser {
   is_verified: boolean;
 }
 
+export interface StaffProfile{
+  id: string;
+  user_id: string;
+  employee_code: string;
+  branch_name: string;
+  branch_location: string;
+  branch_id: string;
+
+}
+
+export interface Zone{
+  id: string;
+  name: string;
+  description: string;
+  is_active: boolean
+
+}
+
+export interface Branch{
+  id: string;
+  name: string;
+  address: string;
+  manager_id: string;
+  phone: string;
+  email: string;
+  latitude: string;
+  longitude: string;
+  opening_time: string;
+  closing_time: string;
+  status: string;
+  zone_id: string;
+
+}
+
 export function listStaffAndRiders(token: string) {
   return request<AdminUser[]>('/admin/users', { method: 'GET' }, token);
+}
+
+export function listZones(token: string){
+
+  return request<Zone[]>('/admin/zones', {method: 'GET'}, token);
+}
+
+export function listBranches(token: string){
+  return request<Branch[]>('/admin/branches', {method: 'GET'}, token);
 }
 
 export interface AdminCreateUserPayload {

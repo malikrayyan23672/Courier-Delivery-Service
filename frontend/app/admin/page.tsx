@@ -18,6 +18,11 @@ import {
   AdminUser,
   AdminAnalytics,
   ApiError,
+  listBranches,
+  Branch,
+  Zone,
+  listZones,
+  StaffProfile,
 } from '@/lib/api';
 
 type Tab = 'orders' | 'team' | 'settings' | 'analytics';
@@ -246,14 +251,22 @@ function SettingsTab({token}: {token: string}){
 
 function TeamTab({ token }: { token: string }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [staffProfiles, setStaffProfiles] = useState<StaffProfile[]>([])
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [filteredBranches, setFilteredBranches] = useState<Branch[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showStaffZoneSelector, setShowStaffZoneSelector] = useState(true)
+  const [showStaffBranchSelector, setShowStaffBranchSelector] = useState(true)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer' });
+  const [form, setForm] = useState({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer', zone_id: '', branch_id: '' });
 
   useEffect(() => {
     loadUsers();
+    loadBranches();
+    loadZones();
   }, [token]);
 
   function loadUsers() {
@@ -264,6 +277,30 @@ function TeamTab({ token }: { token: string }) {
       .finally(() => setLoading(false));
   }
 
+  function loadBranches(){
+
+    setLoading(true)
+    listBranches(token)
+    .then(setBranches)
+    .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load branches'))
+    .finally(() => setLoading(false))
+  }
+
+  function filterBranches(zone_id: string){
+
+    setFilteredBranches(branches.filter((o) => o.zone_id == zone_id))
+  }
+
+  function loadZones(){
+
+    setLoading(true)
+    listZones(token)
+    .then(setZones)
+    .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load zones.'))
+    .finally(() => setLoading(false))
+
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -272,7 +309,7 @@ function TeamTab({ token }: { token: string }) {
       const newUser = await createStaffOrRider(form, token);
       setUsers((prev) => [newUser, ...prev]);
       setShowForm(false);
-      setForm({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' });
+      setForm({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff', zone_id: '', branch_id: '' });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create account.');
     } finally {
@@ -353,15 +390,61 @@ function TeamTab({ token }: { token: string }) {
             <label className="text-[0.82rem] font-semibold text-ink block mb-1.5">Role</label>
             <select
               value={form.role}
-              onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as typeof f.role }))}
+              onChange={(e) => {
+                const newRole = e.target.value as typeof form.role;
+                setForm((f) => ({
+                  ...f, role: newRole, zone_id: '', branch_id: ''
+                }))
+                setShowStaffZoneSelector(newRole === "staff" || newRole === "rider")
+                setShowStaffBranchSelector(false)
+              }}
               className="w-full text-[0.92rem] py-3 px-3.5 rounded-[10px] border-[1.5px] border-line bg-[#FBFCFE] text-ink outline-none focus:border-orange"
             >
               <option value="staff">Staff (counter/office)</option>
               <option value="rider">Rider (delivery)</option>
-              <option value="admin">Admin</option>
-              <option value="customer">Customer</option>
+              {/* <option value="admin">Admin</option> */}
+              {/* <option value="customer">Customer</option> */}
             </select>
           </div>
+
+          {showStaffZoneSelector && (
+           <div className="mb-5">
+            <label className="text-[0.82rem] font-semibold text-ink block mb-1.5">Zone</label>
+            <select
+              value={form.zone_id}
+              onChange={(e) => {
+                const selectedZoneId = e.target.value;
+                setForm((f) => ({
+                  ...f, zone_id: selectedZoneId, branch_id: ''
+                }))
+                filterBranches(selectedZoneId)
+                setShowStaffBranchSelector(selectedZoneId !== '')
+              }}
+              className="w-full text-[0.92rem] py-3 px-3.5 rounded-[10px] border-[1.5px] border-line bg-[#FBFCFE] text-ink outline-none focus:border-orange"
+            >
+              <option value="">Select a zone</option>
+              {zones.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          </div>           
+          )}
+
+          {showStaffBranchSelector && (
+           <div className="mb-5">
+            <label className="text-[0.82rem] font-semibold text-ink block mb-1.5">Branch</label>
+            <select
+              value={form.branch_id}
+              onChange={(e) => setForm((f) => ({ ...f, branch_id: e.target.value }))}
+              className="w-full text-[0.92rem] py-3 px-3.5 rounded-[10px] border-[1.5px] border-line bg-[#FBFCFE] text-ink outline-none focus:border-orange"
+            >
+              <option value="">Select a branch</option>
+              {filteredBranches.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          </div>           
+          )}
 
           {error && <p className="text-sm text-danger mb-4">{error}</p>}
 
@@ -405,7 +488,7 @@ function TeamTab({ token }: { token: string }) {
                     </span>
                   </td>
                   <td className='px-6 py-3.5'>
-                    {u.role === "Staff" ? (
+                    {u.role === "Staff" || u.role === "Rider" ? (
                       <button 
                       onClick={() => handleDeleteUser(u.id)}
                       className="text-danger hover:text-danger-light focus:outline-none"
