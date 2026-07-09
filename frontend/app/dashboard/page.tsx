@@ -15,6 +15,7 @@ import {
   MyProfile,
   ApiError,
 } from '@/lib/api';
+import { SelectField } from '@/components/Select';
 
 const BOX_ICON = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -336,6 +337,9 @@ function BookingFormFields({
   submitting: boolean;
   formError: string;
 }) {
+
+  const [dropoffCity, setDropoffCity] = useState('');
+  const [pickupCity, setPickupCity] = useState('');
   return (
     <form onSubmit={handleBook} className="bg-white rounded-card shadow-card p-6 md:p-8 mb-8">
       <h2 className="font-display font-bold text-lg mb-5">Pickup &amp; Drop-off Details</h2>
@@ -349,14 +353,31 @@ function BookingFormFields({
           value={form.pickup_address}
           onChange={(e) => setForm((f) => ({ ...f, pickup_address: e.target.value }))}
         />
-        <Field
+        {/* <Field
           id="pickup_city"
           label="Pickup City"
           icon={BOX_ICON}
           placeholder="e.g. Islamabad"
           value={form.pickup_city}
           onChange={(e) => setForm((f) => ({ ...f, pickup_city: e.target.value }))}
-        />
+        /> */}
+        <SelectField
+            id="pickup_city"
+            label="Pickup city"
+            icon={BOX_ICON}
+            placeholder="Select a pickup city"
+            options={[
+              { label: 'Islamabad', value: 'islamabad' },
+              { label: 'Lahore', value: 'lahore' },
+              { label: 'Karachi', value: 'Karachi' },
+              { label: 'Rawalpindi', value: 'rawalpindi' },
+            ]}
+            value={pickupCity}
+            onChange={(e) => {
+              setPickupCity(e.target.value),
+              setForm((f) => ({...f, pickup_city: e.target.value}))}}
+            // error={errors.country}
+          />
         <Field
           id="pickup_contact_name"
           label="Pickup Contact Name"
@@ -382,14 +403,30 @@ function BookingFormFields({
           value={form.dropoff_address}
           onChange={(e) => setForm((f) => ({ ...f, dropoff_address: e.target.value }))}
         />
-        <Field
+        {/* <Field
           id="dropoff_city"
           label="Drop-off City"
           icon={BOX_ICON}
           placeholder="e.g. Lahore"
           value={form.dropoff_city}
           onChange={(e) => setForm((f) => ({ ...f, dropoff_city: e.target.value }))}
-        />
+        /> */}
+        <SelectField
+            id="dropoff_city"
+            label="Dropoff city"
+            icon={BOX_ICON}
+            placeholder="Select a pickup city"
+            options={[
+              { label: 'Islamabad', value: 'islamabad' },
+              { label: 'Lahore', value: 'lahore' },
+              { label: 'Karachi', value: 'Karachi' },
+              { label: 'Rawalpindi', value: 'rawalpindi' },
+            ]}
+            value={dropoffCity}
+            onChange={(e) => {
+              setDropoffCity(e.target.value)
+              setForm((f) => ({...f, dropoff_city: e.target.value}))}}
+            />
         <Field
           id="dropoff_contact_name"
           label="Recipient Name"

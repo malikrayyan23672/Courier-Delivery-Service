@@ -382,8 +382,8 @@ function BranchDashboardContent() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="font-display text-lg font-bold text-ink truncate">{PAGE_META[view].title}</h1>
-            <div className="text-xs text-muted truncate">{PAGE_META[view].sub}</div>
+            <h1 className="font-display text-lg font-bold text-ink truncate">{branchDetails?.name}</h1>
+            <div className="text-xs text-muted truncate">{branchDetails?.address}</div>
           </div>
           <button onClick={() => switchView('alerts')} className="relative p-2 text-ink hover:bg-page rounded-lg" title="Alerts">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
