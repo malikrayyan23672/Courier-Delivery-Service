@@ -19,7 +19,6 @@ class RiderMeOut(BaseModel):
     class Config:
         from_attributes = True
 
-
 class AvailabilityUpdate(BaseModel):
     is_available: bool
 

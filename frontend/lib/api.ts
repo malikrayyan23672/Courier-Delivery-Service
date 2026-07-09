@@ -1,3 +1,5 @@
+import { UserInfo } from "os";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 const ACCESS_TOKEN_KEY = 'fastex_access_token';
@@ -257,8 +259,19 @@ export function bookStaffOrder(payload: StaffOrderPayload, token: string) {
   return request<Order>('/staff/orders', { method: 'POST', body: JSON.stringify(payload) }, token);
 }
 
+export function getManagerProfile(token: string){
+  return request<ManagerProfile>('/manager/me', {method: 'GET'}, token);
+}
+
 export function listStaffOrders(token: string) {
   return request<Order[]>('/staff/orders', { method: 'GET' }, token);
+}
+
+export interface ManagerProfile{
+  manager_id: string;
+  full_name: string;
+  phone: string;
+
 }
 
 export interface StaffRider {

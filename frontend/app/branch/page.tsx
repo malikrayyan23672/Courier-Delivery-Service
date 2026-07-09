@@ -13,6 +13,8 @@ import {
   StaffRider,
   AdminRider,
   RiderCard,
+  ManagerProfile,
+  getManagerProfile,
 } from '@/lib/api';
 import {
   INITIAL_RIDERS, INITIAL_PICKUPS, INITIAL_DELIVERIES, RECEIVING_QUEUE, DISPATCH_QUEUE,
@@ -20,6 +22,7 @@ import {
   Pickup, Delivery, ScanLogEntry,
 } from './data';
 import { Pill, AvatarChip, KpiCard, StatStrip, Toasts } from './components';
+import { request } from 'http';
 
 type View = 'overview' | 'pickups' | 'deliveries' | 'parcelops' | 'warehouse' | 'riders' | 'staff' | 'servicearea' | 'map' | 'reports' | 'alerts';
 
@@ -139,6 +142,7 @@ function mapOrdersToDeliveries(orders: ApiOrder[]): Delivery[] {
 //     }));
 // }
 
+
 function mapApiRiders(apiRiders: StaffRider[]): RiderCard[] {
     return apiRiders.map((rider) => ({
         name: rider.full_name,
@@ -162,8 +166,12 @@ export default function BranchDashboardPage() {
   );
 }
 
+
 function BranchDashboardContent() {
   const { token, role } = useAuth();
+
+  // const [profile, setProfile] = useState<ManagerProfile>();
+
   const [view, setView] = useState<View>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
@@ -171,6 +179,8 @@ function BranchDashboardContent() {
   // const [riders, setRiders] = useState(INITIAL_RIDERS);
   // const [riders, setRiders] = useState<AdminRider[]>([]);
   const [riders, setRiders] = useState<RiderCard[]>([]);
+
+  const [managerProfile, setManagerProfile] = useState<ManagerProfile>();
 
   const [pickups, setPickups] = useState<Pickup[]>(INITIAL_PICKUPS);
   const [deliveries, setDeliveries] = useState<Delivery[]>(INITIAL_DELIVERIES);
@@ -219,6 +229,21 @@ function BranchDashboardContent() {
       .finally(() => setSyncing(false));
   }, [token, role]);
 
+  function loadManagerProfile(){
+
+    if(!token){
+      return;
+    }
+
+    getManagerProfile(token).then(setManagerProfile).catch((err) => {
+      setSyncError(err instanceof ApiError ? err.message : "could not sync manager profile")
+    }).finally(() => setSyncing(false))
+  }
+
+  useEffect(() => {
+    loadManagerProfile();
+
+  }, [token])
   function toast(msg: string) {
     const id = Date.now();
     setToasts((t) => [...t, { id, msg }]);
@@ -365,7 +390,7 @@ function BranchDashboardContent() {
           )}
 
           {view === 'overview' && (
-            <OverviewView pendingPickups={pendingPickups} pickedUpCount={pickedUpCount}
+            <OverviewView managerProfile={managerProfile} pendingPickups={pendingPickups} pickedUpCount={pickedUpCount}
               outForDelivery={outForDelivery} deliveredCount={deliveredCount} failedDeliveries={failedDeliveries}
               onlineRiders={onlineRiders} busyRiders={busyRiders} switchView={switchView} toast={toast} />
           )}
@@ -417,7 +442,7 @@ function BranchDashboardContent() {
 // ============================================================
 // VIEW: OVERVIEW
 // ============================================================
-function OverviewView({ pendingPickups, pickedUpCount, outForDelivery, deliveredCount, failedDeliveries, onlineRiders, busyRiders, switchView, toast }: any) {
+function OverviewView({managerProfile, pendingPickups, pickedUpCount, outForDelivery, deliveredCount, failedDeliveries, onlineRiders, busyRiders, switchView, toast }: any) {
   const kpis = [
     { icon: 'box', bg: '#2563EB', label: 'Total Shipments Today', num: 412, trend: '+8% vs yesterday', trendColor: '#1E8E5A' },
     { icon: 'clock', bg: '#F2A93B', label: 'Pending Pickups', num: pendingPickups, trend: 'Needs assignment', trendColor: '#B8710A' },
@@ -468,8 +493,10 @@ function OverviewView({ pendingPickups, pickedUpCount, outForDelivery, delivered
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-full bg-navy text-white flex items-center justify-center font-bold text-sm flex-none">HR</div>
             <div>
-              <div className="font-bold text-sm text-ink">Hassan Raza</div>
-              <div className="text-xs text-muted">+92 300 1234567</div>
+              {/* <div className="font-bold text-sm text-ink">{managerProfile.manager_id}</div> */}
+              {/* <div className="text-xs text-muted">+92 300 1234567</div> */}
+              <div className="font-bold text-sm text-ink">{managerProfile?.full_name ?? 'Branch Manager'}</div>
+              <div className="text-xs text-muted">{managerProfile?.phone ?? '—'}</div>
             </div>
           </div>
           <p className="text-xs text-muted mt-3 leading-relaxed">On-site since 6:45 AM. Reachable on radio channel 3 for escalations.</p>
