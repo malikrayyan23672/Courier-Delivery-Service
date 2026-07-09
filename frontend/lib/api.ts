@@ -310,6 +310,12 @@ export function staffAssignRider(orderId: string, riderId: string, token: string
   );
 }
 
+export function deleteUserbyAdmin(user_id: string, token: string){
+  return request<{message: string}>(
+    `/admin/users/delete/${user_id}`, {method: 'DELETE'}, token
+  )
+}
+
 // ---- Rider ----
 
 export interface RiderStats {

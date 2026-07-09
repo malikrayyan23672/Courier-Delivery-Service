@@ -34,9 +34,9 @@ class User(Base, TimestampMixin):
         back_populates="customer",
     )
 
-    rider_profile = relationship("RiderProfile", back_populates="user", uselist=False)
-    staff_profile = relationship("StaffProfile", back_populates="user", uselist=False)
-    customer_profile = relationship("Customer", back_populates="user", uselist=False)
+    rider_profile = relationship("RiderProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    staff_profile = relationship("StaffProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    customer_profile = relationship("Customer", back_populates="user", uselist=False, cascade="all, delete-orphan")
     managed_branches = relationship("Branch", back_populates="manager")
     managed_warehouses = relationship("Warehouse", back_populates="manager")
     notifications = relationship("Notification", back_populates="user")

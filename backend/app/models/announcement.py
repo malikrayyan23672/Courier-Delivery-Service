@@ -17,10 +17,10 @@ class Announcement(Base, TimestampMixin):
     title = Column(String(150), nullable=False)
     body = Column(String(1000), nullable=False)
 
-    branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=True)
+    branch_id = Column(UUID_TYPE, ForeignKey("branches.id", ondelete="SET NULL"), nullable=True)
     branch = relationship("Branch")
 
-    created_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    created_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by = relationship("User", foreign_keys=[created_by_id])
 
     is_active = Column(Boolean, default=True)

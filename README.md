@@ -85,6 +85,7 @@ Requires the backend to already be running and reachable at the URL in `.env.loc
 | Role | Frontend Panel | Backend Access |
 |---|---|---|
 | `customer` | `/dashboard` | Book orders online, view own order history, track shipments |
+| `manager` | `/branch` |
 | `staff` | `/staff` | Book walk-in orders on behalf of customers, collect cash payments |
 | `rider` | `/rider` | View assigned deliveries, advance delivery status step by step |
 | `admin` / `super_admin` | `/admin` | View all orders, assign riders, onboard staff/rider/admin accounts |

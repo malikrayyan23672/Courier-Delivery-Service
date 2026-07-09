@@ -91,6 +91,17 @@ def list_staff_and_riders(
     )
     return [UserOut.from_orm_with_role(u) for u in users]
 
+@router.delete("/users/delete/{user_id}", status_code=204)
+def delete_staff_or_rider(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin","super_admin"))):
+
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=502, detail="user not found to delete")
+
+    db.delete(user)
+    db.commit()
+
 
 @router.post("/users", response_model=UserOut, status_code=201)
 def create_staff_or_rider(

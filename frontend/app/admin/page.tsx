@@ -23,6 +23,7 @@ import {
   Zone,
   listZones,
   StaffProfile,
+  deleteUserbyAdmin,
 } from '@/lib/api';
 
 type Tab = 'orders' | 'team' | 'settings' | 'analytics';
@@ -321,6 +322,7 @@ function TeamTab({ token }: { token: string }) {
   function handleDeleteUser(id: string): void {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     setError('');
+    deleteUserbyAdmin(id,token);
     setUsers((prev) => prev.filter((u) => u.id !== id));
   }
 
@@ -505,7 +507,7 @@ function TeamTab({ token }: { token: string }) {
                     </span>
                   </td>
                   <td className='px-6 py-3.5'>
-                    {u.role === "Staff" || u.role === "Rider" ? (
+                    {u.role === "staff" || u.role === "rider" || u.role === "customer" ? (
                       <button 
                       onClick={() => handleDeleteUser(u.id)}
                       className="text-danger hover:text-danger-light focus:outline-none"
