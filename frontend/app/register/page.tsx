@@ -15,6 +15,11 @@ const USER_ICON = (
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
   </svg>
 );
+
+const CNIC_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2.2"/><path d="M14 10h5M14 14h5"/></svg>
+)
+
 const MAIL_ICON = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 6-10 7L2 6" />
@@ -154,7 +159,7 @@ export default function RegisterPage() {
                   id="cnic"
                   type="tel"
                   label="cnic"
-                  icon={null}
+                  icon={CNIC_ICON}
                   placeholder='e.g 1620434324'
                   // required
                   value={form.cnic}
