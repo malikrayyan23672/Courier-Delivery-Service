@@ -241,6 +241,17 @@ export interface MyProfile {
   is_verified: boolean;
 }
 
+export interface BranchDetails{
+  id: string;
+  name: string;
+  address: string;
+  manager_id: string;
+  phone: string;
+  email: string;
+  latitude: string | null;
+  logitude: string | null;
+}
+
 export function getMyProfile(token: string) {
   return request<MyProfile>('/customer/me', { method: 'GET' }, token);
 }
@@ -257,6 +268,10 @@ export interface StaffOrderPayload extends OrderCreatePayload {
 
 export function bookStaffOrder(payload: StaffOrderPayload, token: string) {
   return request<Order>('/staff/orders', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function getBranchDetails(token: string){
+  return request<BranchDetails>('/manager/branch/location', {method: 'GET'}, token);
 }
 
 export function getManagerProfile(token: string){

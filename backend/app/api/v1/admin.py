@@ -129,6 +129,14 @@ def create_staff_or_rider(
         db.add(RiderProfile(user_id=user.id, status=RiderStatus.active, is_available=False, branch_id=payload.branch_id))
     elif payload.role == "staff":
         db.add(StaffProfile(user_id=user.id, branch_id=payload.branch_id, designation=payload.designation))
+        branch = db.query(Branch).filter(Branch.id == payload.branch_id).first()
+
+        if not branch:
+            raise HTTPException(status_code=400, detail='branch could not found')
+
+        branch.manager_id = user.id
+        # db.add(TrackingEvent())
+        db.commit()
 
     db.commit()
     db.refresh(user)

@@ -15,6 +15,8 @@ import {
   RiderCard,
   ManagerProfile,
   getManagerProfile,
+  getBranchDetails,
+  BranchDetails,
 } from '@/lib/api';
 import {
   INITIAL_RIDERS, INITIAL_PICKUPS, INITIAL_DELIVERIES, RECEIVING_QUEUE, DISPATCH_QUEUE,
@@ -194,6 +196,8 @@ function BranchDashboardContent() {
   const [deliverySearch, setDeliverySearch] = useState('');
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState('');
 
+  const [branchDetails, setBranchDetails] = useState<BranchDetails>();
+
   // Random shelf occupancy visualization - generated client-side only after
   // mount, never during render, so server and client HTML always match on
   // first paint (Math.random() during render causes hydration mismatches)
@@ -229,6 +233,17 @@ function BranchDashboardContent() {
       .finally(() => setSyncing(false));
   }, [token, role]);
 
+  function loadBranchDetails(){
+
+    if(!token){
+      return;
+    }
+
+    getBranchDetails(token).then(setBranchDetails).catch((error) => {
+      setSyncError(error instanceof ApiError ? error.message : "could not sync branch details")
+    }).finally(() => setSyncing(false));
+  }
+
   function loadManagerProfile(){
 
     if(!token){
@@ -242,6 +257,7 @@ function BranchDashboardContent() {
 
   useEffect(() => {
     loadManagerProfile();
+    loadBranchDetails();
 
   }, [token])
   function toast(msg: string) {
@@ -349,7 +365,8 @@ function BranchDashboardContent() {
         ))}
 
         <div className="mt-auto pt-4 border-t border-white/10 text-xs text-white/50">
-          Lahore Central Branch
+          {/* Lahore Central Branch */}
+          {branchDetails?.address}
           <div className="text-white/70 font-semibold mt-0.5">LHE-CTR-01 · Punjab Region</div>
         </div>
       </aside>
@@ -390,7 +407,7 @@ function BranchDashboardContent() {
           )}
 
           {view === 'overview' && (
-            <OverviewView managerProfile={managerProfile} pendingPickups={pendingPickups} pickedUpCount={pickedUpCount}
+            <OverviewView managerProfile={managerProfile} branchDetails={branchDetails} pendingPickups={pendingPickups} pickedUpCount={pickedUpCount}
               outForDelivery={outForDelivery} deliveredCount={deliveredCount} failedDeliveries={failedDeliveries}
               onlineRiders={onlineRiders} busyRiders={busyRiders} switchView={switchView} toast={toast} />
           )}
@@ -442,7 +459,7 @@ function BranchDashboardContent() {
 // ============================================================
 // VIEW: OVERVIEW
 // ============================================================
-function OverviewView({managerProfile, pendingPickups, pickedUpCount, outForDelivery, deliveredCount, failedDeliveries, onlineRiders, busyRiders, switchView, toast }: any) {
+function OverviewView({managerProfile, branchDetails, pendingPickups, pickedUpCount, outForDelivery, deliveredCount, failedDeliveries, onlineRiders, busyRiders, switchView, toast }: any) {
   const kpis = [
     { icon: 'box', bg: '#2563EB', label: 'Total Shipments Today', num: 412, trend: '+8% vs yesterday', trendColor: '#1E8E5A' },
     { icon: 'clock', bg: '#F2A93B', label: 'Pending Pickups', num: pendingPickups, trend: 'Needs assignment', trendColor: '#B8710A' },
@@ -469,7 +486,7 @@ function OverviewView({managerProfile, pendingPickups, pickedUpCount, outForDeli
       <div className="bg-white border border-line rounded-2xl p-6 flex flex-col lg:flex-row gap-6 justify-between">
         <div>
           <div className="flex items-center gap-2 flex-wrap mb-1.5">
-            <h2 className="font-display text-xl font-bold text-ink">Lahore Central Branch</h2>
+            <h2 className="font-display text-xl font-bold text-ink">{branchDetails?.address}</h2>
             <Pill status="green" label="● Active" />
             <Pill status="blue" label="Regional Hub" />
           </div>
