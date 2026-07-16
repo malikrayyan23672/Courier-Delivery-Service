@@ -4,8 +4,10 @@ from pydantic import BaseModel
 
 from app.database import get_db
 from app.core.permissions import require_roles
+from app.models.staff import StaffProfile
 from app.models.user import User
 from app.models.branch import Branch
+from typing import Optional
 
 router = APIRouter(prefix="/manager", tags=["Manager"])
 
@@ -21,8 +23,8 @@ class BranchLocationOut(BaseModel):
     name: str
     address: str
     manager_id: str
-    phone: str
-    email: str
+    phone: Optional[str]
+    email: Optional[str]
     latitude: str | None
     longitude: str | None
 
@@ -44,13 +46,48 @@ def my_profile(
         phone=current_user.phone,
     )
 
-@router.get('/branch/location', response_model=BranchLocationOut)
-def branch_location(db: Session = Depends(get_db), current_user: User = Depends(require_roles("staff", "admin", "super_admin"))):
+# @router.get('/branch/location', response_model=BranchLocationOut)
+# def branch_location(db: Session = Depends(get_db), current_user: User = Depends(require_roles("staff", "admin", "super_admin"))):
 
-    branch = db.query(Branch).filter(Branch.manager_id == current_user.id).first()
+#     branch = db.query(Branch).filter(Branch.manager_id == current_user.id).first()
+
+#     if not branch:
+#         raise HTTPException(status_code=400, detail=f"could not found branch manager_id = {current_user.staff_profile.id}")
+
+#     return BranchLocationOut(
+#         id=branch.id,
+#         name=branch.name,
+#         address=branch.address,
+#         manager_id=branch.manager_id,
+#         phone=branch.phone,
+#         email=branch.email,
+#         latitude=branch.latitude,
+#         longitude=branch.longitude
+
+#     )
+
+@router.get('/branch/location', response_model=BranchLocationOut)
+def branch_location(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+):
+    staff_profile = current_user.staff_profile
+    # staff_profile = db.query(StaffProfile).filter(StaffProfile.id == staff_profile.id)
+
+    if not staff_profile:
+        raise HTTPException(
+            status_code=400,
+            detail="staff profile not found"
+        )
+    # manager_lookup_id = staff_profile.user_id if staff_profile else current_user.id
+
+    branch = db.query(Branch).filter(Branch.manager_id == staff_profile.user_id).first()
 
     if not branch:
-        raise HTTPException(status_code=400, detail=f"could not found branch manager_id = {current_user.staff_profile.id}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"could not find branch for manager_id = {staff_profile.user_id}"
+        )
 
     return BranchLocationOut(
         id=branch.id,
@@ -60,6 +97,5 @@ def branch_location(db: Session = Depends(get_db), current_user: User = Depends(
         phone=branch.phone,
         email=branch.email,
         latitude=branch.latitude,
-        longitude=branch.longitude
-
+        longitude=branch.longitude,
     )
