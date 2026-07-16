@@ -4,9 +4,11 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.models.role import Role
+from app.models.business import Business
 from app.models.staff import StaffProfile
 from app.schemas.auth import (
     RegisterRequest,
+    BusinessRegisterRequest,
     LoginRequest,
     TokenResponse,
     RefreshRequest,
@@ -24,6 +26,54 @@ from app.services.otp_service import send_otp, verify_otp
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+@router.post("/business/register", status_code=status.HTTP_201_CREATED)
+def register_business(payload: BusinessRegisterRequest, db: Session = Depends(get_db)):
+    existing = db.query(User).filter((User.email == payload.email) | (User.phone == payload.phone)).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="Email or phone number already registered")
+
+    user = User(
+        full_name = payload.full_name,
+        email=payload.email,
+        phone=payload.phone,
+        cnic=payload.cnic,
+        hashed_password=hash_password(payload.password),
+        role_id=6,
+        is_verified=False,
+
+    )
+
+    business = Business(
+    company_name=payload.business_name,
+    # email= string,
+    # phone= string,
+    # cnic= string,
+    # password= string;,
+    # business_name=payload.,
+    business_type = payload.business_type,
+    business_registration_number = payload.business_registration_number,
+    ntn = payload.ntn, #national tax number -> optional
+    estimated_monthly_shipments= payload.estimated_monthly_shipments,
+    business_address= payload.business_address,
+    pickup_address= payload.pickup_address,
+    city= payload.city,
+    province= payload.province,
+    postal_code= payload.postal_code,
+    country= payload.country,
+    preffered_pickup_time= payload.preffered_pickup_time,
+    cod_service= payload.cod_service,
+    bank_name= payload.bank_name,
+    account_title= payload.account_title,
+    account_number = payload.account_number
+
+
+
+    )
+    db.add(user)
+    db.add(business)
+    db.commit()
+    db.refresh(user)
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):

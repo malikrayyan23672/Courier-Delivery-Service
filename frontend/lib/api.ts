@@ -114,6 +114,39 @@ export interface RegisterPayload {
   password: string;
 }
 
+export interface RegisterBusinessPayload{
+  full_name: string;
+  email: string;
+  phone: string;
+  cnic: string;
+  password: string;
+  business_name: string;
+  business_type: string;
+  business_registration_number: string;
+  ntn: string; //national tax number -> optional
+  estimated_monthly_shipments: string;
+  business_address: string;
+  pickup_address: string;
+  city: string;
+  province: string;
+  postal_code: string;
+  country: string;
+  preffered_pickup_time: string;
+  cod_service: boolean;
+  bank_name: string;
+  account_title: string;
+  account_number: string;
+
+
+}
+
+export function registerBusinessUser(payload: RegisterBusinessPayload){
+  return request<{message: string; user_id: string}>('/auth/business/register', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function registerUser(payload: RegisterPayload) {
   return request<{ message: string; user_id: string }>('/auth/register', {
     method: 'POST',

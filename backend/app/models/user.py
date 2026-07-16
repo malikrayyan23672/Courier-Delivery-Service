@@ -27,6 +27,10 @@ class User(Base, TimestampMixin):
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
 
+    # Optional business account this user belongs to (enterprise/seller accounts)
+    business_id = Column(UUID_TYPE, ForeignKey("businesses.id"), nullable=True)
+    business = relationship("Business", back_populates="users")
+
     # Orders this user placed as a customer
     orders_placed = relationship(
         "Order",
@@ -40,6 +44,3 @@ class User(Base, TimestampMixin):
     managed_branches = relationship("Branch", back_populates="manager")
     managed_warehouses = relationship("Warehouse", back_populates="manager")
     notifications = relationship("Notification", back_populates="user")
-
-    # last_login_at = Column(TimestampMixin.TIMESTAMP_TYPE, default=None, nullable=True)
-    # deleted_at = Column(TimestampMixin.TIMESTAMP_TYPE, default=None, nullable=True)
