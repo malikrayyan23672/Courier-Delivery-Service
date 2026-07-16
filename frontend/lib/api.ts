@@ -1,5 +1,3 @@
-import { UserInfo } from "os";
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 const ACCESS_TOKEN_KEY = 'fastex_access_token';
@@ -250,6 +248,8 @@ export interface RiderContact {
   phone: string;
   vehicle_type?: string | null;
   rating: number;
+  current_lat?: number | null;
+  current_lng?: number | null;
 }
 
 export interface OrderDetail extends Order {
@@ -374,6 +374,14 @@ export function updateRiderAvailability(isAvailable: boolean, token: string) {
   return request<{ is_available: boolean }>(
     '/rider/availability',
     { method: 'PATCH', body: JSON.stringify({ is_available: isAvailable }) },
+    token
+  );
+}
+
+export function updateRiderLocation(lat: number, lng: number, token: string) {
+  return request<{ lat: number; lng: number }>(
+    '/rider/location',
+    { method: 'PATCH', body: JSON.stringify({ lat, lng }) },
     token
   );
 }

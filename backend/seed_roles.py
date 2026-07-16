@@ -10,7 +10,7 @@ ROLES = [
     ("staff", "Office/counter staff who book walk-in orders"),
     ("rider", "Delivery partner who fulfills orders"),
     ("admin", "Operations staff with broad management access"),
-    ("manager", "Manages branch operations")
+    ("manager", "Manages branch operations"),
     ("super_admin", "Full system access including pricing and config"),
 ]
 

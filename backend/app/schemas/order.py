@@ -120,9 +120,11 @@ class PaymentOut(BaseModel):
 
 class RiderContactOut(BaseModel):
     full_name: str
-    phone: Optional[str] 
+    phone: str
     vehicle_type: Optional[str] = None
     rating: float
+    current_lat: Optional[float] = None
+    current_lng: Optional[float] = None
 
     class Config:
         from_attributes = True

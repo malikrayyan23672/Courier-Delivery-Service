@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RoleGuard } from '@/components/RoleGuard';
@@ -11,10 +11,16 @@ import {
   respondToDelivery,
   getRiderProfile,
   updateRiderAvailability,
+  updateRiderLocation,
   Order,
   RiderMe,
   ApiError,
 } from '@/lib/api';
+
+// Minimum time between location PATCH calls to the backend. watchPosition can fire
+// far more often than this (especially with enableHighAccuracy) - without a throttle
+// we'd hammer the API and cause frequent state updates for no visible benefit.
+const LOCATION_SEND_INTERVAL_MS = 15000;
 
 /* ---------------------------------- icons ---------------------------------- */
 
@@ -35,6 +41,13 @@ const FLAG_ICON = (
 const BOX_ICON = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
     <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+  </svg>
+);
+
+const LOCATE_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 2v3M12 19v3M22 12h-3M5 12H2" />
   </svg>
 );
 
@@ -111,12 +124,73 @@ function RiderContent() {
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
+  // Live location tracking - kept in its own isolated state so a GPS ping never
+  // touches `deliveries`/`profile`/the loading flags, and therefore never causes
+  // the delivery list or profile card to flicker/re-render.
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationUpdatedAt, setLocationUpdatedAt] = useState<Date | null>(null);
+  const [locationError, setLocationError] = useState('');
+  const watchIdRef = useRef<number | null>(null);
+  const lastSentAtRef = useRef(0);
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
+
   useEffect(() => {
     if (!token) return;
     loadProfile();
     loadDeliveries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Start/stop the GPS watch whenever the rider's online status changes - not on
+  // every render, and not tied to anything that re-fetches deliveries or profile.
+  useEffect(() => {
+    if (profile?.is_available) {
+      startWatchingLocation();
+    } else {
+      stopWatchingLocation();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.is_available]);
+
+  useEffect(() => {
+    return () => stopWatchingLocation(); // safety net on unmount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function startWatchingLocation() {
+    if (watchIdRef.current != null) return; // already watching
+    if (!('geolocation' in navigator)) {
+      setLocationError("This device/browser doesn't support location sharing.");
+      return;
+    }
+    setLocationError('');
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setCoords(next); // cheap local state, no refetch triggered
+
+        const now = Date.now();
+        if (now - lastSentAtRef.current < LOCATION_SEND_INTERVAL_MS) return;
+        lastSentAtRef.current = now;
+
+        const currentToken = tokenRef.current;
+        if (!currentToken) return;
+        updateRiderLocation(next.lat, next.lng, currentToken)
+          .then(() => setLocationUpdatedAt(new Date()))
+          .catch(() => {}); // silent - a dropped background ping shouldn't flash an error banner
+      },
+      () => setLocationError('Location permission denied - turn it on to share live location.'),
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+    );
+  }
+
+  function stopWatchingLocation() {
+    if (watchIdRef.current != null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+  }
 
   function loadProfile() {
     if (!token) return;
@@ -269,9 +343,40 @@ function RiderContent() {
           </button>
         </div>
 
+        {/* live location - isolated state, updates here never touch the delivery list below */}
+        {profile?.is_available && (
+          <div className="bg-white rounded-card shadow-card p-4 mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm">
+              <span className={locationUpdatedAt ? 'text-success' : 'text-muted'}>{LOCATE_ICON}</span>
+              {coords && locationUpdatedAt ? (
+                <span className="text-ink">
+                  Sharing live location —{' '}
+                  <span className="font-mono text-xs text-muted">
+                    {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
+                  </span>{' '}
+                  <span className="text-xs text-muted">· updated {locationUpdatedAt.toLocaleTimeString()}</span>
+                </span>
+              ) : (
+                <span className="text-muted">Getting your location…</span>
+              )}
+            </div>
+            {locationError && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-danger">{locationError}</span>
+                <button
+                  onClick={startWatchingLocation}
+                  className="text-sm font-semibold text-orange hover:opacity-80 transition-opacity"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          <StatCard label="Today's earnings" value={profileLoading ? '—' : `$${profile?.stats.earnings_today.toFixed(2)}`} accent="text-success" />
+          <StatCard label="Today's earnings" value={profileLoading ? '—' : `$${(profile?.stats.earnings_today ?? 0).toFixed(2)}`} accent="text-success" />
           <StatCard label="Delivered today" value={profileLoading ? '—' : String(profile?.stats.deliveries_today ?? 0)} accent="text-navy" />
           <StatCard label="Active now" value={profileLoading ? '—' : String(profile?.stats.active_deliveries ?? 0)} accent="text-orange" />
         </div>
