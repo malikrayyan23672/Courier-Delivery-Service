@@ -2,7 +2,8 @@ import re
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 # E.164-ish format: optional +, 7-15 digits total. Adjust to your target country if needed.
-PHONE_REGEX = re.compile(r"^\+?[0-9]{7,15}$")
+# PHONE_REGEX = re.compile(r"^\+?[0-9]{7,15}$")
+PHONE_REGEX = re.compile(r"^((\+92)?(0092)?(92)?(0)?)(3\d{2}-\d{7}|3\d{9})$")
 CNIC_REGEX = re.compile(r"/^([0-9]{5})[\-]([0-9]{7})[\-]([0-9]{1})+/")
 
 class BusinessRegisterRequest(BaseModel):

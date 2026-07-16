@@ -250,6 +250,23 @@ function SettingsTab({token}: {token: string}){
   );
 }
 
+interface FormState {
+  full_name: string;
+  email: string;
+  phone: string;
+  cnic: string;
+  password: string;
+  role: 'staff' | 'rider' | 'admin' | 'customer';
+  designation: string;
+  zone_id: string;
+  branch_id: string;
+}
+
+  // const [form, setForm] = useState({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer', designation: '', zone_id: '', branch_id: '' });
+const INITIAL_FORM: FormState = {
+  full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer', designation: '', zone_id: '', branch_id: '',
+};
+
 function TeamTab({ token }: { token: string }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [staffProfiles, setStaffProfiles] = useState<StaffProfile[]>([])
@@ -262,8 +279,9 @@ function TeamTab({ token }: { token: string }) {
   const [showStaffZoneSelector, setShowStaffZoneSelector] = useState(true)
   const [showStaffBranchSelector, setShowStaffBranchSelector] = useState(true)
   const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer', designation: '', zone_id: '', branch_id: '' });
+  // const [form, setForm] = useState({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer', designation: '', zone_id: '', branch_id: '' });
 
   useEffect(() => {
     loadUsers();
@@ -309,6 +327,7 @@ function TeamTab({ token }: { token: string }) {
     setError('');
     try {
       const newUser = await createStaffOrRider(form, token);
+
       setUsers((prev) => [newUser, ...prev]);
       setShowForm(false);
       setForm({ full_name: '', email: '', phone: '', cnic: '', password: '', designation: '', role: 'staff', zone_id: '', branch_id: '' });
@@ -325,6 +344,61 @@ function TeamTab({ token }: { token: string }) {
     deleteUserbyAdmin(id,token);
     setUsers((prev) => prev.filter((u) => u.id !== id));
   }
+
+  const ICONS = {
+  user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></>,
+  pin: <><path d="M12 22s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z" /><circle cx="12" cy="10" r="2.5" /></>,
+  mail: <><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m2 6 10 7 10-7" /></>,
+  phone: <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 3a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.2-1.3a2 2 0 0 1 2.1-.5c1 .3 2 .5 3 .7a2 2 0 0 1 1.7 2z" />,
+  lock: <><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
+  idCard: <><rect x="2" y="5" width="20" height="14" rx="2" /><circle cx="8" cy="12" r="2.2" /><path d="M14 10h5M14 14h5" /></>,
+  building: <><rect x="3" y="3" width="12" height="18" rx="1" /><path d="M15 8h6v13h-6M7 7h.01M11 7h.01M7 11h.01M11 11h.01M7 15h.01M11 15h.01" /></>,
+  layers: <><path d="m21 8-9-6-9 6 9 6 9-6z" /><path d="M3 8v8l9 6 9-6V8" /></>,
+  doc: <><path d="M9 12h6M9 16h6M9 8h6" /><rect x="4" y="3" width="16" height="18" rx="2" /></>,
+  tax: <><path d="M4 4h16v16H4z" /><path d="M8 9h8M8 13h5" /></>,
+  box: <><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><path d="m3.3 7 8.7 5 8.7-5M12 22V12" /></>,
+  truck: <><rect x="1" y="6" width="15" height="11" /><path d="M16 10h4l3 3v4h-7z" /><circle cx="6" cy="18" r="2" /><circle cx="18.5" cy="18" r="2" /></>,
+  city: <path d="M3 21V9l6-4 6 4v12M15 21v-8l6 4v4" />,
+  map: <path d="M4 4h16v16H4zM4 10h16M10 4v16" />,
+  mailbox: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7h18" /></>,
+  globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.6 3.8 6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-6-3.8-9s1.3-6.4 3.8-9z" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></>,
+  bank: <><path d="M3 10 12 4l9 6" /><path d="M4 10v10h16V10M9 14v4M15 14v4" /></>,
+  card: <><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></>,
+  eye: <><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" /><circle cx="12" cy="12" r="3" /></>,
+  fastDelivery: <><rect x="1" y="6" width="15" height="11" /><path d="M16 10h4l3 3v4h-7z" /><circle cx="6" cy="18" r="2" /><circle cx="18.5" cy="18" r="2" /></>,
+  shield: <path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z" />,
+  worldwide: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.6 3.8 6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-6-3.8-9s1.3-6.4 3.8-9z" /></>,
+  support: <><path d="M3 18v-6a9 9 0 0 1 18 0v6" /><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3z" /><path d="M3 19a2 2 0 0 0 2 2h1v-6H3z" /></>,
+};
+
+function Icon({ path, size = 18 }: { path: React.ReactNode; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {path}
+    </svg>
+  );
+}
+
+function set<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function formatCnic(raw: string): string {
+  const digits = raw.replace(/[^0-9]/g, '').slice(0, 13);
+  let out = digits;
+  if (digits.length > 5) out = digits.slice(0, 5) + '-' + digits.slice(5);
+  if (digits.length > 12) out = out.slice(0, 13) + '-' + digits.slice(12);
+  return out;
+}
+
+function formatPhone(raw: string) : string{
+  const digits = raw.replace(/[^0-9]/g, '').slice(0,11);
+  let out = digits;
+  if(digits.length > 4) out = digits.slice(0,4) + '-' + digits.slice(4);
+
+  return out;
+}
 
   return (
     <div>
@@ -345,6 +419,7 @@ function TeamTab({ token }: { token: string }) {
             <Field
               id="full_name"
               label="Full Name"
+              placeholder='Enter your full name'
               icon={USER_ICON}
               required
               value={form.full_name}
@@ -355,6 +430,7 @@ function TeamTab({ token }: { token: string }) {
               type="email"
               label="Email"
               icon={MAIL_ICON}
+              placeholder='Enter email'
               required
               value={form.email}
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
@@ -366,9 +442,10 @@ function TeamTab({ token }: { token: string }) {
               placeholder="e.g. 03001234567"
               required
               value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              // onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              onChange={(e) => set('phone', formatPhone(e.target.value))} 
             />
-            <Field
+            {/* <Field
               id="cnic"
               label="cnic"
               placeholder="e.g. 12345-1234567-1"
@@ -376,7 +453,16 @@ function TeamTab({ token }: { token: string }) {
               required
               value={form.cnic}
               onChange={(e) => setForm((f) => ({ ...f, cnic: e.target.value }))}
-            />
+            /> */}
+            <Field 
+            id="cnic" 
+            label="CNIC Number *" 
+            icon={<Icon path={ICONS.idCard} />} 
+            placeholder="#####-#######-#" maxLength={15}
+                        value={form.cnic} 
+                        // onChange={(e) => set('cnic', formatCnic(e.target.value))} error={error.cnic} 
+                        onChange={(e) => set('cnic', formatCnic(e.target.value))} 
+                        />
             <Field
               id="password"
               type="password"

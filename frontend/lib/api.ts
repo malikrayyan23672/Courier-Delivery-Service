@@ -502,6 +502,9 @@ export interface AdminCreateUserPayload {
   cnic: string;
   password: string;
   role: 'staff' | 'rider' | 'admin' | 'customer';
+  designation: string;
+  zone_id: string;
+  branch_id: string
 }
 
 export function createStaffOrRider(payload: AdminCreateUserPayload, token: string) {
