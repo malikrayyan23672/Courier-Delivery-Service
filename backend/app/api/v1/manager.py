@@ -15,7 +15,7 @@ router = APIRouter(prefix="/manager", tags=["Manager"])
 class ManagerProfileOut(BaseModel):
     manager_id: str
     full_name: str
-    phone: str
+    phone: Optional[str]
 
 
 class BranchLocationOut(BaseModel):

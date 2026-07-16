@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 # E.164-ish format: optional +, 7-15 digits total. Adjust to your target country if needed.
@@ -9,7 +10,7 @@ CNIC_REGEX = re.compile(r"/^([0-9]{5})[\-]([0-9]{7})[\-]([0-9]{1})+/")
 class BusinessRegisterRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=150)
     email: EmailStr
-    phone: str = Field(..., min_length=7, max_length=20)
+    phone: Optional[str] = Field(..., min_length=7, max_length=20)
     cnic: str = Field(..., min_length=13, max_length=20)
     password: str = Field(..., min_length=8, max_length=72)
     business_name: str = Field(..., min_length=2, max_length=150)
@@ -74,7 +75,7 @@ class BusinessRegisterRequest(BaseModel):
 class RegisterRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=150)
     email: EmailStr
-    phone: str = Field(..., min_length=7, max_length=20)
+    phone: Optional[str] = Field(..., min_length=7, max_length=20)
     cnic: str = Field(..., min_length=13, max_length=20)
     password: str = Field(..., min_length=8, max_length=72)
 
@@ -90,7 +91,7 @@ class RegisterRequest(BaseModel):
 
     @field_validator("phone")
     @classmethod
-    def phone_valid_format(cls, v: str) -> str:
+    def phone_valid_format(cls, v: Optional[str]) -> Optional[str]:
         v = v.strip()
         if not PHONE_REGEX.match(v):
             raise ValueError("Phone number must be 7-15 digits, optionally starting with +")
@@ -143,7 +144,7 @@ class RefreshRequest(BaseModel):
 
 
 class SendOTPRequest(BaseModel):
-    phone: str = Field(..., min_length=7, max_length=20)
+    phone: Optional[str] = Field(..., min_length=7, max_length=20)
 
     @field_validator("phone")
     @classmethod
@@ -155,7 +156,7 @@ class SendOTPRequest(BaseModel):
 
 
 class VerifyOTPRequest(BaseModel):
-    phone: str = Field(..., min_length=7, max_length=20)
+    phone: Optional[str] = Field(..., min_length=7, max_length=20)
     otp_code: str = Field(..., min_length=6, max_length=6)
 
     @field_validator("otp_code")

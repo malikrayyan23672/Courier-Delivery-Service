@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-
+from sqlalchemy import func
 from app.database import get_db
 from app.models.user import User
 from app.models.role import Role
@@ -130,7 +130,7 @@ def confirm_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()
+    user = db.query(User).filter(func.lower(User.email) == payload.email.lower()).first()
 
 
     # Deliberately vague error - don't reveal whether email exists

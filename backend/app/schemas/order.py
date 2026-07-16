@@ -120,7 +120,7 @@ class PaymentOut(BaseModel):
 
 class RiderContactOut(BaseModel):
     full_name: str
-    phone: str
+    phone: Optional[str] 
     vehicle_type: Optional[str] = None
     rating: float
 

@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr
+from typing import Optional
 
 
 class UserOut(BaseModel):
@@ -6,7 +7,7 @@ class UserOut(BaseModel):
     full_name: str
     # email: EmailStr
     email: str
-    phone: str
+    phone: Optional[str] 
     cnic: str
     role: str
     is_active: bool

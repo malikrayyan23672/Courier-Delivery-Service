@@ -736,12 +736,41 @@ function AssignmentView({ rules, onToggle, unassignedOrders, openAssign }: {
   );
 }
 
+interface FormState{
+  manager_id: string;
+  branch_name: string;
+  email: string;
+  opening_time: string;
+  closing_time: string;
+  phone: string;
+  status: string;
+  zone_id: string;
+  latitude: string;
+  longitude: string;
+}
+
+const INITIAL_FORM: FormState = {
+  manager_id: '',
+  branch_name: '',
+  email: '',
+  opening_time: '',
+  closing_time: '',
+  phone: '',
+  status: '',
+  zone_id: '',
+  latitude: '',
+  longitude: '',
+
+}
+
+
 // ============================================================
 // BRANCHES
 // ============================================================
 function BranchesView({ branches, zones }: { branches: Branch[]; zones: Zone[] }) {
 
     const [showCreateBranchForm, setShowCreateBranchForm] = useState(false);
+    const [form, setForm] = useState<FormState>(INITIAL_FORM)
 
   const zoneName = (id: string) => zones.find((z) => z.id === id)?.name || '—';
   return (
@@ -786,8 +815,16 @@ function BranchesView({ branches, zones }: { branches: Branch[]; zones: Zone[] }
         <form onSubmit={handleBranchCreate} className='bg-white rounded-card shadow-card p-6 md:p-8 mb-6'>
 
             <h2 className='font-display font-bold text-lg mb-4'>New Branch</h2>
-            <div>
-                <Field placeholder='Enter branch name' label='Branch Name' icon={null} />
+            <div className='grid md:grid-cols-2 gap-x-6'>
+                <Field placeholder='Enter branch name' 
+                        label='Branch Name' 
+                        value ={form.branch_name}
+                        icon={null} 
+                        onChange={(e) => setForm((f) => ({...f, branch_name: e.target.value}))}
+                        />
+
+                
+
             </div>
 
         </form>
