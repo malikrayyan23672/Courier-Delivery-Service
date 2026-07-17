@@ -92,6 +92,8 @@ class OrderOut(BaseModel):
     zone_id: Optional[str] = None
     branch_id: Optional[str] = None
     created_at: Optional[datetime] = None
+    proof_of_delivery_url: Optional[str] = None
+    proof_of_delivery_recipient_name: Optional[str] = None
 
     class Config:
         from_attributes = True

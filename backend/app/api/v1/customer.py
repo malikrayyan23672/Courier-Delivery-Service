@@ -95,6 +95,8 @@ def get_my_order(
         final_price=order.final_price,
         rider_accepted=order.rider_accepted,
         created_at=order.created_at,
+        proof_of_delivery_url=order.proof_of_delivery_url,
+        proof_of_delivery_recipient_name=order.proof_of_delivery_recipient_name,
         tracking_events=[TrackingEventOut.model_validate(e) for e in order.tracking_events],
         payment=PaymentOut.model_validate(order.payment) if order.payment else None,
         rider=rider_contact,

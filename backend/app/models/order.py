@@ -73,6 +73,7 @@ class Order(Base, TimestampMixin):
     final_price = Column(Float, nullable=True)
 
     proof_of_delivery_url = Column(String(500), nullable=True)
+    proof_of_delivery_recipient_name = Column(String(150), nullable=True)
 
     payment = relationship("Payment", back_populates="order", uselist=False)
     tracking_events = relationship("TrackingEvent", back_populates="order", order_by="TrackingEvent.created_at")

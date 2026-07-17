@@ -1,8 +1,13 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.api.v1.router import api_router
+
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI(
     title="Courier Service API",
@@ -20,6 +25,10 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+
+# Serves proof-of-delivery photos and any other locally-stored uploads.
+# In production this should move to S3/CloudFront rather than local disk.
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 
 @app.get("/health")
