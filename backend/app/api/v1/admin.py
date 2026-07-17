@@ -8,6 +8,7 @@ from app.database import get_db
 from app.core.permissions import require_roles
 from app.core.security import hash_password
 from app.models.user import User
+from app.models.zone import Zone
 from app.models.role import Role
 from app.models.order import Order, OrderStatus
 from app.models.rider import RiderProfile, RiderStatus
@@ -18,6 +19,8 @@ from app.models.zone import Zone
 from app.schemas.order import OrderOut
 from app.schemas.auth import AdminCreateUserRequest
 from app.schemas.user import UserOut
+from app.schemas.zone import ZoneOut
+from app.schemas.zone import ZoneCreateRequest
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -102,6 +105,28 @@ def delete_staff_or_rider(user_id: str, db: Session = Depends(get_db), current_u
     db.delete(user)
     db.commit()
 
+# @router.post("/zones", response_model=ZoneOut, status_code=201)
+# def add_zone(
+#     payload: ZoneCreateRequest,
+#     db: Session = Depends(get_db),
+#     current_user: User = Depends(require_roles("admin", "super_admin")),
+# ):
+#     existing = db.query(Zone).filter(Zone.name == payload.name).first()
+
+#     if existing:
+#         raise HTTPException(status_code=400, detail='Zone already exists')
+
+#     zone = Zone(
+#         name=payload.name,
+#         description=payload.description,
+#         is_active=payload.is_active
+#     )
+
+#     db.add(zone)
+#     db.flush()
+#     db.commit()
+
+#     # return ZoneOut.
 
 @router.post("/users", response_model=UserOut, status_code=201)
 def create_staff_or_rider(
@@ -231,12 +256,14 @@ def list_zones(
 
 @router.post("/zones", status_code=201)
 def create_zone(
+    # payload: ZoneCreateRequest,
     payload: dict,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
     name = payload.get("name")
     description = payload.get("description")
+    is_active = payload.get("is_active")
     if not name:
         raise HTTPException(status_code=400, detail="Zone name is required")
     

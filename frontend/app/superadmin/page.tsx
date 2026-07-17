@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { act, useEffect, useMemo, useState } from 'react';
 import { RoleGuard } from '@/components/RoleGuard';
 import { useAuth } from '@/context/AuthContext';
 import { Field } from './components';
@@ -23,6 +23,8 @@ import {
   AdminCreateUserPayload,
   assignRider,
   deleteUserbyAdmin,
+  ZoneCreatePayload,
+  addNewZone,
 } from '@/lib/api';
 import {
   BUSINESS_ACCOUNTS, ASSIGNMENT_RULES, MESSAGE_TEMPLATES, SYSTEM_ALERTS,
@@ -141,6 +143,8 @@ function AdminDashboardContent() {
   const [assignModalOrder, setAssignModalOrder] = useState<ApiOrder | null>(null);
   const [showCreateUser, setShowCreateUser] = useState(false);
 
+  const [showAddNewZone, setShowAddNewZone] = useState(false);
+
   const riders = useMemo(() => mapAdminRiders(adminRiders), [adminRiders]);
 
   function toast(msg: string) {
@@ -194,6 +198,23 @@ function AdminDashboardContent() {
       loadAll();
     } catch (err) {
       toast(err instanceof ApiError ? err.message : 'Could not assign rider.');
+    }
+  }
+
+  async function handleAddZone(payload: ZoneCreatePayload){
+    if(!token){
+      return;
+    }
+
+    try{
+
+      await addNewZone(payload, token);
+      toast(`zone added`);
+      setShowAddNewZone(false);
+      loadAll()
+
+    }catch(err){
+      toast(err instanceof ApiError ? err.message : 'could not add zone.');
     }
   }
 
@@ -307,6 +328,11 @@ function AdminDashboardContent() {
               <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-danger text-white text-[0.6rem] font-bold flex items-center justify-center">{alerts.length}</span>
             )}
           </button>
+          {view === 'zones' && (
+            <button onClick={() => setShowAddNewZone(true)} className="hidden sm:flex items-center gap-1.5 bg-orange hover:bg-orange-light text-white font-bold text-sm px-4 py-2.5 rounded-[10px] transition-colors whitespace-nowrap">
+              <NavIcon name="plus" size={14} color="#fff" /> Add new Zone
+            </button>
+          )}
           {view === 'staff' && (
             <button onClick={() => setShowCreateUser(true)} className="hidden sm:flex items-center gap-1.5 bg-orange hover:bg-orange-light text-white font-bold text-sm px-4 py-2.5 rounded-[10px] transition-colors whitespace-nowrap">
               <NavIcon name="plus" size={14} color="#fff" /> New Account
@@ -366,6 +392,10 @@ function AdminDashboardContent() {
 
       {assignModalOrder && (
         <AssignRiderModal order={assignModalOrder} riders={adminRiders} onClose={() => setAssignModalOrder(null)} onAssign={handleAssignRider} />
+      )}
+
+      {showAddNewZone && (
+        <CreateZoneModel branches={branches} zones={zones} onClose={() => setShowAddNewZone(false)} onCreate={handleAddZone} />
       )}
 
       {showCreateUser && (
@@ -849,20 +879,6 @@ function ZonesView({ zones, branches }: { zones: Zone[]; branches: Branch[] }) {
     zone_description: string;
   }
 
-  async function handleZoneCreate(e: React.FormEvent){
-
-    console.log(e)
-
-  }
-
-  const INITIAL_ZONE_FORM: ZoneFormState = {
-    zone_name: '', 
-    zone_description: '',
-  }
-
-  const [showAddZoneForm, setShowAddZoneForm] = useState(false);
-  const [zoneForm, setZoneForm] = useState<ZoneFormState>(INITIAL_ZONE_FORM)
-  const [submitting, setSubmitting] = useState(false);
 
   const branchCount = (zoneId: string) => branches.filter((b) => b.zone_id === zoneId).length;
   return (
@@ -873,9 +889,9 @@ function ZonesView({ zones, branches }: { zones: Zone[]; branches: Branch[] }) {
           <h2 className="font-display font-bold text-base">Service Zones</h2>
           <p className="text-xs text-muted">Coverage areas grouping branches together</p>
         </div>
-        <button onClick={() => setShowAddZoneForm((e) => !e)} className="bg-orange hover:bg-orange-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
+        {/* <button onClick={() => ((e) => !e)} className="bg-orange hover:bg-orange-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
           <NavIcon name="plus" size={13} color="#fff" /> Add Zone
-        </button>
+        </button> */}
       </div>
       <table className="w-full text-sm">
         <thead><tr className="text-left text-muted text-xs border-b border-line"><th className="py-2">Zone</th><th className="py-2">Description</th><th className="py-2">Branches</th><th className="py-2">Status</th></tr></thead>
@@ -892,36 +908,6 @@ function ZonesView({ zones, branches }: { zones: Zone[]; branches: Branch[] }) {
         </tbody>
       </table>
 
-      {showAddZoneForm && (
-        
-
-        <form onSubmit={handleBranchCreate} className='mt-6'>
-
-          <div>
-            <h1>Zone Form</h1>
-          </div>
-
-          <Field
-          label='Zone Name'
-          >
-            <input type="text"
-            value={zoneForm.zone_name}
-            required
-            onChange={(e) => setZoneForm((f) => ({...f, zone_name: f.zone_name}))} />
-          </Field>
-
-          <Field
-          label='Zone Description'
-          >
-            <textarea value={zoneForm.zone_description} onChange={(e) => setZoneForm((f) => ({...f, zone_description: f.zone_name}))} name="" id=""></textarea>
-          </Field>
-
-          {/* <Field */}
-
-          <button type='submit' disabled={submitting} className='bg-navy hover:bg-navy-light text-white font-bold text-sm px-6 py-3 rounded-[10px] disabled:opacity-60 transition-colors'>{submitting ? "Creating..." : "Create Zone"}</button>
-
-        </form>
-      )}
 
     </section>
 
@@ -975,6 +961,72 @@ function StaffView({ users, roleFilter, setRoleFilter, onDelete }: {
   );
 }
 
+function CreateZoneModel({branches, zones, onClose, onCreate}: {
+  branches: Branch[], zones: Zone[]; onClose: () => void; onCreate: (payload: ZoneCreatePayload) => void;
+}){
+
+  const [activeToggle, setActiveToggle] = useState(false)
+
+  const [form, setForm] = useState<ZoneCreatePayload>({
+    name: '',
+    description: '',
+    is_active: false,
+  });
+
+  function update<K extends keyof ZoneCreatePayload>(key: K, value: ZoneCreatePayload[K]){
+    setForm((f) => ({...f, [key]: value}))
+  }
+
+  return (
+    <Modal title='Add new Zone' onClose={onClose} wide>
+      <form onSubmit={(e) => {
+        e.preventDefault(); 
+        // console.log("Hello world from zone form")
+        onCreate(form)
+        }
+        } className='grid sm:grid-cols-2 gap-4'>
+
+        <Field label="Zone Name"><input required className={inputCls} value={form.name} onChange={(e) => update('name', e.target.value)} /></Field>
+        <Field label="Description">
+          <textarea required className={inputCls} value={form.description} onChange={(e) => update('description', e.target.value)}></textarea></Field>
+
+          <button
+          type='button'
+            onClick={
+              (e) => {setActiveToggle(!activeToggle); update('is_active', activeToggle)}
+
+            }
+            // disabled={profileLoading || togglingAvailability}
+            className="flex items-center gap-3 disabled:opacity-60"
+          >
+            {/* <span className={`text-sm font-semibold ${profile?.is_available ? 'text-success' : 'text-muted'}`}> */}
+            <span className={`text-sm font-semibold text-success`}>
+              {activeToggle ? 'Active' : 'In-Active'}
+              {/* Online */}
+            </span>
+            <span
+              className={`relative w-12 h-7 rounded-full transition-colors ${
+                activeToggle ? 'bg-success' : 'bg-line'
+                // 'bg-success'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+                  activeToggle ? 'translate-x-5' : 'translate-x-0'
+                  // 'translate-x-5'
+                }`}
+              />
+            </span>
+          </button>
+        <div className="sm:col-span-2 flex justify-end gap-2 mt-2">
+          <button type="button" onClick={onClose} className="text-sm font-bold px-4 py-2.5 rounded-lg border border-line text-ink hover:bg-page">Cancel</button>
+          <button type="submit" className="text-sm font-bold px-4 py-2.5 rounded-lg bg-orange hover:bg-orange-light text-white">Add new Zone</button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 function CreateUserModal({ branches, zones, onClose, onCreate }: {
   branches: Branch[]; zones: Zone[]; onClose: () => void; onCreate: (payload: AdminCreateUserPayload) => void;
 }) {
@@ -1005,7 +1057,7 @@ function CreateUserModal({ branches, zones, onClose, onCreate }: {
   return (
     <Modal title="Create staff, rider or admin account" onClose={onClose} wide>
       <form onSubmit={(e) => { e.preventDefault(); onCreate(form); }} className="grid sm:grid-cols-2 gap-4">
-        {/* <Field icon={null} label="Full name"><input required className={inputCls} value={form.full_name} onChange={(e) => update('full_name', e.target.value)} /></Field> */}
+        <Field label="Full name"><input required className={inputCls} value={form.full_name} onChange={(e) => update('full_name', e.target.value)} /></Field>
         <Field label="Role">
           <select className={inputCls} value={form.role} onChange={(e) => update('role', e.target.value as AdminCreateUserPayload['role'])}>
             <option value="staff">Staff</option>

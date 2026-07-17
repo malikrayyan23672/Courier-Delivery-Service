@@ -1,3 +1,5 @@
+import { json } from "stream/consumers";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 const ACCESS_TOKEN_KEY = 'fastex_access_token';
@@ -474,6 +476,12 @@ export interface Zone{
 
 }
 
+export interface ZoneCreatePayload{
+  name: string;
+  description: string;
+  is_active: boolean
+}
+
 export interface Branch{
   id: string;
   name: string;
@@ -513,6 +521,10 @@ export interface AdminCreateUserPayload {
   designation: string;
   zone_id: string;
   branch_id: string
+}
+
+export function addNewZone(payload: ZoneCreatePayload, token: string){
+  return request<Zone>('/admin/zones', {method: 'POST', body: JSON.stringify(payload)}, token);
 }
 
 export function createStaffOrRider(payload: AdminCreateUserPayload, token: string) {

@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 class ZoneCreateRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
     description: Optional[str] = Field(None, max_length=255)
+    is_active: bool = Field(False)
 
     @field_validator("name")
     @classmethod
