@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_S3_BUCKET: str = ""
 
+    # File uploads (proof of delivery photos, etc.) - stored on local disk for now.
+    # Path is relative to the backend working directory unless given as absolute.
+    UPLOAD_DIR: str = "uploads"
+    MAX_UPLOAD_SIZE_MB: int = 8
+
     @property
     def allowed_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]

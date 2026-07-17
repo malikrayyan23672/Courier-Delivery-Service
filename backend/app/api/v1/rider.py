@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -11,6 +11,7 @@ from app.models.rider import RiderProfile, RiderStatus
 from app.models.order import Order, OrderStatus
 from app.models.tracking_event import TrackingEvent
 from app.schemas.order import OrderOut
+from app.utils.uploads import save_pod_photo
 from app.schemas.rider import (
     RiderMeOut,
     RiderStatsOut,
@@ -175,8 +176,61 @@ def update_delivery_status(
     if not order or order.rider_id != rider_profile.id:
         raise HTTPException(status_code=404, detail="Delivery not found")
 
+    if new_status == OrderStatus.delivered:
+        raise HTTPException(
+            status_code=400,
+            detail="Marking a delivery as delivered requires a proof-of-delivery photo - use the proof-of-delivery endpoint instead.",
+        )
+
     order.status = new_status
     db.add(TrackingEvent(order_id=order.id, status=new_status.value, note=note))
     db.commit()
 
     return {"message": "Status updated", "status": new_status}
+
+
+@router.post("/deliveries/{order_id}/proof-of-delivery", response_model=OrderOut)
+def submit_proof_of_delivery(
+    order_id: str,
+    photo: UploadFile = File(...),
+    recipient_name: str | None = Form(None),
+    note: str | None = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    """Riders call this to close out a delivery: attaches a photo (and optional
+    recipient name) as proof, and moves the order to `delivered` in one step so
+    a delivery can never be marked complete without evidence attached."""
+    rider_profile = _rider_profile(db, current_user)
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order or order.rider_id != rider_profile.id:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+
+    if order.status != OrderStatus.in_transit:
+        raise HTTPException(
+            status_code=400,
+            detail="Delivery must be in transit before it can be marked delivered.",
+        )
+
+    if recipient_name is not None:
+        recipient_name = recipient_name.strip()[:150] or None
+
+    photo_url = save_pod_photo(order.id, photo)
+
+    order.status = OrderStatus.delivered
+    order.proof_of_delivery_url = photo_url
+    order.proof_of_delivery_recipient_name = recipient_name
+
+    history_note = note or (f"Received by {recipient_name}" if recipient_name else None)
+    db.add(
+        TrackingEvent(
+            order_id=order.id,
+            status=OrderStatus.delivered.value,
+            note=history_note,
+            changed_by_id=current_user.id,
+        )
+    )
+    db.commit()
+    db.refresh(order)
+
+    return order
