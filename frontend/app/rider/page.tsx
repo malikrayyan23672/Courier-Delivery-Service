@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RoleGuard } from '@/components/RoleGuard';
@@ -16,11 +16,6 @@ import {
   RiderMe,
   ApiError,
 } from '@/lib/api';
-
-// Minimum time between location PATCH calls to the backend. watchPosition can fire
-// far more often than this (especially with enableHighAccuracy) - without a throttle
-// we'd hammer the API and cause frequent state updates for no visible benefit.
-const LOCATION_SEND_INTERVAL_MS = 15000;
 
 /* ---------------------------------- icons ---------------------------------- */
 
@@ -124,16 +119,15 @@ function RiderContent() {
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
-  // Live location tracking - kept in its own isolated state so a GPS ping never
-  // touches `deliveries`/`profile`/the loading flags, and therefore never causes
-  // the delivery list or profile card to flicker/re-render.
+  // Location is manual and one-shot: the rider taps "I've arrived at branch",
+  // we grab their position once, send it once, and nothing runs in the
+  // background after that - no watch, no interval, no polling, no re-render
+  // loop. Deliberately isolated from `deliveries`/`profile` state so this
+  // never affects anything else on the page.
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locationUpdatedAt, setLocationUpdatedAt] = useState<Date | null>(null);
   const [locationError, setLocationError] = useState('');
-  const watchIdRef = useRef<number | null>(null);
-  const lastSentAtRef = useRef(0);
-  const tokenRef = useRef(token);
-  tokenRef.current = token;
+  const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -142,54 +136,31 @@ function RiderContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Start/stop the GPS watch whenever the rider's online status changes - not on
-  // every render, and not tied to anything that re-fetches deliveries or profile.
-  useEffect(() => {
-    if (profile?.is_available) {
-      startWatchingLocation();
-    } else {
-      stopWatchingLocation();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.is_available]);
-
-  useEffect(() => {
-    return () => stopWatchingLocation(); // safety net on unmount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function startWatchingLocation() {
-    if (watchIdRef.current != null) return; // already watching
+  function handleArrivedAtBranch() {
+    if (!token) return;
     if (!('geolocation' in navigator)) {
       setLocationError("This device/browser doesn't support location sharing.");
       return;
     }
+    setLocating(true);
     setLocationError('');
-    watchIdRef.current = navigator.geolocation.watchPosition(
+    navigator.geolocation.getCurrentPosition(
       (pos) => {
         const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setCoords(next); // cheap local state, no refetch triggered
-
-        const now = Date.now();
-        if (now - lastSentAtRef.current < LOCATION_SEND_INTERVAL_MS) return;
-        lastSentAtRef.current = now;
-
-        const currentToken = tokenRef.current;
-        if (!currentToken) return;
-        updateRiderLocation(next.lat, next.lng, currentToken)
-          .then(() => setLocationUpdatedAt(new Date()))
-          .catch(() => {}); // silent - a dropped background ping shouldn't flash an error banner
+        updateRiderLocation(next.lat, next.lng, token)
+          .then(() => {
+            setCoords(next);
+            setLocationUpdatedAt(new Date());
+          })
+          .catch((err) => setLocationError(err instanceof ApiError ? err.message : 'Could not share location.'))
+          .finally(() => setLocating(false));
       },
-      () => setLocationError('Location permission denied - turn it on to share live location.'),
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+      () => {
+        setLocationError('Location permission denied - turn it on to share your arrival.');
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
     );
-  }
-
-  function stopWatchingLocation() {
-    if (watchIdRef.current != null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
   }
 
   function loadProfile() {
@@ -343,34 +314,33 @@ function RiderContent() {
           </button>
         </div>
 
-        {/* live location - isolated state, updates here never touch the delivery list below */}
+        {/* location - manual, one-shot, only visible while online */}
         {profile?.is_available && (
           <div className="bg-white rounded-card shadow-card p-4 mb-6 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm">
               <span className={locationUpdatedAt ? 'text-success' : 'text-muted'}>{LOCATE_ICON}</span>
               {coords && locationUpdatedAt ? (
                 <span className="text-ink">
-                  Sharing live location —{' '}
+                  Arrival shared —{' '}
                   <span className="font-mono text-xs text-muted">
                     {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
                   </span>{' '}
-                  <span className="text-xs text-muted">· updated {locationUpdatedAt.toLocaleTimeString()}</span>
+                  <span className="text-xs text-muted">· at {locationUpdatedAt.toLocaleTimeString()}</span>
                 </span>
               ) : (
-                <span className="text-muted">Getting your location…</span>
+                <span className="text-muted">Tap in once you're at the branch</span>
               )}
             </div>
-            {locationError && (
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-danger">{locationError}</span>
-                <button
-                  onClick={startWatchingLocation}
-                  className="text-sm font-semibold text-orange hover:opacity-80 transition-opacity"
-                >
-                  Retry
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {locationError && <span className="text-xs text-danger">{locationError}</span>}
+              <button
+                onClick={handleArrivedAtBranch}
+                disabled={locating}
+                className="text-sm font-semibold text-orange hover:opacity-80 disabled:opacity-60 transition-opacity"
+              >
+                {locating ? 'Sharing…' : "I've arrived at branch"}
+              </button>
+            </div>
           </div>
         )}
 
