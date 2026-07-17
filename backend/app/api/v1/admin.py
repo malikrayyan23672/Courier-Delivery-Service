@@ -253,6 +253,14 @@ def list_zones(
 ):
     return db.query(Zone).all()
 
+@router.delete("/zones/delete/{zone_id}")
+def delete_zone(zone_id: str, db: Session = Depends(get_db)):
+
+    zone = db.query(Zone).filter(Zone.id == zone_id).first()
+    if zone:
+
+        db.delete(zone)
+        db.commit()
 
 @router.post("/zones", status_code=201)
 def create_zone(

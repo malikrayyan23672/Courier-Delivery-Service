@@ -351,6 +351,12 @@ export function deleteUserbyAdmin(user_id: string, token: string){
   )
 }
 
+export function deleteZoneByAdmin(zone_id: string, token: string){
+  return request<{message: string}>(
+    `/admin/zone/delete/${zone_id}`, {method: 'DELETE'}, token
+  )
+}
+
 // ---- Rider ----
 
 export interface RiderStats {

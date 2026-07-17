@@ -25,6 +25,7 @@ import {
   deleteUserbyAdmin,
   ZoneCreatePayload,
   addNewZone,
+  deleteZoneByAdmin,
 } from '@/lib/api';
 import {
   BUSINESS_ACCOUNTS, ASSIGNMENT_RULES, MESSAGE_TEMPLATES, SYSTEM_ALERTS,
@@ -230,6 +231,24 @@ function AdminDashboardContent() {
     }
   }
 
+  async function handleDeleteZone(z: Zone){
+    if(!token){
+      return;
+    }
+
+    if(!confirm(`Remove ${z.name} zone? This can't be undone.`)){
+      return;
+    }
+
+    try{
+      await deleteZoneByAdmin(z.id, token)
+      toast(`${z.name} zone has been removed`);
+      setZones((prev) => prev.filter((x) => x.id !== z.id))
+    }catch(err){
+      toast(err instanceof ApiError ? err.message : "Could not remove zone.");
+    }
+  }
+
   async function handleDeleteUser(u: AdminUser) {
     if (!token) return;
     if (!confirm(`Remove ${u.full_name}'s account? This can't be undone.`)) return;
@@ -371,7 +390,7 @@ function AdminDashboardContent() {
 
           {view === 'branches' && <BranchesView branches={branches} zones={zones} />}
 
-          {view === 'zones' && <ZonesView zones={zones} branches={branches} />}
+          {view === 'zones' && <ZonesView zones={zones} branches={branches}, onDelete={handleDeleteZone} />}
 
           {view === 'staff' && (
             <StaffView users={filteredUsers} roleFilter={userRoleFilter} setRoleFilter={setUserRoleFilter}
@@ -872,7 +891,7 @@ function handleBranchCreate(){
 // ============================================================
 // ZONES
 // ============================================================
-function ZonesView({ zones, branches }: { zones: Zone[]; branches: Branch[] }) {
+function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Branch[], onDelete => void }) {
 
   interface ZoneFormState{
     zone_name: string;
@@ -894,7 +913,15 @@ function ZonesView({ zones, branches }: { zones: Zone[]; branches: Branch[] }) {
         </button> */}
       </div>
       <table className="w-full text-sm">
-        <thead><tr className="text-left text-muted text-xs border-b border-line"><th className="py-2">Zone</th><th className="py-2">Description</th><th className="py-2">Branches</th><th className="py-2">Status</th></tr></thead>
+        <thead>
+          <tr className="text-left text-muted text-xs border-b border-line">
+            <th className="py-2">Zone</th>
+            <th className="py-2">Description</th>
+            <th className="py-2">Branches</th>
+            <th className="py-2">Status</th>
+            <th className='py-2'>Actions</th>
+          </tr>
+          </thead>
         <tbody>
           {zones.map((z) => (
             <tr key={z.id} className="border-b border-line last:border-0">
@@ -902,6 +929,14 @@ function ZonesView({ zones, branches }: { zones: Zone[]; branches: Branch[] }) {
               <td className="py-3 text-muted text-xs max-w-sm">{z.description}</td>
               <td className="py-3">{branchCount(z.id)}</td>
               <td className="py-3"><Pill status={z.is_active ? 'green' : 'gray'} label={z.is_active ? 'Active' : 'Inactive'} /></td>
+              <td className="py-3">
+                <button onClick={
+                  () => onDelete(z)
+                  // () => null
+                  } className="text-xs font-bold text-danger border border-danger/30 rounded-lg px-3 py-1.5 hover:bg-[#FBEAE7] flex items-center gap-1">
+                  <NavIcon name="trash" size={12} color="#D8432C" /> Remove
+                </button>
+              </td>
             </tr>
           ))}
           {zones.length === 0 && <tr><td colSpan={4} className="py-8 text-center text-sm text-muted">No zones yet.</td></tr>}
