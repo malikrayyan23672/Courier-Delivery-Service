@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { RoleGuard } from '@/components/RoleGuard';
 import { useAuth } from '@/context/AuthContext';
-import { Field } from '@/components/Field';
+import { Field } from './components';
 import {
   ApiError,
   getAdminAnalytics,
@@ -370,6 +370,7 @@ function AdminDashboardContent() {
 
       {showCreateUser && (
         <CreateUserModal branches={branches} zones={zones} onClose={() => setShowCreateUser(false)} onCreate={handleCreateUser} />
+        // <div>Hello World</div>
       )}
 
       <Toasts toasts={toasts} />
@@ -816,12 +817,11 @@ function BranchesView({ branches, zones }: { branches: Branch[]; zones: Zone[] }
 
             <h2 className='font-display font-bold text-lg mb-4'>New Branch</h2>
             <div className='grid md:grid-cols-2 gap-x-6'>
-                <Field placeholder='Enter branch name' 
+                <Field 
                         label='Branch Name' 
-                        value ={form.branch_name}
-                        icon={null} 
-                        onChange={(e) => setForm((f) => ({...f, branch_name: e.target.value}))}
-                        />
+                        >
+                          <input type='text' value={''} />
+                        </Field>
 
                 
 
@@ -843,15 +843,37 @@ function handleBranchCreate(){
 // ZONES
 // ============================================================
 function ZonesView({ zones, branches }: { zones: Zone[]; branches: Branch[] }) {
+
+  interface ZoneFormState{
+    zone_name: string;
+    zone_description: string;
+  }
+
+  async function handleZoneCreate(e: React.FormEvent){
+
+    console.log(e)
+
+  }
+
+  const INITIAL_ZONE_FORM: ZoneFormState = {
+    zone_name: '', 
+    zone_description: '',
+  }
+
+  const [showAddZoneForm, setShowAddZoneForm] = useState(false);
+  const [zoneForm, setZoneForm] = useState<ZoneFormState>(INITIAL_ZONE_FORM)
+  const [submitting, setSubmitting] = useState(false);
+
   const branchCount = (zoneId: string) => branches.filter((b) => b.zone_id === zoneId).length;
   return (
+
     <section className="bg-white border border-line rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-display font-bold text-base">Service Zones</h2>
           <p className="text-xs text-muted">Coverage areas grouping branches together</p>
         </div>
-        <button className="bg-orange hover:bg-orange-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
+        <button onClick={() => setShowAddZoneForm((e) => !e)} className="bg-orange hover:bg-orange-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
           <NavIcon name="plus" size={13} color="#fff" /> Add Zone
         </button>
       </div>
@@ -869,7 +891,41 @@ function ZonesView({ zones, branches }: { zones: Zone[]; branches: Branch[] }) {
           {zones.length === 0 && <tr><td colSpan={4} className="py-8 text-center text-sm text-muted">No zones yet.</td></tr>}
         </tbody>
       </table>
+
+      {showAddZoneForm && (
+        
+
+        <form onSubmit={handleBranchCreate} className='mt-6'>
+
+          <div>
+            <h1>Zone Form</h1>
+          </div>
+
+          <Field
+          label='Zone Name'
+          >
+            <input type="text"
+            value={zoneForm.zone_name}
+            required
+            onChange={(e) => setZoneForm((f) => ({...f, zone_name: f.zone_name}))} />
+          </Field>
+
+          <Field
+          label='Zone Description'
+          >
+            <textarea value={zoneForm.zone_description} onChange={(e) => setZoneForm((f) => ({...f, zone_description: f.zone_name}))} name="" id=""></textarea>
+          </Field>
+
+          {/* <Field */}
+
+          <button type='submit' disabled={submitting} className='bg-navy hover:bg-navy-light text-white font-bold text-sm px-6 py-3 rounded-[10px] disabled:opacity-60 transition-colors'>{submitting ? "Creating..." : "Create Zone"}</button>
+
+        </form>
+      )}
+
     </section>
+
+
   );
 }
 
@@ -928,29 +984,49 @@ function CreateUserModal({ branches, zones, onClose, onCreate }: {
   function update<K extends keyof AdminCreateUserPayload>(key: K, val: AdminCreateUserPayload[K]) {
     setForm((f) => ({ ...f, [key]: val }));
   }
+
+  function formatPhone(raw: string) :string{
+
+    const digits = raw.replace(/[^0-9]/g, '').slice(0,11);
+    let out = digits;
+    if(digits.length > 4) out = digits.slice(0,4) + '-' + digits.slice(4);
+
+    return out;
+  }
+
+  function formatCNIC(raw: string): string{
+
+    const digits = raw.replace(/[^0-9]/g, '').slice(0, 13);
+  let out = digits;
+  if (digits.length > 5) out = digits.slice(0, 5) + '-' + digits.slice(5);
+  if (digits.length > 12) out = out.slice(0, 13) + '-' + digits.slice(12);
+  return out;
+  }
   return (
     <Modal title="Create staff, rider or admin account" onClose={onClose} wide>
       <form onSubmit={(e) => { e.preventDefault(); onCreate(form); }} className="grid sm:grid-cols-2 gap-4">
-        <Field icon={null} label="Full name"><input required className={inputCls} value={form.full_name} onChange={(e) => update('full_name', e.target.value)} /></Field>
-        <Field icon={null} label="Role">
+        {/* <Field icon={null} label="Full name"><input required className={inputCls} value={form.full_name} onChange={(e) => update('full_name', e.target.value)} /></Field> */}
+        <Field label="Role">
           <select className={inputCls} value={form.role} onChange={(e) => update('role', e.target.value as AdminCreateUserPayload['role'])}>
             <option value="staff">Staff</option>
             <option value="rider">Rider</option>
             <option value="admin">Admin</option>
           </select>
         </Field>
-        <Field icon={null} label="Email"><input required type="email" className={inputCls} value={form.email} onChange={(e) => update('email', e.target.value)} /></Field>
-        <Field icon={null} label="Phone"><input required className={inputCls} value={form.phone} onChange={(e) => update('phone', e.target.value)} /></Field>
-        <Field icon={null} label="CNIC"><input required className={inputCls} value={form.cnic} onChange={(e) => update('cnic', e.target.value)} /></Field>
-        <Field icon={null} label="Temporary password"><input required type="password" className={inputCls} value={form.password} onChange={(e) => update('password', e.target.value)} /></Field>
-        <Field icon={null} label="Designation"><input className={inputCls} value={form.designation} onChange={(e) => update('designation', e.target.value)} placeholder="e.g. Branch Coordinator" /></Field>
-        <Field icon={null} label="Zone">
+        <Field label="Email"><input required type="email" className={inputCls} value={form.email} onChange={(e) => update('email', e.target.value)} /></Field>
+        <Field label="Phone">
+          <input required className={inputCls} value={form.phone} onChange={(e) => update('phone', formatPhone(e.target.value))} />
+          </Field>
+        <Field label="CNIC"><input required className={inputCls} value={form.cnic} onChange={(e) => update('cnic', formatCNIC(e.target.value))} /></Field>
+        <Field label="Temporary password"><input required type="password" className={inputCls} value={form.password} onChange={(e) => update('password', e.target.value)} /></Field>
+        <Field label="Designation"><input className={inputCls} value={form.designation} onChange={(e) => update('designation', e.target.value)} placeholder="e.g. Branch Coordinator" /></Field>
+        <Field label="Zone">
           <select className={inputCls} value={form.zone_id} onChange={(e) => update('zone_id', e.target.value)}>
             <option value="">Select a zone</option>
             {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
           </select>
         </Field>
-        <Field icon={null} label="Branch">
+        <Field label="Branch">
           <select className={inputCls} value={form.branch_id} onChange={(e) => update('branch_id', e.target.value)}>
             <option value="">Select a branch</option>
             {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -1140,13 +1216,13 @@ function SettingsView({ toast }: { toast: (msg: string) => void }) {
       <h2 className="font-display font-bold text-base mb-1">Network Defaults</h2>
       <p className="text-xs text-muted mb-5">These apply to every branch unless a branch overrides them</p>
       <form onSubmit={(e) => { e.preventDefault(); toast('Settings saved.'); }} className="flex flex-col gap-4">
-        <Field icon={null} label="Default currency">
+        <Field label="Default currency">
           <select className={inputCls} value={currency} onChange={(e) => setCurrency(e.target.value)}>
             <option value="PKR">PKR — Pakistani Rupee</option>
             <option value="USD">USD — US Dollar</option>
           </select>
         </Field>
-        <Field icon={null} label="Manual-review COD threshold">
+        <Field label="Manual-review COD threshold">
           <input className={inputCls} type="number" value={codLimit} onChange={(e) => setCodLimit(e.target.value)} />
         </Field>
         <div className="flex items-center justify-between border border-line rounded-xl p-4">
@@ -1158,7 +1234,7 @@ function SettingsView({ toast }: { toast: (msg: string) => void }) {
             <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${autoAssign ? 'translate-x-5' : 'translate-x-0.5'}`} />
           </button>
         </div>
-        <Field icon={null} label="Default assignment search radius (km)">
+        <Field label="Default assignment search radius (km)">
           <input className={inputCls} type="number" value={assignRadius} onChange={(e) => setAssignRadius(e.target.value)} disabled={!autoAssign} />
         </Field>
         <div className="flex justify-end mt-2">

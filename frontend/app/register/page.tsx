@@ -36,10 +36,20 @@ const LOCK_ICON = (
   </svg>
 );
 
+interface FormState{
+  full_name: string;
+  email: string;
+  phone: string;
+  cnic: string;
+  password: string;
+  confirm: string;
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('form');
-  const [form, setForm] = useState({ full_name: '', email: '', phone: '', cnic: '', password: '', confirm: '' });
+  const [form, setForm] = useState<FormState>({ full_name: '', email: '', phone: '', cnic: '', password: '', confirm: '' });
+  // const [form, setForm] = useState<FormState>({full_name: '', email: ''})
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
@@ -91,6 +101,17 @@ export default function RegisterPage() {
     }
   }
 
+  function formatPhone(raw: string) : string{
+
+    const digits = raw.replace(/[^0-9]/g, '').slice(0,11);
+    let out = digits;
+
+    if(digits.length > 4) out = digits.slice(0,4) + '-' + digits.slice(4);
+
+    return out;
+
+  }
+
   async function handleResend() {
     setOtpError('');
     setOtp('');
@@ -99,6 +120,22 @@ export default function RegisterPage() {
     } catch (err) {
       setOtpError(err instanceof ApiError ? err.message : 'Could not resend code.');
     }
+  }
+
+  function formatCNIC(raw: string){
+
+  const digits = raw.replace(/[^0-9]/g, '').slice(0, 13);
+  let out = digits;
+  if (digits.length > 5) out = digits.slice(0, 5) + '-' + digits.slice(5);
+  if (digits.length > 12) out = out.slice(0, 13) + '-' + digits.slice(12);
+  return out;
+
+  }
+
+  function set<K extends keyof FormState>(key: K, value: FormState[K]){
+
+    setForm((f) => ({...f, [key]: value}))
+
   }
 
   return (
@@ -153,7 +190,8 @@ export default function RegisterPage() {
                   placeholder="e.g. 03001234567"
                   required
                   value={form.phone}
-                  onChange={(e) => updateField('phone', e.target.value)}
+                  // onChange={(e) => updateField('phone', e.target.value)}
+                  onChange={(e) => set('phone', formatPhone(e.target.value))}
                 />
                 <Field
                   id="cnic"
@@ -163,7 +201,8 @@ export default function RegisterPage() {
                   placeholder='e.g 1620434324'
                   // required
                   value={form.cnic}
-                  onChange={(e) => updateField('cnic', e.target.value)}/>
+                  // onChange={(e) => updateField('cnic', e.target.value)}/>
+                  onChange={(e) => set('cnic', formatCNIC(e.target.value))}/>
                 <Field
                   id="password"
                   type="password"
