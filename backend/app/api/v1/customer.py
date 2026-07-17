@@ -77,6 +77,8 @@ def get_my_order(
             phone=order.rider.user.phone,
             vehicle_type=order.rider.vehicle_type,
             rating=order.rider.rating,
+            current_lat=order.rider.current_lat if order.rider_accepted else None,
+            current_lng=order.rider.current_lng if order.rider_accepted else None,
         )
 
     return OrderDetailOut(

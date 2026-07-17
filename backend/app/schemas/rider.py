@@ -29,3 +29,8 @@ class AvailabilityOut(BaseModel):
 
 class OfferResponse(BaseModel):
     accept: bool
+
+
+class LocationUpdate(BaseModel):
+    lat: float
+    lng: float
