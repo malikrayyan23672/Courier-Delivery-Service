@@ -1,12 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { HeroPanel } from '@/components/HeroPanel';
 import { Field } from '@/components/Field';
 import { useAuth, panelPathForRole } from '@/context/AuthContext';
 import { loginUser, ApiError } from '@/lib/api';
+
+
+interface FormState {
+
+  email: string,
+  password: string,
+}
+const ICONS = {
+
+  eye: <><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" /><circle cx="12" cy="12" r="3" /></>,
+}
+function Icon({ path, size = 18 }: { path: React.ReactNode; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {path}
+    </svg>
+  );
+}
+
 
 const MAIL_ICON = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -19,20 +38,54 @@ const LOCK_ICON = (
   </svg>
 );
 
+function PasswordField({
+  label, icon, error, value, onChange, placeholder, id,
+}: { label: string; icon: React.ReactNode; error?: string; value: string; onChange: (v: string) => void; placeholder: string; id: string }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="mb-4 flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-[0.82rem] font-semibold text-ink">{label}</label>
+      <div className="relative">
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted pointer-events-none">{icon}</span>
+        <input
+          id={id}
+          type={visible ? 'text' : 'password'}
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          className={`w-full text-[0.92rem] py-3 pl-[42px] pr-10 rounded-[10px] border-[1.5px] bg-[#FBFCFE] text-ink outline-none transition-colors
+            focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,112,26,0.13)]`}
+        />
+        <button type="button" onClick={() => setVisible((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted" aria-label="Toggle password visibility">
+          <Icon path={ICONS.eye} />
+        </button>
+      </div>
+      {/* {error && <span className="text-[0.74rem] text-danger">{error}</span>} */}
+    </div>
+  );
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { setTokens } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  // const [email, setEmail] = useState('');
+  // const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [form, setForm] = useState<FormState>({ email: '', password: '' })
   const [submitting, setSubmitting] = useState(false);
+
+  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((f) => ({ ...f, [key]: value }))
+  }
+
+
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError('');
     try {
-      const tokens = await loginUser(email, password);
+      const tokens = await loginUser(form.email, form.password);
       setTokens(tokens.access_token, tokens.refresh_token);
       const payload = JSON.parse(atob(tokens.access_token.split('.')[1]));
       router.push(panelPathForRole(payload.role ?? null, payload.designation ?? null));
@@ -42,6 +95,8 @@ export default function LoginPage() {
       setSubmitting(false);
     }
   }
+
+
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
@@ -73,19 +128,12 @@ export default function LoginPage() {
               icon={MAIL_ICON}
               placeholder="Enter your email"
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={form.email}
+              // onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => set('email', e.target.value)}
             />
-            <Field
-              id="password"
-              type="password"
-              label="Password"
-              icon={LOCK_ICON}
-              placeholder="Enter your password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <PasswordField id="password" label="Password *" icon={<Icon path={LOCK_ICON} />} placeholder="Create a password"
+              value={form.password} onChange={(v) => set('password', v)} />
 
             <div className="flex justify-between items-center mb-6 text-sm">
               <label className="flex items-center gap-2 text-ink">
