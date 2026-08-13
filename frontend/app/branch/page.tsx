@@ -339,7 +339,7 @@ function BranchDashboardContent() {
             <path d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20" fill="none" stroke="#F2701A" strokeWidth="3.4" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
           <div>
-            <div className="font-display text-lg font-extrabold leading-none">FAST<span className="text-orange">EX</span></div>
+            <div className="font-display text-lg font-extrabold leading-none">RAFTAAR<span className="text-orange">EXPRESS</span></div>
             <div className="text-[0.6rem] tracking-[0.2em] text-white/50 font-semibold mt-0.5">BRANCH CONSOLE</div>
           </div>
         </div>

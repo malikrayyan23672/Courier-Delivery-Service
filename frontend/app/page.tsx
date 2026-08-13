@@ -126,7 +126,7 @@ export default function HomePage() {
           </svg>
           <div>
             <div className="brand-name">
-              FAST<span className="fx">EX</span>
+              RAFTAAR<span className="fx">EXPRESS</span>
             </div>
             <div className="brand-sub">COURIER SERVICES</div>
           </div>

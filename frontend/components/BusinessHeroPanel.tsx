@@ -108,7 +108,7 @@ export default function BusinessHeroPanel() {
 
           <div>
             <h2 className="text-3xl font-extrabold tracking-tight">
-              FAST<span className="text-orange-500">EX</span>
+              RAFTAAR<span className="text-orange-500">EXPRESS</span>
             </h2>
 
             <p className="uppercase text-xs tracking-[4px] text-gray-500">
