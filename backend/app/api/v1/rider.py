@@ -12,6 +12,7 @@ from app.models.order import Order, OrderStatus
 from app.models.tracking_event import TrackingEvent
 from app.schemas.order import OrderOut
 from app.utils.uploads import save_pod_photo
+from app.services.settlement_service import create_cod_settlement
 from app.schemas.rider import (
     RiderMeOut,
     RiderStatsOut,
@@ -230,6 +231,10 @@ def submit_proof_of_delivery(
             changed_by_id=current_user.id,
         )
     )
+
+    # COD orders get a T+1 settlement record the moment they're delivered.
+    create_cod_settlement(db, order, delivered_by=current_user)
+
     db.commit()
     db.refresh(order)
 

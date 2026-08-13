@@ -33,24 +33,22 @@ def register_business(payload: BusinessRegisterRequest, db: Session = Depends(ge
     if existing:
         raise HTTPException(status_code=400, detail="Email or phone number already registered")
 
+    business_role = db.query(Role).filter(Role.name == "business").first()
+    if not business_role:
+        raise HTTPException(status_code=500, detail="Business role not seeded. Run seed script first.")
+
     user = User(
         full_name = payload.full_name,
         email=payload.email,
         phone=payload.phone,
         cnic=payload.cnic,
         hashed_password=hash_password(payload.password),
-        role_id=6,
+        role_id=business_role.id,
         is_verified=False,
-
     )
 
     business = Business(
     company_name=payload.business_name,
-    # email= string,
-    # phone= string,
-    # cnic= string,
-    # password= string;,
-    # business_name=payload.,
     business_type = payload.business_type,
     business_registration_number = payload.business_registration_number,
     ntn = payload.ntn, #national tax number -> optional
@@ -61,19 +59,33 @@ def register_business(payload: BusinessRegisterRequest, db: Session = Depends(ge
     province= payload.province,
     postal_code= payload.postal_code,
     country= payload.country,
-    preffered_pickup_time= payload.preffered_pickup_time,
+    preferred_pickup_time= payload.preffered_pickup_time,
     cod_service= payload.cod_service,
     bank_name= payload.bank_name,
     account_title= payload.account_title,
     account_number = payload.account_number
-
-
-
     )
+
     db.add(user)
+    db.flush()
+    business.email = user.email
+    business.phone = user.phone
     db.add(business)
+    db.flush()
+
+    user.business_id = business.id
+
     db.commit()
     db.refresh(user)
+
+    # Automatically send the first OTP so the seller can verify right away
+    send_otp(db, payload.phone)
+
+    return {
+        "message": "Business registered successfully. An OTP has been sent to your phone for verification.",
+        "user_id": str(user.id),
+        "business_id": str(business.id),
+    }
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
