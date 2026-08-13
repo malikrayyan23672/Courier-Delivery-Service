@@ -38,3 +38,4 @@ class Payment(Base, TimestampMixin):
     collected_by_staff_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
 
     order = relationship("Order", back_populates="payment")
+    settlement = relationship("Settlement", back_populates="payment", uselist=False)

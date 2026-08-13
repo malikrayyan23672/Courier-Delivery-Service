@@ -72,10 +72,16 @@ class Order(Base, TimestampMixin):
     estimated_price = Column(Float, nullable=True)
     final_price = Column(Float, nullable=True)
 
+    # Layer 6 - login-only discount applied at booking time.
+    discount_id = Column(UUID_TYPE, ForeignKey("discounts.id"), nullable=True)
+    discount_amount = Column(Float, nullable=True)
+
     proof_of_delivery_url = Column(String(500), nullable=True)
     proof_of_delivery_recipient_name = Column(String(150), nullable=True)
 
     payment = relationship("Payment", back_populates="order", uselist=False)
+    settlement = relationship("Settlement", back_populates="order", uselist=False)
+    manifest_items = relationship("ManifestItem", back_populates="order")
     tracking_events = relationship("TrackingEvent", back_populates="order", order_by="TrackingEvent.created_at")
     delivery_attempts = relationship("DeliveryAttempt", back_populates="order")
     invoice = relationship("Invoice", back_populates="order", uselist=False)

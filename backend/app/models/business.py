@@ -35,4 +35,13 @@ class Business(Base, TimestampMixin):
     account_title = Column(String(150), nullable=False)
     account_number = Column(String(150), nullable=False)
 
+    # Layer 6 - COD wallet. `wallet_locked` auto-locks the wallet (blocks
+    # payouts) when reconciliation detects COD leakage/fraud.
+    wallet_locked = Column(Boolean, default=False)
+    wallet_lock_reason = Column(String(255), nullable=True)
+
     users = relationship("User", back_populates="business")
+    wallet_transactions = relationship("WalletTransaction", back_populates="business")
+    reconciliations = relationship("ReconciliationLog", back_populates="business")
+    settlements = relationship("Settlement", back_populates="business")
+    uploads = relationship("SellerUpload", back_populates="business")
