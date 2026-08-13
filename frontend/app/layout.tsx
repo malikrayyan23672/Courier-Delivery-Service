@@ -16,8 +16,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'FastEx Courier Services',
-  description: 'Book, track, and manage shipments with FastEx.',
+  title: 'Raftaar Express Courier Services',
+  description: 'Book, track, and manage shipments with Raftaar Express.',
 };
 
 export default function RootLayout({

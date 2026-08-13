@@ -357,7 +357,7 @@ export default function BusinessSignupPage() {
           Fast. Reliable.<br /><span className="text-orange">Delivered</span> with Care.
         </h1>
         <p className="text-base text-[#3A4A64] max-w-[420px] leading-relaxed mb-9">
-          Join FastEx and grow your business with our trusted courier solutions.
+          Join Raftaar Express and grow your business with our trusted courier solutions.
         </p>
 
         <div className="flex flex-col gap-5 mb-10">
@@ -429,7 +429,7 @@ export default function BusinessSignupPage() {
                 </div>
                 <div>
                   <h2 className="font-display text-xl font-bold m-0">Create <span className="text-orange">Your Account</span></h2>
-                  <p className="text-muted text-sm mt-1 m-0">Sign up to get started with FastEx</p>
+                  <p className="text-muted text-sm mt-1 m-0">Sign up to get started with raftaarexpress</p>
                 </div>
               </div>
 
@@ -600,7 +600,7 @@ export default function BusinessSignupPage() {
               <div className="w-[90px] h-[90px] rounded-full border-[3px] border-success flex items-center justify-center mx-auto mb-5 text-success text-4xl">✓</div>
               <h2 className="font-display text-xl font-bold mb-2">Account created</h2>
               <p className="text-muted max-w-[42ch] mx-auto">
-                Your email is verified and your FastEx seller account is being reviewed. We&apos;ll notify you once it&apos;s active.
+                Your email is verified and your raftaarexpress seller account is being reviewed. We&apos;ll notify you once it&apos;s active.
               </p>
               <div className="inline-block mt-4.5 px-4 py-2.5 bg-page border border-dashed border-line rounded-lg text-sm tracking-wide font-bold text-navy">
                 REF: FX-{refNum}

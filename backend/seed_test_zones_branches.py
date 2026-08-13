@@ -49,7 +49,7 @@ def seed():
             return
 
         # 3. Seed Rawalpindi Staff
-        staff_email = "rwp_staff@fastex.com"
+        staff_email = "rwp_staff@raftarexpress.com"
         staff_user = db.query(User).filter(User.email == staff_email).first()
         if not staff_user:
             staff_user = User(
@@ -75,7 +75,7 @@ def seed():
             db.add(staff_profile)
 
         # 4. Seed Rawalpindi Rider (Online)
-        rwp_rider_email = "rwp_rider@fastex.com"
+        rwp_rider_email = "rwp_rider@raftaarexpress.com"
         rwp_rider_user = db.query(User).filter(User.email == rwp_rider_email).first()
         if not rwp_rider_user:
             rwp_rider_user = User(
@@ -103,7 +103,7 @@ def seed():
             db.add(rwp_rider_profile)
 
         # 5. Seed Lahore Rider (Online)
-        lhr_rider_email = "lhr_rider@fastex.com"
+        lhr_rider_email = "lhr_rider@raftaarexpress.com"
         lhr_rider_user = db.query(User).filter(User.email == lhr_rider_email).first()
         if not lhr_rider_user:
             lhr_rider_user = User(

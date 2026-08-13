@@ -101,7 +101,7 @@ function BranchDashboardContent(){
                         <div className={Styles.av}>HR</div>
                         <div>
                             <div className={Styles.mName}>Hassan Raza</div>
-                            <div className={Styles.mContact}>+92 300 1234567 · hassan.raza@fastex.pk</div>
+                            <div className={Styles.mContact}>+92 300 1234567 · hassan.raza@raftaarexpress.pk</div>
                         </div>
                         </div>
                         <p style={{marginTop:'14px'}}>On-site since 6:45 AM. Reachable on radio channel 3 for escalations.</p>

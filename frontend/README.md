@@ -1,6 +1,6 @@
-# FastEx Courier — Frontend (Next.js)
+# RAFTAAR EXPRESS Courier — Frontend (Next.js)
 
-Customer-facing web app for FastEx, built with Next.js 14 (App Router) + TypeScript + Tailwind CSS. Visual theme (navy/orange, Poppins + Inter, split-screen hero cards) is carried over directly from the provided login/signup HTML mockups.
+Customer-facing web app for RAFTAAR EXPRESS, built with Next.js 14 (App Router) + TypeScript + Tailwind CSS. Visual theme (navy/orange, Poppins + Inter, split-screen hero cards) is carried over directly from the provided login/signup HTML mockups.
 
 ## What's included in this first pass
 
@@ -70,7 +70,7 @@ frontend/
 └── tailwind.config.js       # Brand tokens (navy/orange/etc.)
 ```
 
-## Design tokens (from the FastEx theme)
+## Design tokens (from the raftaarexpress theme)
 
 | Token | Value |
 |---|---|

@@ -21,7 +21,7 @@ const AuthContext = createContext<AuthContextValue>({
   isLoading: true,
 });
 
-const ACCESS_STORAGE_KEY = 'fastex_access_token';
+const ACCESS_STORAGE_KEY = 'raftaarexpress_access_token';
 
 function decodeRole(token: string | null): string | null {
   if (!token) return null;

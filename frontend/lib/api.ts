@@ -2,8 +2,8 @@ import { json } from "stream/consumers";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
-const ACCESS_TOKEN_KEY = 'fastex_access_token';
-const REFRESH_TOKEN_KEY = 'fastex_refresh_token';
+const ACCESS_TOKEN_KEY = 'raftaarexpress_access_token';
+const REFRESH_TOKEN_KEY = 'raftaarexpress_refresh_token';
 
 function getStoredRefreshToken(): string | null {
   if (typeof window === 'undefined') return null;

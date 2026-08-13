@@ -141,7 +141,7 @@ export default function RegisterPage() {
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
       <HeroPanel
-        heading="Join FastEx."
+        heading="Join Raftaar Express."
         highlight="Ship Smarter."
         lede="Create your account to start booking pickups, tracking deliveries, and managing your shipments in one place."
       />

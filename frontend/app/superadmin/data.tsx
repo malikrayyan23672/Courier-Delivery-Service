@@ -50,11 +50,11 @@ export interface MessageTemplate {
 }
 
 export const MESSAGE_TEMPLATES: MessageTemplate[] = [
-  { id: 'MSG-01', trigger: 'Order Created', channel: 'SMS', body: 'Your FastEx order {tracking_number} has been booked. We\'ll notify you once a rider is assigned.', active: true },
+  { id: 'MSG-01', trigger: 'Order Created', channel: 'SMS', body: 'Your Raftaar Express order {tracking_number} has been booked. We\'ll notify you once a rider is assigned.', active: true },
   { id: 'MSG-02', trigger: 'Rider Assigned', channel: 'WhatsApp', body: '{rider_name} is on the way to collect your parcel. Track live: {tracking_link}', active: true },
   { id: 'MSG-03', trigger: 'Out for Delivery', channel: 'SMS', body: 'Your parcel {tracking_number} is out for delivery and should arrive today.', active: true },
   { id: 'MSG-04', trigger: 'Delivery Failed', channel: 'WhatsApp', body: 'We couldn\'t deliver {tracking_number}. Reply to reschedule or update the drop-off address.', active: true },
-  { id: 'MSG-05', trigger: 'COD Collected', channel: 'SMS', body: 'Payment of Rs {amount} collected for {tracking_number}. Thank you for using FastEx.', active: false },
+  { id: 'MSG-05', trigger: 'COD Collected', channel: 'SMS', body: 'Payment of Rs {amount} collected for {tracking_number}. Thank you for using Raftaar Express.', active: false },
   { id: 'MSG-06', trigger: 'Delivered', channel: 'Email', body: 'Your order {tracking_number} was delivered on {date}. Rate your experience.', active: true },
 ];
 

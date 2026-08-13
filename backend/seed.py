@@ -74,7 +74,7 @@ BRANCHES = [
         "zone": "Rawalpindi",
         "address": "Saddar, Rawalpindi",
         "phone": "0515550101",
-        "email": "rwp.hq@fastex.com",
+        "email": "rwp.hq@raftaarexpress.com",
         "latitude": "33.5950",
         "longitude": "73.0528",
     },
@@ -83,7 +83,7 @@ BRANCHES = [
         "zone": "Lahore",
         "address": "Gulberg, Lahore",
         "phone": "0425550101",
-        "email": "lhr.central@fastex.com",
+        "email": "lhr.central@raftaarexpress.com",
         "latitude": "31.5204",
         "longitude": "74.3587",
     },
@@ -92,19 +92,19 @@ BRANCHES = [
         "zone": "Karachi",
         "address": "Shahrah-e-Faisal, Karachi",
         "phone": "0215550101",
-        "email": "khi.main@fastex.com",
+        "email": "khi.main@raftaarexpress.com",
         "latitude": "24.8607",
         "longitude": "67.0011",
     },
 ]
 
 USERS = [
-    ("Super Admin", "superadmin@fastex.com", "03000000001", "6110100000001", "super_admin"),
-    ("Operations Admin", "admin@fastex.com", "03000000002", "6110100000002", "admin"),
-    ("Rawalpindi Staff", "rwp.staff@fastex.com", "03000000003", "6110100000003", "staff"),
-    ("Lahore Staff", "lhr.staff@fastex.com", "03000000004", "6110100000004", "staff"),
-    ("Rawalpindi Rider", "rwp.rider@fastex.com", "03000000005", "6110100000005", "rider"),
-    ("Lahore Rider", "lhr.rider@fastex.com", "03000000006", "6110100000006", "rider"),
+    ("Super Admin", "superadmin@raftaarexpress.com", "03000000001", "6110100000001", "super_admin"),
+    ("Operations Admin", "admin@raftaarexpress.com", "03000000002", "6110100000002", "admin"),
+    ("Rawalpindi Staff", "rwp.staff@raftaarexpress.com", "03000000003", "6110100000003", "staff"),
+    ("Lahore Staff", "lhr.staff@raftaarexpress.com", "03000000004", "6110100000004", "staff"),
+    ("Rawalpindi Rider", "rwp.rider@raftaarexpress.com", "03000000005", "6110100000005", "rider"),
+    ("Lahore Rider", "lhr.rider@raftaarexpress.com", "03000000006", "6110100000006", "rider"),
     ("Ayesha Customer", "ayesha.customer@example.com", "03000000007", "6110100000007", "customer"),
     ("Bilal Customer", "bilal.customer@example.com", "03000000008", "6110100000008", "customer"),
 ]
@@ -231,8 +231,8 @@ def seed_users(db: Session, roles):
 
 def seed_profiles(db: Session, users, branches):
     profile_map = [
-        ("rwp.staff@fastex.com", "STF-RWP-001", branches["Rawalpindi HQ"]),
-        ("lhr.staff@fastex.com", "STF-LHR-001", branches["Lahore Central"]),
+        ("rwp.staff@raftaarexpress.com", "STF-RWP-001", branches["Rawalpindi HQ"]),
+        ("lhr.staff@raftaarexpress.com", "STF-LHR-001", branches["Lahore Central"]),
     ]
     for email, code, branch in profile_map:
         get_or_create(
@@ -248,8 +248,8 @@ def seed_profiles(db: Session, users, branches):
         )
 
     rider_map = [
-        ("rwp.rider@fastex.com", branches["Rawalpindi HQ"], "LIC-RWP-001", 33.595, 73.053),
-        ("lhr.rider@fastex.com", branches["Lahore Central"], "LIC-LHR-001", 31.520, 74.359),
+        ("rwp.rider@raftaarexpress.com", branches["Rawalpindi HQ"], "LIC-RWP-001", 33.595, 73.053),
+        ("lhr.rider@raftaarexpress.com", branches["Lahore Central"], "LIC-LHR-001", 31.520, 74.359),
     ]
     riders = {}
     for email, branch, license_number, lat, lng in rider_map:
@@ -307,8 +307,8 @@ def seed_businesses(db: Session):
 
 def seed_warehouses(db: Session, branches, users):
     warehouse_map = [
-        ("Rawalpindi Fulfillment Warehouse", branches["Rawalpindi HQ"], users["admin@fastex.com"]),
-        ("Lahore Sorting Warehouse", branches["Lahore Central"], users["admin@fastex.com"]),
+        ("Rawalpindi Fulfillment Warehouse", branches["Rawalpindi HQ"], users["admin@raftaarexpress.com"]),
+        ("Lahore Sorting Warehouse", branches["Lahore Central"], users["admin@raftaarexpress.com"]),
     ]
     for name, branch, manager in warehouse_map:
         get_or_create(
@@ -370,7 +370,7 @@ def seed_orders(db: Session, users, riders, zones, branches, addresses):
             "weight": 1.2,
             "description": "Documents and small parcel",
             "status": OrderStatus.assigned,
-            "rider": riders["rwp.rider@fastex.com"],
+            "rider": riders["rwp.rider@raftaarexpress.com"],
             "zone": zones["Rawalpindi"],
             "branch": branches["Rawalpindi HQ"],
             "price": 420.0,
@@ -379,7 +379,7 @@ def seed_orders(db: Session, users, riders, zones, branches, addresses):
         {
             "tracking_number": "CR1000000002",
             "customer": users["bilal.customer@example.com"],
-            "created_by": users["lhr.staff@fastex.com"],
+            "created_by": users["lhr.staff@raftaarexpress.com"],
             "created_by_type": CreatedByType.staff,
             "booking_channel": BookingChannel.walk_in,
             "pickup": addresses["Bilal Pickup"],
@@ -387,7 +387,7 @@ def seed_orders(db: Session, users, riders, zones, branches, addresses):
             "weight": 2.5,
             "description": "Clothing package",
             "status": OrderStatus.in_transit,
-            "rider": riders["lhr.rider@fastex.com"],
+            "rider": riders["lhr.rider@raftaarexpress.com"],
             "zone": zones["Lahore"],
             "branch": branches["Lahore Central"],
             "price": 620.0,
@@ -433,7 +433,7 @@ def seed_order_details(db: Session, orders, users, riders):
                 "method": PaymentMethod.cash,
                 "status": PaymentStatus.paid if tracking_number.endswith("2") else PaymentStatus.pending,
                 "idempotency_key": f"seed-{tracking_number}",
-                "collected_by_staff_id": users["lhr.staff@fastex.com"].id if tracking_number.endswith("2") else None,
+                "collected_by_staff_id": users["lhr.staff@raftaarexpress.com"].id if tracking_number.endswith("2") else None,
             },
         )
         get_or_create(
@@ -484,7 +484,7 @@ def seed_order_details(db: Session, orders, users, riders):
 
 
 def seed_supporting_data(db: Session, users, branches, orders):
-    admin = users["admin@fastex.com"]
+    admin = users["admin@raftaarexpress.com"]
     customer = users["ayesha.customer@example.com"]
     order = orders["CR1000000001"]
 
@@ -556,9 +556,9 @@ def seed():
         db.commit()
         print("Database seeded successfully.")
         print(f"Demo password for seeded users: {PASSWORD}")
-        print("Admin login: admin@fastex.com / Password123")
+        print("Admin login: admin@raftaarexpress.com / Password123")
         print("Customer login: ayesha.customer@example.com / Password123")
-        print("Rider login: rwp.rider@fastex.com / Password123")
+        print("Rider login: rwp.rider@raftaarexpress.com / Password123")
     except Exception:
         db.rollback()
         raise

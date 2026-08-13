@@ -1,13 +1,13 @@
 # Courier Service Platform
 
-Full-stack courier/delivery service: **FastAPI + PostgreSQL backend**, **Next.js frontend** (FastEx brand theme).
+Full-stack courier/delivery service: **FastAPI + PostgreSQL backend**, **Next.js frontend** (RAFTAR EXPRESS brand theme).
 
 ## Structure
 
 - `backend/` — FastAPI API
 - `frontend/` — Next.js customer-facing app (see `frontend/README.md` for frontend-specific detail)
 - `bruno-collection/` — API test collection for the Bruno client
-- `design-reference/` — original FastEx HTML mockups the frontend theme is based on
+- `design-reference/` — original RAFTAR EXPRESS HTML mockups the frontend theme is based on
 - `docker-compose.yml` (root) — runs the entire stack together in one command
 
 Backend supports four roles: **customer**, **staff** (office walk-in booking), **rider**, and **admin/super_admin**.

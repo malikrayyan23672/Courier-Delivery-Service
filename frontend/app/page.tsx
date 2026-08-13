@@ -173,7 +173,7 @@ export default function HomePage() {
           Fast. Reliable. <span className="hl-orange">Delivered</span> with Care.
         </h1>
         <p className="lede">
-          FastEx is Pakistan&apos;s growing courier network — track any shipment instantly below, no account required.
+          Raftaar Express is Pakistan&apos;s growing courier network — track any shipment instantly below, no account required.
         </p>
  
         <div className="track-card">
@@ -262,10 +262,10 @@ export default function HomePage() {
       {/* ============ FEATURES ============ */}
       <section className="section">
         <div className="section-head">
-          <div className="eyebrow">WHY FASTEX</div>
+          <div className="eyebrow">WHY raftaarexpress</div>
           <h2>Built for reliable, everyday delivery</h2>
           <p>
-            Whether you&apos;re sending a single parcel or running a growing online store, FastEx keeps every shipment moving
+            Whether you&apos;re sending a single parcel or running a growing online store, raftaarexpress keeps every shipment moving
             and visible.
           </p>
         </div>
@@ -319,9 +319,9 @@ export default function HomePage() {
       <section className="about-band">
         <div className="section about-grid">
           <div>
-            <h2>About FastEx Courier Services</h2>
+            <h2>About raftaarexpress Courier Services</h2>
             <p>
-              FastEx started with a simple goal: make shipping in Pakistan fast, transparent, and stress-free — for
+              raftaarexpress started with a simple goal: make shipping in Pakistan fast, transparent, and stress-free — for
               individual senders and growing online sellers alike.
             </p>
             <p>
@@ -367,7 +367,7 @@ export default function HomePage() {
       </section>
  
       <footer>
-        © 2026 <span className="fx">FastEx</span> Courier Services. All rights reserved.
+        © 2026 <span className="fx">raftaarexpress</span> Courier Services. All rights reserved.
       </footer>
  
       {/* ============ LOGIN MODAL ============ */}
@@ -392,7 +392,7 @@ export default function HomePage() {
                 <h2>
                   Welcome <span className="hl">Back</span>
                 </h2>
-                <p>Login to your FastEx account</p>
+                <p>Login to your raftaarexpress account</p>
               </div>
             </div>
  
@@ -544,7 +544,7 @@ export default function HomePage() {
             <div className="seal">
               <div className="seal-ring">✓</div>
               <h2>You&apos;re logged in</h2>
-              <p>Redirecting you to your FastEx account…</p>
+              <p>Redirecting you to your raftaarexpress account…</p>
             </div>
           </div>
         </div>

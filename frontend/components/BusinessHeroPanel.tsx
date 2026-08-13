@@ -133,7 +133,7 @@ export default function BusinessHeroPanel() {
         </h1>
 
         <p className="mt-6 text-gray-600 text-lg max-w-md leading-8">
-          Join FastEx and grow your business with our trusted courier
+          Join Raftaar Express and grow your business with our trusted courier
           solutions.
         </p>
 
