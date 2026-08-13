@@ -25,6 +25,12 @@ from app.models.rider_assignment import RiderAssignment
 from app.models.route import Route
 from app.models.status import Status
 from app.models.system_setting import SystemSetting
+from app.models.settlement import Settlement
+from app.models.bus_network import BusOperator, BusSchedule, BusManifest, ManifestItem
+from app.models.rnp import RNPPartner
+from app.models.wallet import WalletTransaction, ReconciliationLog
+from app.models.seller_upload import SellerUpload
+from app.models.discount import Discount
 
 __all__ = [
     "Role",
@@ -54,4 +60,14 @@ __all__ = [
     "Route",
     "Status",
     "SystemSetting",
+    "Settlement",
+    "BusOperator",
+    "BusSchedule",
+    "BusManifest",
+    "ManifestItem",
+    "RNPPartner",
+    "WalletTransaction",
+    "ReconciliationLog",
+    "SellerUpload",
+    "Discount",
 ]
