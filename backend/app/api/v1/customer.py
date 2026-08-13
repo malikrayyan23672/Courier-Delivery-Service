@@ -44,6 +44,7 @@ def book_order(
         package_weight_kg=payload.package_weight_kg,
         # package_size=payload.package_size,
         package_description=payload.package_description,
+        discount_code=payload.discount_code,
     )
     return order
 
@@ -93,6 +94,8 @@ def get_my_order(
         package_description=order.package_description,
         estimated_price=order.estimated_price,
         final_price=order.final_price,
+        discount_id=str(order.discount_id) if order.discount_id else None,
+        discount_amount=order.discount_amount,
         rider_accepted=order.rider_accepted,
         created_at=order.created_at,
         proof_of_delivery_url=order.proof_of_delivery_url,
