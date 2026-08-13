@@ -11,6 +11,49 @@ ALLOWED_IMAGE_TYPES = {
     "image/webp": "webp",
 }
 
+# Seller portal bulk-order files (Layer 6): CSV / Excel / Word.
+ALLOWED_DOC_TYPES = {
+    "text/csv": "csv",
+    "application/csv": "csv",
+    "text/plain": "csv",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+}
+
+MAX_DOC_SIZE_MB = 25
+
+
+def save_seller_upload(business_id: str, file: UploadFile) -> tuple[str, str, str]:
+    """Persist a seller bulk-order file (CSV/Excel/Doc). Returns (url_path, stored_filename, ext)."""
+    if file.content_type not in ALLOWED_DOC_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Seller uploads must be CSV, Excel, or Word documents.",
+        )
+
+    max_bytes = MAX_DOC_SIZE_MB * 1024 * 1024
+    contents = file.file.read(max_bytes + 1)
+    if len(contents) > max_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File is too large - max {MAX_DOC_SIZE_MB}MB.",
+        )
+    if not contents:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    ext = ALLOWED_DOC_TYPES[file.content_type]
+    folder = os.path.join(settings.UPLOAD_DIR, "seller", str(business_id))
+    os.makedirs(folder, exist_ok=True)
+
+    stored_filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(folder, stored_filename)
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    return f"/uploads/seller/{business_id}/{stored_filename}", stored_filename, ext
+
 
 def save_pod_photo(order_id: str, photo: UploadFile) -> str:
     """Validate and persist a proof-of-delivery photo for an order.
