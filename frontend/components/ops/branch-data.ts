@@ -1,8 +1,5 @@
 // Mock data for the branch console. Replace each block with a real API call
-// (see comments) once the corresponding backend endpoints exist - most of
-// this (pickups, deliveries, warehouse, staff attendance, transfers) has no
-// backend support yet; riders/branches partially do (GET /admin/riders,
-// GET /admin/branches) and could be wired in first.
+// once the corresponding backend endpoints exist.
 
 export interface Rider {
   name: string;

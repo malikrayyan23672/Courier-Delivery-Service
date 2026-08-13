@@ -1,11 +1,15 @@
 'use client';
 
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Card } from '@/components/ui/card';
+
 const PILL_COLORS: Record<string, string> = {
-  gray: 'bg-line text-muted-foreground',
-  amber: 'bg-[#FDF1DD] text-[#B8710A]',
-  green: 'bg-[#EAF7EF] text-success',
-  red: 'bg-[#FBEAE7] text-danger',
-  blue: 'bg-[#EAF1FC] text-navy',
+  gray: 'secondary',
+  amber: 'warning',
+  green: 'success',
+  red: 'danger',
+  blue: 'info',
 };
 
 const STATUS_TO_COLOR: Record<string, string> = {
@@ -17,18 +21,16 @@ const STATUS_TO_COLOR: Record<string, string> = {
 
 export function Pill({ status, label }: { status: string; label?: string }) {
   const color = STATUS_TO_COLOR[status] || 'gray';
-  return (
-    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${PILL_COLORS[color]}`}>
-      {label ?? status}
-    </span>
-  );
+  return <Badge variant={PILL_COLORS[color] as 'success' | 'warning' | 'danger' | 'info' | 'secondary'}>{label ?? status}</Badge>;
 }
 
 export function AvatarChip({ name }: { name: string | null }) {
   if (!name) {
     return (
       <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-full bg-line flex items-center justify-center text-xs font-bold text-muted-foreground">–</div>
+        <Avatar className="h-7 w-7">
+          <AvatarFallback className="bg-line text-muted-foreground text-xs">–</AvatarFallback>
+        </Avatar>
         <span className="text-muted-foreground text-sm">Unassigned</span>
       </div>
     );
@@ -36,9 +38,9 @@ export function AvatarChip({ name }: { name: string | null }) {
   const initials = name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
   return (
     <div className="flex items-center gap-2">
-      <div className="w-7 h-7 rounded-full bg-navy text-white flex items-center justify-center text-xs font-bold flex-none">
-        {initials}
-      </div>
+      <Avatar className="h-7 w-7">
+        <AvatarFallback className="bg-navy text-white text-xs font-bold">{initials}</AvatarFallback>
+      </Avatar>
       <span className="text-sm text-ink">{name}</span>
     </div>
   );
@@ -48,27 +50,27 @@ export function KpiCard({
   icon, bg, label, num, trend, trendColor,
 }: { icon: React.ReactNode; bg: string; label: string; num: string | number; trend: string; trendColor: string }) {
   return (
-    <div className="bg-white border border-line rounded-2xl p-4">
+    <Card className="p-4">
       <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white mb-3" style={{ background: bg }}>
         {icon}
       </div>
       <div className="text-2xl font-bold text-ink font-display">{num}</div>
       <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
       <div className="text-xs font-semibold mt-1.5" style={{ color: trendColor }}>{trend}</div>
-    </div>
+    </Card>
   );
 }
 
 export function StatStrip({ items }: { items: { num: string | number; label: string }[] }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-white border border-line rounded-2xl p-5">
+    <Card className="grid grid-cols-2 md:grid-cols-4 gap-4 p-5">
       {items.map((it) => (
         <div key={it.label}>
           <div className="text-xl font-bold text-ink font-display">{it.num}</div>
           <div className="text-xs text-muted-foreground mt-0.5">{it.label}</div>
         </div>
       ))}
-    </div>
+    </Card>
   );
 }
 

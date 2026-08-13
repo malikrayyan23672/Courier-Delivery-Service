@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RoleGuard } from '@/components/RoleGuard';
 import { Logo } from '@/components/Logo';
-import { Field } from '@/components/Field';
 import {
   bookStaffOrder,
   listStaffOrders,
@@ -15,31 +14,21 @@ import {
   StaffRider,
   ApiError,
 } from '@/lib/api';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-const BOX_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
-  </svg>
-);
-const USER_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-  </svg>
-);
-const PHONE_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-  </svg>
-);
-
-const STATUS_COLORS: Record<string, string> = {
-  created: 'bg-[#EAF1FC] text-navy',
-  assigned: 'bg-[#FBF3EA] text-orange',
-  picked_up: 'bg-[#FBF3EA] text-orange',
-  in_transit: 'bg-[#FBF3EA] text-orange',
-  delivered: 'bg-[#EAF7EF] text-success',
-  failed: 'bg-[#FBEAE7] text-danger',
-  cancelled: 'bg-[#F0F0F0] text-muted-foreground',
+const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'secondary'> = {
+  created: 'info',
+  assigned: 'warning',
+  picked_up: 'warning',
+  in_transit: 'warning',
+  delivered: 'success',
+  failed: 'danger',
+  cancelled: 'secondary',
 };
 
 export default function StaffPage() {
@@ -169,17 +158,18 @@ function StaffContent() {
     }
   }
 
+  const selectCls =
+    'flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
+
   return (
     <div className="min-h-screen bg-page">
       <header className="bg-white border-b border-line px-6 md:px-10 py-4 flex items-center justify-between">
         <Logo />
         <div className="flex items-center gap-4">
-          <span className="text-xs font-semibold uppercase tracking-wide text-orange bg-[#FBF3EA] px-3 py-1 rounded-full">
-            Staff Panel
-          </span>
-          <button onClick={handleLogout} className="text-sm font-semibold text-muted-foreground hover:text-navy transition-colors">
+          <Badge variant="warning">Staff Panel</Badge>
+          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-navy" onClick={handleLogout}>
             Log out
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -221,121 +211,79 @@ function StaffContent() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="bg-white rounded-card shadow-card p-6 md:p-8">
-              <h2 className="font-display font-bold text-lg mb-4">Customer Details</h2>
-              <div className="grid md:grid-cols-2 gap-x-6">
-                <Field
-                  id="guest_full_name"
-                  label="Full Name"
-                  icon={USER_ICON}
-                  placeholder="Customer's name"
-                  required
-                  value={form.guest_full_name}
-                  onChange={(e) => update('guest_full_name', e.target.value)}
-                />
-                <Field
-                  id="guest_phone"
-                  label="Phone Number"
-                  icon={PHONE_ICON}
-                  placeholder="e.g. 03001234567"
-                  required
-                  value={form.guest_phone}
-                  onChange={(e) => update('guest_phone', e.target.value)}
-                />
-              </div>
+            <form onSubmit={handleSubmit}>
+              <Card className="p-6 md:p-8">
+                <CardHeader className="px-0 pt-0">
+                  <CardTitle className="text-lg">Customer Details</CardTitle>
+                </CardHeader>
+                <CardContent className="px-0 space-y-6">
+                  <div className="grid md:grid-cols-2 gap-x-6 gap-y-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="guest_full_name">Full Name</Label>
+                      <Input id="guest_full_name" placeholder="Customer's name" required value={form.guest_full_name} onChange={(e) => update('guest_full_name', e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="guest_phone">Phone Number</Label>
+                      <Input id="guest_phone" placeholder="e.g. 03001234567" required value={form.guest_phone} onChange={(e) => update('guest_phone', e.target.value)} />
+                    </div>
+                  </div>
 
-              <h2 className="font-display font-bold text-lg mb-4 mt-2">Pickup &amp; Drop-off</h2>
-              <div className="grid md:grid-cols-2 gap-x-6">
-                <Field
-                  id="pickup_address"
-                  label="Pickup Address"
-                  icon={BOX_ICON}
-                  placeholder="House/street, area"
-                  required
-                  value={form.pickup_address}
-                  onChange={(e) => update('pickup_address', e.target.value)}
-                />
-                <Field
-                  id="pickup_city"
-                  label="Pickup City"
-                  icon={BOX_ICON}
-                  placeholder="e.g. Rawalpindi"
-                  value={form.pickup_city}
-                  onChange={(e) => update('pickup_city', e.target.value)}
-                />
-                <Field
-                  id="dropoff_address"
-                  label="Drop-off Address"
-                  icon={BOX_ICON}
-                  placeholder="House/street, area"
-                  required
-                  value={form.dropoff_address}
-                  onChange={(e) => update('dropoff_address', e.target.value)}
-                />
-                <Field
-                  id="dropoff_city"
-                  label="Drop-off City"
-                  icon={BOX_ICON}
-                  placeholder="e.g. Lahore"
-                  value={form.dropoff_city}
-                  onChange={(e) => update('dropoff_city', e.target.value)}
-                />
-                <Field
-                  id="weight"
-                  type="number"
-                  step="0.1"
-                  label="Package Weight (kg)"
-                  icon={BOX_ICON}
-                  placeholder="e.g. 1.5"
-                  value={form.weight}
-                  onChange={(e) => update('weight', e.target.value)}
-                />
-                <Field
-                  id="description"
-                  label="Package Description"
-                  icon={BOX_ICON}
-                  placeholder="e.g. Small parcel"
-                  value={form.description}
-                  onChange={(e) => update('description', e.target.value)}
-                />
-              </div>
+                  <div>
+                    <CardTitle className="text-lg mb-4">Pickup &amp; Drop-off</CardTitle>
+                    <div className="grid md:grid-cols-2 gap-x-6 gap-y-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="pickup_address">Pickup Address</Label>
+                        <Input id="pickup_address" placeholder="House/street, area" required value={form.pickup_address} onChange={(e) => update('pickup_address', e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="pickup_city">Pickup City</Label>
+                        <Input id="pickup_city" placeholder="e.g. Rawalpindi" value={form.pickup_city} onChange={(e) => update('pickup_city', e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="dropoff_address">Drop-off Address</Label>
+                        <Input id="dropoff_address" placeholder="House/street, area" required value={form.dropoff_address} onChange={(e) => update('dropoff_address', e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="dropoff_city">Drop-off City</Label>
+                        <Input id="dropoff_city" placeholder="e.g. Lahore" value={form.dropoff_city} onChange={(e) => update('dropoff_city', e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="weight">Package Weight (kg)</Label>
+                        <Input id="weight" type="number" step="0.1" placeholder="e.g. 1.5" value={form.weight} onChange={(e) => update('weight', e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="description">Package Description</Label>
+                        <Input id="description" placeholder="e.g. Small parcel" value={form.description} onChange={(e) => update('description', e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="mb-5">
-                <label className="text-[0.82rem] font-semibold text-ink block mb-1.5">Payment Method</label>
-                <select
-                  value={form.payment_method}
-                  onChange={(e) => update('payment_method', e.target.value)}
-                  className="w-full text-[0.92rem] py-3 px-3.5 rounded-[10px] border-[1.5px] border-line bg-[#FBFCFE] text-ink outline-none focus:border-orange"
-                >
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="online_gateway">Online payment link</option>
-                </select>
-              </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="payment_method">Payment Method</Label>
+                    <select id="payment_method" value={form.payment_method} onChange={(e) => update('payment_method', e.target.value)} className={selectCls}>
+                      <option value="cash">Cash</option>
+                      <option value="card">Card</option>
+                      <option value="online_gateway">Online payment link</option>
+                    </select>
+                  </div>
 
-              <div className="mb-5">
-                <label className="text-[0.82rem] font-semibold text-ink block mb-1.5">Package Size</label>
-                <select
-                  value={form.package_size}
-                  onChange={(e) => setForm((f) => ({ ...f, package_size: e.target.value }))}
-                  className="w-full text-[0.92rem] py-3 px-3.5 rounded-[10px] border-[1.5px] border-line bg-[#FBFCFE] text-ink outline-none focus:border-orange"
-                >
-                  <option value="small">Small</option>
-                  <option value="medium">Medium</option>
-                  <option value="large">Large</option>
-                  <option value="documents">Documents</option>
-                </select>
-              </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="package_size">Package Size</Label>
+                    <select id="package_size" value={form.package_size} onChange={(e) => setForm((f) => ({ ...f, package_size: e.target.value }))} className={selectCls}>
+                      <option value="small">Small</option>
+                      <option value="medium">Medium</option>
+                      <option value="large">Large</option>
+                      <option value="documents">Documents</option>
+                    </select>
+                  </div>
 
-              {error && <p className="text-sm text-danger mb-4">{error}</p>}
+                  {error && <p className="text-sm text-danger">{error}</p>}
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="bg-navy hover:bg-navy-light text-white font-bold text-sm px-6 py-3 rounded-[10px] disabled:opacity-60 transition-colors"
-              >
-                {submitting ? 'Booking…' : 'Confirm Booking'}
-              </button>
+                  <Button type="submit" disabled={submitting} variant="navy">
+                    {submitting ? 'Booking…' : 'Confirm Booking'}
+                  </Button>
+                </CardContent>
+              </Card>
             </form>
           </div>
         ) : (
@@ -351,67 +299,65 @@ function StaffContent() {
               </div>
             )}
 
-            <div className="bg-white rounded-card shadow-card overflow-hidden">
-              {loadingOrders ? (
-                <p className="p-6 text-muted-foreground text-sm text-center">Loading orders…</p>
-              ) : orders.length === 0 ? (
-                <p className="p-6 text-muted-foreground text-sm text-center">No shipments booked for this branch yet.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                    <thead>
-                      <tr className="border-b border-line text-muted-foreground bg-[#FBFCFE]">
-                        <th className="px-6 py-3 font-semibold">Tracking #</th>
-                        <th className="px-6 py-3 font-semibold">Status</th>
-                        <th className="px-6 py-3 font-semibold">Destination</th>
-                        <th className="px-6 py-3 font-semibold">Assign Rider</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orders.map((order) => (
-                        <tr key={order.id} className="border-b border-line last:border-0 hover:bg-page/50">
-                          <td className="px-6 py-4 font-mono font-bold text-ink">{order.tracking_number}</td>
-                          <td className="px-6 py-4">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap capitalize ${
-                                STATUS_COLORS[order.status] || 'bg-line text-ink'
-                              }`}
-                            >
-                              {order.status.replace('_', ' ')}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="text-ink max-w-xs truncate">{order.dropoff_address?.full_address}</p>
-                            <span className="text-xs text-muted-foreground block mt-0.5">{order.dropoff_address?.city || 'Lahore'}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            {order.status === 'created' ? (
-                              <select
-                                disabled={assigningId === order.id}
-                                onChange={(e) => handleAssign(order.id, e.target.value)}
-                                defaultValue=""
-                                className="text-sm py-1.5 px-2.5 rounded-[8px] border border-line bg-page text-ink max-w-[180px] outline-none focus:border-orange cursor-pointer"
-                              >
-                                <option value="" disabled>
-                                  {assigningId === order.id ? 'Assigning…' : 'Select Rider'}
-                                </option>
-                                {riders.map((r) => (
-                                  <option key={r.rider_id} value={r.rider_id}>
-                                    {r.full_name} ({r.vehicle_type || 'bike'})
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                {loadingOrders ? (
+                  <p className="p-6 text-muted-foreground text-sm text-center">Loading orders…</p>
+                ) : orders.length === 0 ? (
+                  <p className="p-6 text-muted-foreground text-sm text-center">No shipments booked for this branch yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/30">
+                          <TableHead>Tracking #</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Destination</TableHead>
+                          <TableHead>Assign Rider</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {orders.map((order) => (
+                          <TableRow key={order.id}>
+                            <TableCell className="font-mono font-bold text-ink">{order.tracking_number}</TableCell>
+                            <TableCell>
+                              <Badge variant={STATUS_VARIANT[order.status] || 'secondary'} className="capitalize">
+                                {order.status.replace('_', ' ')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <p className="text-ink max-w-xs truncate">{order.dropoff_address?.full_address}</p>
+                              <span className="text-xs text-muted-foreground block mt-0.5">{order.dropoff_address?.city || 'Lahore'}</span>
+                            </TableCell>
+                            <TableCell>
+                              {order.status === 'created' ? (
+                                <select
+                                  disabled={assigningId === order.id}
+                                  onChange={(e) => handleAssign(order.id, e.target.value)}
+                                  defaultValue=""
+                                  className="text-sm py-1.5 px-2.5 rounded-[8px] border border-line bg-page text-ink max-w-[180px] outline-none focus:border-orange cursor-pointer"
+                                >
+                                  <option value="" disabled>
+                                    {assigningId === order.id ? 'Assigning…' : 'Select Rider'}
                                   </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                                  {riders.map((r) => (
+                                    <option key={r.rider_id} value={r.rider_id}>
+                                      {r.full_name} ({r.vehicle_type || 'bike'})
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
       </main>
