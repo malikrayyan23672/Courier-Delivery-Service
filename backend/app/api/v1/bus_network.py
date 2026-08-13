@@ -16,7 +16,9 @@ from app.models.bus_network import (
     ManifestStatus,
     ScanStatus,
 )
-from app.models.order import Order
+from app.models.order import Order, OrderStatus
+from app.services.order_service import transition
+from app.services import log_service
 from app.schemas.bus_network import (
     BusOperatorIn,
     BusOperatorOut,
@@ -136,7 +138,7 @@ def _manifest_out(m: BusManifest) -> BusManifestOut:
 @router.get("/manifests", response_model=list[BusManifestOut])
 def list_manifests(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "staff")),
 ):
     rows = (
         db.query(BusManifest)
@@ -154,7 +156,7 @@ def list_manifests(
 def create_manifest(
     payload: BusManifestIn,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "staff")),
 ):
     manifest = BusManifest(
         **payload.model_dump(exclude_none=True),
@@ -173,22 +175,32 @@ def add_manifest_item(
     order_id: str | None = None,
     crate_label: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "staff")),
 ):
     manifest = db.query(BusManifest).filter(BusManifest.id == manifest_id).first()
     if not manifest:
         raise HTTPException(status_code=404, detail="Manifest not found")
+    if manifest.status != ManifestStatus.in_preparation:
+        # Manifest lock: no writes once the bus has departed (TRD: 403 on any
+        # write to a locked manifest).
+        raise HTTPException(status_code=403, detail="This manifest has already departed and is locked")
 
+    order = None
     if order_id:
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
+        if order.status != OrderStatus.in_hub:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Order must be scanned in at the hub (in_hub) before it can be loaded onto a manifest - currently '{order.status.value if hasattr(order.status, 'value') else order.status}'",
+            )
 
     db.add(
         ManifestItem(
             manifest_id=manifest.id,
             order_id=order_id,
-            crate_label=crate_label or (order.tracking_number if order_id else None),
+            crate_label=crate_label or (order.tracking_number if order else None),
             scan_status=ScanStatus.loaded,
         )
     )
@@ -207,19 +219,55 @@ def update_manifest_status(
     manifest_id: str,
     payload: ManifestStatusIn,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "staff")),
 ):
-    manifest = db.query(BusManifest).filter(BusManifest.id == manifest_id).first()
+    """
+    Advancing a manifest's status also advances every linked order's status
+    (hub scans and order state were previously disconnected). Departure
+    (`in_transit`) also locks the manifest against further item writes.
+    On arrival, pass `scanned_item_ids` to record which crates were actually
+    scanned off the bus - anything on the manifest but not in that list is
+    logged as a manifest count mismatch (TRD: "discrepancy triggers INCIDENT")
+    and held back at `in_transit` rather than silently marked arrived.
+    """
+    manifest = (
+        db.query(BusManifest)
+        .options(joinedload(BusManifest.items).joinedload(ManifestItem.order))
+        .filter(BusManifest.id == manifest_id)
+        .first()
+    )
     if not manifest:
         raise HTTPException(status_code=404, detail="Manifest not found")
 
-    manifest.status = ManifestStatus(payload.status)
+    new_manifest_status = ManifestStatus(payload.status)
+    items_to_advance = manifest.items
 
-    # One scan advances the whole busload (crate tracking).
-    if payload.item_status:
-        item_status = ScanStatus(payload.item_status)
-        for item in manifest.items:
+    if new_manifest_status == ManifestStatus.arrived and payload.scanned_item_ids is not None:
+        scanned_ids = set(payload.scanned_item_ids)
+        missing = [i for i in manifest.items if str(i.id) not in scanned_ids]
+        items_to_advance = [i for i in manifest.items if str(i.id) in scanned_ids]
+        if missing:
+            log_service.create_log(
+                db,
+                action="manifest_count_mismatch",
+                user_id=str(current_user.id),
+                entity_type="BusManifest",
+                entity_id=str(manifest.id),
+                details=f"Expected {len(manifest.items)} crates, scanned {len(items_to_advance)}. Missing: "
+                        + ", ".join(i.crate_label or str(i.id) for i in missing),
+            )
+
+    manifest.status = new_manifest_status
+
+    item_status = ScanStatus(payload.item_status) if payload.item_status else None
+    for item in items_to_advance:
+        if item_status:
             item.scan(item_status)
+        if item.order:
+            if new_manifest_status == ManifestStatus.in_transit and item.order.status == OrderStatus.in_hub:
+                transition(db, item.order, OrderStatus.in_transit, actor=current_user, note=f"Manifest {manifest.manifest_number} departed")
+            elif new_manifest_status == ManifestStatus.arrived and item.order.status == OrderStatus.in_transit:
+                transition(db, item.order, OrderStatus.dest_hub, actor=current_user, note=f"Manifest {manifest.manifest_number} arrived")
 
     db.commit()
     manifest = (

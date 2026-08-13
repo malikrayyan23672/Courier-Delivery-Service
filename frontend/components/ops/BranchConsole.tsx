@@ -22,11 +22,23 @@ import {
   getManagerProfile,
   getBranchDetails,
   BranchDetails,
+  getHubInboundQueue,
+  getHubDispatchQueue,
+  getHubManifestHistory,
+  getHubAgingParcels,
+  getHubAnalytics,
+  scanHubInbound,
+  HubOrderSummary,
+  HubAgingOrder,
+  HubManifestSummary,
+  HubAnalytics,
 } from '@/lib/api';
+import { ChartCard } from '@/components/charts/ChartCard';
+import { TrendLine } from '@/components/charts/TrendLine';
+import { ComparisonBars } from '@/components/charts/ComparisonBars';
 import {
-  INITIAL_PICKUPS, INITIAL_DELIVERIES, RECEIVING_QUEUE, DISPATCH_QUEUE,
-  TRANSFER_HISTORY, AGING_PARCELS, STAFF, ZONES, ACTIVITY, ALERTS,
-  Pickup, Delivery, ScanLogEntry,
+  INITIAL_PICKUPS, INITIAL_DELIVERIES, STAFF, ZONES, ACTIVITY, ALERTS,
+  Pickup, Delivery,
 } from './branch-data';
 import { Pill, AvatarChip, KpiCard, StatStrip, Toasts } from './branch-ui';
 
@@ -218,10 +230,20 @@ export function BranchConsole() {
 
   const [pickups, setPickups] = useState<Pickup[]>(INITIAL_PICKUPS);
   const [deliveries, setDeliveries] = useState<Delivery[]>(INITIAL_DELIVERIES);
-  const [scanLog, setScanLog] = useState<ScanLogEntry[]>([]);
   const [scanInput, setScanInput] = useState('');
+  const [scanning, setScanning] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState('');
+
+  // Hub Operations - real data from the bus/manifest network, replacing the
+  // former RECEIVING_QUEUE/DISPATCH_QUEUE/TRANSFER_HISTORY/AGING_PARCELS mocks.
+  const [inboundQueue, setInboundQueue] = useState<HubOrderSummary[]>([]);
+  const [dispatchQueue, setDispatchQueue] = useState<HubOrderSummary[]>([]);
+  const [manifestHistory, setManifestHistory] = useState<HubManifestSummary[]>([]);
+  const [agingParcels, setAgingParcels] = useState<HubAgingOrder[]>([]);
+  const [hubAnalytics, setHubAnalytics] = useState<HubAnalytics | null>(null);
+  const [hubLoading, setHubLoading] = useState(true);
+  const [hubError, setHubError] = useState('');
 
   const [pickupSearch, setPickupSearch] = useState('');
   const [pickupStatusFilter, setPickupStatusFilter] = useState('');
@@ -273,6 +295,35 @@ export function BranchConsole() {
       })
       .finally(() => setSyncing(false));
   }, [token]);
+
+  const branchId = branchDetails?.id;
+
+  function loadHubData() {
+    if (!token) return;
+    setHubLoading(true);
+    setHubError('');
+    Promise.all([
+      getHubInboundQueue(token, branchId),
+      getHubDispatchQueue(token, branchId),
+      getHubManifestHistory(token, branchId),
+      getHubAgingParcels(token, branchId),
+      getHubAnalytics(token, branchId),
+    ])
+      .then(([inbound, dispatch, history, aging, analytics]) => {
+        setInboundQueue(inbound);
+        setDispatchQueue(dispatch);
+        setManifestHistory(history);
+        setAgingParcels(aging);
+        setHubAnalytics(analytics);
+      })
+      .catch((err) => setHubError(err instanceof ApiError ? err.message : 'Could not load hub operations data.'))
+      .finally(() => setHubLoading(false));
+  }
+
+  useEffect(() => {
+    loadHubData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, branchId]);
 
   function toast(msg: string) {
     const id = Date.now();
@@ -342,9 +393,20 @@ export function BranchConsole() {
       toast('Enter a tracking ID to scan.');
       return;
     }
-    setScanLog((prev) => [{ id: val, type, time: 'Just now' }, ...prev]);
-    setScanInput('');
-    toast(`${type} scan recorded for ${val}`);
+    if (type === 'Outgoing') {
+      toast('Outbound dispatch happens by loading parcels onto a manifest - see the Bus Network tab in Admin.');
+      return;
+    }
+    if (!token) return;
+    setScanning(true);
+    scanHubInbound(val, token, branchId)
+      .then(() => {
+        toast(`Scanned in at hub: ${val}`);
+        setScanInput('');
+        loadHubData();
+      })
+      .catch((err) => toast(err instanceof ApiError ? err.message : 'Scan failed.'))
+      .finally(() => setScanning(false));
   }
 
   const meta = PAGE_META[view];
@@ -540,11 +602,15 @@ export function BranchConsole() {
           )}
 
           {view === 'parcelops' && (
-            <ParcelOpsView scanInput={scanInput} setScanInput={setScanInput} scanLog={scanLog}
-              onScan={handleScan} toast={toast} />
+            <ParcelOpsView
+              scanInput={scanInput} setScanInput={setScanInput} scanning={scanning}
+              inboundQueue={inboundQueue} dispatchQueue={dispatchQueue} manifestHistory={manifestHistory}
+              hubLoading={hubLoading} hubError={hubError}
+              onScan={handleScan} toast={toast}
+            />
           )}
 
-          {view === 'warehouse' && <WarehouseView shelfCells={shelfCells} />}
+          {view === 'warehouse' && <WarehouseView shelfCells={shelfCells} agingParcels={agingParcels} hubLoading={hubLoading} />}
 
           {view === 'riders' && <RidersView riders={riders} onlineRiders={onlineRiders} busyRiders={busyRiders} offlineRiders={offlineRiders} toast={toast} />}
 
@@ -554,7 +620,7 @@ export function BranchConsole() {
 
           {view === 'map' && <MapView riders={riders} />}
 
-          {view === 'reports' && <ReportsView riders={riders} />}
+          {view === 'reports' && <ReportsView riders={riders} hubAnalytics={hubAnalytics} hubLoading={hubLoading} />}
 
           {view === 'alerts' && <AlertsView />}
         </div>
@@ -837,29 +903,27 @@ function DeliveriesView({ deliveries, ready, out, done, failed, search, setSearc
 // ============================================================
 // VIEW: PARCEL OPERATIONS
 // ============================================================
-function ParcelOpsView({ scanInput, setScanInput, scanLog, onScan, toast }: any) {
+function ParcelOpsView({
+  scanInput, setScanInput, scanning, inboundQueue, dispatchQueue, manifestHistory, hubLoading, hubError, onScan, toast,
+}: {
+  scanInput: string; setScanInput: (v: string) => void; scanning: boolean;
+  inboundQueue: HubOrderSummary[]; dispatchQueue: HubOrderSummary[]; manifestHistory: HubManifestSummary[];
+  hubLoading: boolean; hubError: string;
+  onScan: (type: 'Incoming' | 'Outgoing') => void; toast: (msg: string) => void;
+}) {
   return (
     <>
+      {hubError && <div className="rounded-lg border border-danger/30 bg-[#FBEAE7] px-4 py-3 text-sm text-danger">{hubError}</div>}
+
       <Card className="p-5">
         <CardHeader className="p-0 mb-4">
           <CardTitle className="text-base">Scan Parcel</CardTitle>
-          <CardDescription>Simulate barcode / QR scan for incoming or outgoing parcels</CardDescription>
+          <CardDescription>Hub receiving scan - moves a parcel to IN_HUB</CardDescription>
         </CardHeader>
         <div className="flex flex-col sm:flex-row gap-2.5">
-          <Input type="text" placeholder="Enter or scan tracking barcode…" value={scanInput} onChange={(e) => setScanInput(e.target.value)} className="flex-1" />
-          <Button onClick={() => onScan('Incoming')} variant="navy">Scan Incoming</Button>
+          <Input type="text" placeholder="Enter or scan tracking number…" value={scanInput} onChange={(e) => setScanInput(e.target.value)} className="flex-1" />
+          <Button onClick={() => onScan('Incoming')} variant="navy" disabled={scanning}>{scanning ? 'Scanning…' : 'Scan Incoming'}</Button>
           <Button onClick={() => onScan('Outgoing')} variant="outline">Scan Outgoing</Button>
-        </div>
-        <div className="mt-4 flex flex-col gap-2 max-h-48 overflow-y-auto">
-          {scanLog.length === 0
-            ? <div className="text-xs text-muted-foreground">No scans yet — enter a tracking ID above.</div>
-            : scanLog.slice(0, 8).map((s: ScanLogEntry, i: number) => (
-              <div key={i} className="flex items-center gap-3 text-sm border-b border-line last:border-0 pb-2">
-                <Pill status={s.type === 'Incoming' ? 'Inbound' : 'Outbound'} label={s.type} />
-                <span className="font-mono text-xs">{s.id}</span>
-                <span className="text-xs text-muted-foreground ml-auto">{s.time}</span>
-              </div>
-            ))}
         </div>
       </Card>
 
@@ -867,44 +931,50 @@ function ParcelOpsView({ scanInput, setScanInput, scanLog, onScan, toast }: any)
         <Card className="p-5">
           <CardHeader className="p-0 mb-3">
             <CardTitle className="text-base">Receiving Queue</CardTitle>
-            <CardDescription>Awaiting sort</CardDescription>
+            <CardDescription>Picked up, en route to this hub - not yet scanned in</CardDescription>
           </CardHeader>
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
-                <TableHead>Tracking ID</TableHead><TableHead>From Branch</TableHead><TableHead>Sorting Status</TableHead>
+                <TableHead>Tracking ID</TableHead><TableHead>Destination</TableHead><TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {RECEIVING_QUEUE.map((r) => (
+              {inboundQueue.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="font-mono text-xs">{r.id}</TableCell>
-                  <TableCell>{r.from}</TableCell>
-                  <TableCell><Pill status={r.sort === 'Sorted' ? 'green' : r.sort === 'In Progress' ? 'amber' : 'gray'} label={r.sort} /></TableCell>
+                  <TableCell className="font-mono text-xs">{r.tracking_number}</TableCell>
+                  <TableCell>{r.dropoff_city || '—'}</TableCell>
+                  <TableCell><Pill status={r.status} /></TableCell>
                 </TableRow>
               ))}
+              {!hubLoading && inboundQueue.length === 0 && (
+                <TableRow><TableCell colSpan={3} className="text-center py-6 text-muted-foreground">Nothing awaiting hub scan.</TableCell></TableRow>
+              )}
             </TableBody>
           </Table>
         </Card>
         <Card className="p-5">
           <CardHeader className="p-0 mb-3">
             <CardTitle className="text-base">Dispatch Queue</CardTitle>
-            <CardDescription>Ready to leave the branch</CardDescription>
+            <CardDescription>Scanned in - ready to load onto an outbound manifest</CardDescription>
           </CardHeader>
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
-                <TableHead>Tracking ID</TableHead><TableHead>To Branch</TableHead><TableHead>Dispatch Status</TableHead>
+                <TableHead>Tracking ID</TableHead><TableHead>Destination</TableHead><TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {DISPATCH_QUEUE.map((r) => (
+              {dispatchQueue.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="font-mono text-xs">{r.id}</TableCell>
-                  <TableCell>{r.to}</TableCell>
-                  <TableCell><Pill status={r.status === 'Loading' ? 'amber' : 'blue'} label={r.status} /></TableCell>
+                  <TableCell className="font-mono text-xs">{r.tracking_number}</TableCell>
+                  <TableCell>{r.dropoff_city || '—'}</TableCell>
+                  <TableCell><Pill status={r.status} /></TableCell>
                 </TableRow>
               ))}
+              {!hubLoading && dispatchQueue.length === 0 && (
+                <TableRow><TableCell colSpan={3} className="text-center py-6 text-muted-foreground">Nothing ready to dispatch.</TableCell></TableRow>
+              )}
             </TableBody>
           </Table>
         </Card>
@@ -913,8 +983,8 @@ function ParcelOpsView({ scanInput, setScanInput, scanLog, onScan, toast }: any)
       <Card className="p-5">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div>
-            <CardTitle className="text-base">Transfer History</CardTitle>
-            <CardDescription>Inter-branch parcel movements</CardDescription>
+            <CardTitle className="text-base">Manifest History</CardTitle>
+            <CardDescription>Bus manifests through this hub</CardDescription>
           </div>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={() => toast('Damaged parcel report submitted.')}>Report Damaged</Button>
@@ -924,18 +994,22 @@ function ParcelOpsView({ scanInput, setScanInput, scanLog, onScan, toast }: any)
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/30">
-              <TableHead>Tracking ID</TableHead><TableHead>Direction</TableHead><TableHead>Branch</TableHead><TableHead>Date</TableHead>
+              <TableHead>Manifest</TableHead><TableHead>Operator</TableHead><TableHead>Route</TableHead><TableHead>Items</TableHead><TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {TRANSFER_HISTORY.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-mono text-xs">{r.id}</TableCell>
-                <TableCell><Pill status={r.dir === 'Inbound' ? 'blue' : 'amber'} label={r.dir} /></TableCell>
-                <TableCell>{r.branch}</TableCell>
-                <TableCell className="text-muted-foreground">{r.date}</TableCell>
+            {manifestHistory.map((m) => (
+              <TableRow key={m.id}>
+                <TableCell className="font-mono text-xs">{m.manifest_number || m.id.slice(0, 8)}</TableCell>
+                <TableCell>{m.operator_name || '—'}</TableCell>
+                <TableCell className="text-muted-foreground">{m.origin_city} → {m.destination_city}</TableCell>
+                <TableCell>{m.item_count}</TableCell>
+                <TableCell><Pill status={m.status} /></TableCell>
               </TableRow>
             ))}
+            {!hubLoading && manifestHistory.length === 0 && (
+              <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No manifests through this hub yet.</TableCell></TableRow>
+            )}
           </TableBody>
         </Table>
       </Card>
@@ -946,7 +1020,7 @@ function ParcelOpsView({ scanInput, setScanInput, scanLog, onScan, toast }: any)
 // ============================================================
 // VIEW: WAREHOUSE
 // ============================================================
-function WarehouseView({ shelfCells }: { shelfCells: ('low' | 'mid' | 'high')[] }) {
+function WarehouseView({ shelfCells, agingParcels, hubLoading }: { shelfCells: ('low' | 'mid' | 'high')[]; agingParcels: HubAgingOrder[]; hubLoading: boolean }) {
   const shelfColor = { low: '#EAF7EF', mid: '#FDF1DD', high: '#FBEAE7' };
   const shelfBorder = { low: '#1E8E5A', mid: '#F2A93B', high: '#D8432C' };
   return (
@@ -991,7 +1065,7 @@ function WarehouseView({ shelfCells }: { shelfCells: ('low' | 'mid' | 'high')[] 
               { num: '1,860', label: 'Total Stored Parcels' },
               { num: 140, label: 'Incoming Inventory' },
               { num: 158, label: 'Outgoing Inventory' },
-              { num: AGING_PARCELS.length, label: 'Aging Parcels' },
+              { num: agingParcels.length, label: 'Aging Parcels' },
             ]} />
           </div>
         </Card>
@@ -1005,18 +1079,20 @@ function WarehouseView({ shelfCells }: { shelfCells: ('low' | 'mid' | 'high')[] 
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/30">
-              <TableHead>Tracking ID</TableHead><TableHead>Shelf Location</TableHead><TableHead>Days in Warehouse</TableHead><TableHead>Status</TableHead>
+              <TableHead>Tracking ID</TableHead><TableHead>Status</TableHead><TableHead>Hours Aging</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {AGING_PARCELS.map((a) => (
+            {agingParcels.map((a) => (
               <TableRow key={a.id}>
-                <TableCell className="font-mono text-xs">{a.id}</TableCell>
-                <TableCell>{a.shelf}</TableCell>
-                <TableCell>{a.days} days</TableCell>
-                <TableCell><Pill status={a.days > 5 ? 'red' : 'amber'} label={a.status} /></TableCell>
+                <TableCell className="font-mono text-xs">{a.tracking_number}</TableCell>
+                <TableCell><Pill status={a.status} /></TableCell>
+                <TableCell><Pill status={a.hours_aging > 24 ? 'red' : 'amber'} label={`${a.hours_aging}h`} /></TableCell>
               </TableRow>
             ))}
+            {!hubLoading && agingParcels.length === 0 && (
+              <TableRow><TableCell colSpan={3} className="text-center py-6 text-muted-foreground">No parcels aging past the threshold.</TableCell></TableRow>
+            )}
           </TableBody>
         </Table>
       </Card>
@@ -1191,50 +1267,28 @@ function MapDot({ x, y, color, label }: { x: number; y: number; color: string; l
 // ============================================================
 // VIEW: REPORTS
 // ============================================================
-function ReportsView({ riders }: { riders: RiderCard[] }) {
-  const week = [{ d: 'Mon', v: 360 }, { d: 'Tue', v: 388 }, { d: 'Wed', v: 410 }, { d: 'Thu', v: 395 }, { d: 'Fri', v: 430 }, { d: 'Sat', v: 448 }, { d: 'Sun', v: 412 }];
-  const max = Math.max(...week.map((w) => w.v));
+function ReportsView({ riders, hubAnalytics, hubLoading }: { riders: RiderCard[]; hubAnalytics: HubAnalytics | null; hubLoading: boolean }) {
   const topRiders = [...riders].sort((a, b) => b.deliveries - a.deliveries).slice(0, 6);
   const comparisons = [
     { label: 'Delivery Success Rate', branch: 91, network: 87 },
     { label: 'On-Time Pickup Rate', branch: 88, network: 84 },
     { label: 'Avg. Delivery Time (lower is better)', branch: 74, network: 80 },
   ];
+  const vendorScoreData = (hubAnalytics?.vendor_scores ?? []).map((v) => ({ label: v.operator_name, on_time_pct: v.on_time_pct }));
 
   return (
     <>
       <div className="grid lg:grid-cols-2 gap-6">
-        <Card className="p-5">
-          <CardHeader className="p-0 mb-4">
-            <CardTitle className="text-base">Shipments — Last 7 Days</CardTitle>
-          </CardHeader>
-          <div className="flex items-end gap-3 h-40">
-            {week.map((w) => (
-              <div key={w.d} className="flex-1 flex flex-col items-center gap-1.5">
-                <span className="text-xs font-semibold text-ink">{w.v}</span>
-                <div className="w-full bg-orange rounded-t" style={{ height: `${(w.v / max) * 100}%` }} />
-                <span className="text-xs text-muted-foreground">{w.d}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-        <Card className="p-5">
-          <CardHeader className="p-0 mb-4">
-            <CardTitle className="text-base">Delivery Success Rate</CardTitle>
-          </CardHeader>
-          <div className="flex items-center gap-6">
-            <div className="w-28 h-28 rounded-full flex items-center justify-center flex-none" style={{ background: 'conic-gradient(#1E8E5A 0% 91%, #D8432C 91% 96%, #E4E8F0 96% 100%)' }}>
-              <div className="w-20 h-20 rounded-full bg-white flex flex-col items-center justify-center">
-                <b className="text-lg font-display">91%</b><span className="text-xs text-muted-foreground">success</span>
-              </div>
-            </div>
-            <ul className="text-sm space-y-1.5">
-              <li className="flex items-center gap-2"><i className="w-2.5 h-2.5 rounded-sm inline-block bg-success" />Delivered <b>91%</b></li>
-              <li className="flex items-center gap-2"><i className="w-2.5 h-2.5 rounded-sm inline-block bg-danger" />Failed <b>5%</b></li>
-              <li className="flex items-center gap-2"><i className="w-2.5 h-2.5 rounded-sm inline-block bg-line" />Returned <b>4%</b></li>
-            </ul>
-          </div>
-        </Card>
+        <ChartCard title="Parcels through this hub" description="Scanned in vs. dispatched, last 14 days" loading={hubLoading} empty={!hubAnalytics || hubAnalytics.daily.length === 0}>
+          <TrendLine
+            data={hubAnalytics?.daily ?? []}
+            xKey="date"
+            series={[{ key: 'parcels_in', label: 'Parcels in' }, { key: 'parcels_out', label: 'Parcels out' }]}
+          />
+        </ChartCard>
+        <ChartCard title="Bus operator on-time score" description="Departures within 15 min of schedule" loading={hubLoading} empty={vendorScoreData.length === 0} emptyMessage="No dispatched manifests yet.">
+          <ComparisonBars data={vendorScoreData} categoryKey="label" series={[{ key: 'on_time_pct', label: 'On-time %' }]} valueFormatter={(v) => `${v}%`} />
+        </ChartCard>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">

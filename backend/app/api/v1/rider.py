@@ -9,10 +9,16 @@ from app.core.permissions import require_roles
 from app.models.user import User
 from app.models.rider import RiderProfile, RiderStatus
 from app.models.order import Order, OrderStatus
-from app.models.tracking_event import TrackingEvent
+from app.models.delivery_attempt import DeliveryAttempt
 from app.schemas.order import OrderOut
 from app.utils.uploads import save_pod_photo
-from app.services.settlement_service import create_cod_settlement
+from app.services import otp_service
+from app.services.settlement_service import (
+    create_cod_settlement,
+    WALLET_LOCK_THRESHOLD,
+    WALLET_WARNING_THRESHOLD,
+)
+from app.services.order_service import transition
 from app.schemas.rider import (
     RiderMeOut,
     RiderStatsOut,
@@ -20,11 +26,23 @@ from app.schemas.rider import (
     AvailabilityOut,
     OfferResponse,
     LocationUpdate,
+    DeliveryOtpOut,
 )
 
 router = APIRouter(prefix="/rider", tags=["Rider"])
 
-ACTIVE_STATUSES = (OrderStatus.assigned, OrderStatus.picked_up, OrderStatus.in_transit)
+ACTIVE_STATUSES = (
+    OrderStatus.assigned,
+    OrderStatus.picked_up,
+    OrderStatus.in_hub,
+    OrderStatus.in_transit,
+    OrderStatus.dest_hub,
+    OrderStatus.out_for_delivery,
+)
+# Statuses a rider is allowed to set directly via the generic status endpoint.
+# `in_hub`/`in_transit`/`dest_hub` only ever happen via hub/manifest scans;
+# `delivered` requires the dedicated OTP+photo+GPS proof-of-delivery endpoint.
+RIDER_SETTABLE_STATUSES = (OrderStatus.picked_up, OrderStatus.out_for_delivery, OrderStatus.failed)
 
 
 def _rider_profile(db: Session, current_user: User) -> RiderProfile:
@@ -79,6 +97,10 @@ def my_profile(
             active_deliveries=active_deliveries,
             earnings_today=round(earnings_today, 2),
         ),
+        cod_cash_held=rider_profile.cod_cash_held or 0.0,
+        cod_wallet_locked=rider_profile.cod_wallet_locked or False,
+        cod_wallet_limit=WALLET_LOCK_THRESHOLD,
+        cod_wallet_warning_at=WALLET_WARNING_THRESHOLD,
     )
 
 
@@ -141,23 +163,36 @@ def respond_to_offer(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("rider")),
 ):
+    """
+    Handles two kinds of offers with the same accept/decline shape: the
+    origin pickup offer (`assigned`) and the destination-hub last-mile offer
+    (`dest_hub`, created by hub staff assigning a rider for the final leg).
+    """
     rider_profile = _rider_profile(db, current_user)
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order or order.rider_id != rider_profile.id:
         raise HTTPException(status_code=404, detail="Delivery offer not found")
-    if order.status != OrderStatus.assigned or order.rider_accepted is True:
+    if order.status not in (OrderStatus.assigned, OrderStatus.dest_hub) or order.rider_accepted is True:
         raise HTTPException(status_code=400, detail="This offer is no longer awaiting a response")
+
+    is_last_mile_offer = order.status == OrderStatus.dest_hub
 
     if payload.accept:
         order.rider_accepted = True
-        db.add(TrackingEvent(order_id=order.id, status=order.status.value, note="Rider accepted the delivery"))
+        if is_last_mile_offer:
+            transition(db, order, OrderStatus.out_for_delivery, actor=current_user, note="Rider accepted last-mile delivery")
+        else:
+            transition(db, order, order.status, actor=current_user, note="Rider accepted the delivery")
         message = "Delivery accepted"
     else:
-        # Decline: unassign so the order goes back into the admin's assignment pool
+        # Decline: unassign. A pickup offer goes back to the pool (`created`);
+        # a last-mile offer stays at `dest_hub` for hub staff to reassign.
         order.rider_id = None
         order.rider_accepted = None
-        order.status = OrderStatus.created
-        db.add(TrackingEvent(order_id=order.id, status=OrderStatus.created.value, note="Rider declined the delivery"))
+        if is_last_mile_offer:
+            transition(db, order, order.status, actor=current_user, note="Rider declined last-mile delivery")
+        else:
+            transition(db, order, OrderStatus.created, actor=current_user, note="Rider declined the delivery")
         message = "Delivery declined"
 
     db.commit()
@@ -169,6 +204,8 @@ def update_delivery_status(
     order_id: str,
     new_status: OrderStatus,
     note: str | None = None,
+    lat: float | None = None,
+    lng: float | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("rider")),
 ):
@@ -180,59 +217,92 @@ def update_delivery_status(
     if new_status == OrderStatus.delivered:
         raise HTTPException(
             status_code=400,
-            detail="Marking a delivery as delivered requires a proof-of-delivery photo - use the proof-of-delivery endpoint instead.",
+            detail="Marking a delivery as delivered requires OTP + photo + GPS - use the proof-of-delivery endpoint instead.",
+        )
+    if new_status not in RIDER_SETTABLE_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Riders cannot set status to '{new_status.value}' directly - it's driven by hub/manifest scans.",
         )
 
-    order.status = new_status
-    db.add(TrackingEvent(order_id=order.id, status=new_status.value, note=note))
-    db.commit()
+    if new_status == OrderStatus.picked_up:
+        if lat is None or lng is None:
+            raise HTTPException(status_code=400, detail="GPS location is required to confirm pickup.")
+        transition(db, order, new_status, actor=current_user, note=note, lat=lat, lng=lng, reference_address=order.pickup_address)
+    elif new_status == OrderStatus.failed:
+        transition(db, order, new_status, actor=current_user, note=note, lat=lat, lng=lng)
+        attempt_number = db.query(DeliveryAttempt).filter(DeliveryAttempt.order_id == order.id).count() + 1
+        db.add(DeliveryAttempt(order_id=order.id, attempt_number=attempt_number, status="failed", notes=note))
+        if attempt_number >= 3:
+            transition(db, order, OrderStatus.rto, actor=current_user, note=f"Auto-RTO after {attempt_number} failed delivery attempts")
+    else:
+        transition(db, order, new_status, actor=current_user, note=note, lat=lat, lng=lng)
 
-    return {"message": "Status updated", "status": new_status}
+    db.commit()
+    db.refresh(order)
+    return {"message": "Status updated", "status": order.status}
+
+
+@router.post("/deliveries/{order_id}/send-delivery-otp", response_model=DeliveryOtpOut)
+def send_delivery_otp(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    rider_profile = _rider_profile(db, current_user)
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order or order.rider_id != rider_profile.id:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    if not order.dropoff_address or not order.dropoff_address.contact_phone:
+        raise HTTPException(status_code=400, detail="No recipient phone number on file for this delivery.")
+
+    otp_service.send_otp(db, order.dropoff_address.contact_phone)
+    return DeliveryOtpOut(message="OTP sent to recipient", expires_in_minutes=otp_service.OTP_EXPIRY_MINUTES)
 
 
 @router.post("/deliveries/{order_id}/proof-of-delivery", response_model=OrderOut)
 def submit_proof_of_delivery(
     order_id: str,
     photo: UploadFile = File(...),
+    otp_code: str = Form(...),
+    lat: float = Form(...),
+    lng: float = Form(...),
     recipient_name: str | None = Form(None),
     note: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("rider")),
 ):
-    """Riders call this to close out a delivery: attaches a photo (and optional
-    recipient name) as proof, and moves the order to `delivered` in one step so
-    a delivery can never be marked complete without evidence attached."""
+    """Riders call this to close out a delivery: requires OTP (verified against
+    the recipient's phone), a photo, and GPS - all three, no exceptions - and
+    moves the order to `delivered` in one step so a delivery can never be
+    marked complete with any piece of evidence missing."""
     rider_profile = _rider_profile(db, current_user)
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order or order.rider_id != rider_profile.id:
         raise HTTPException(status_code=404, detail="Delivery not found")
 
-    if order.status != OrderStatus.in_transit:
+    if order.status != OrderStatus.out_for_delivery:
         raise HTTPException(
             status_code=400,
-            detail="Delivery must be in transit before it can be marked delivered.",
+            detail="Delivery must be out for delivery before it can be marked delivered.",
         )
+
+    if not order.dropoff_address or not order.dropoff_address.contact_phone:
+        raise HTTPException(status_code=400, detail="No recipient phone number on file - cannot verify OTP.")
+    otp_service.verify_otp(db, order.dropoff_address.contact_phone, otp_code)
 
     if recipient_name is not None:
         recipient_name = recipient_name.strip()[:150] or None
 
     photo_url = save_pod_photo(order.id, photo)
 
-    order.status = OrderStatus.delivered
     order.proof_of_delivery_url = photo_url
     order.proof_of_delivery_recipient_name = recipient_name
 
     history_note = note or (f"Received by {recipient_name}" if recipient_name else None)
-    db.add(
-        TrackingEvent(
-            order_id=order.id,
-            status=OrderStatus.delivered.value,
-            note=history_note,
-            changed_by_id=current_user.id,
-        )
-    )
+    transition(db, order, OrderStatus.delivered, actor=current_user, note=history_note, lat=lat, lng=lng)
 
-    # COD orders get a T+1 settlement record the moment they're delivered.
+    # COD orders get a T+1 settlement record (and rider wallet credit) the moment they're delivered.
     create_cod_settlement(db, order, delivered_by=current_user)
 
     db.commit()

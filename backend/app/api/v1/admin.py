@@ -16,11 +16,14 @@ from app.models.tracking_event import TrackingEvent
 from app.models.staff import StaffProfile
 from app.models.branch import Branch
 from app.models.zone import Zone
+from app.models.settlement import Settlement, SettlementStatus
 from app.schemas.order import OrderOut
 from app.schemas.auth import AdminCreateUserRequest
 from app.schemas.user import UserOut
 from app.schemas.zone import ZoneOut
 from app.schemas.zone import ZoneCreateRequest
+from app.services.order_service import transition
+from app.services.settlement_service import pending_cod_amount
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -49,11 +52,12 @@ def assign_rider(
     ).first()
     if not rider:
         raise HTTPException(status_code=404, detail="Active rider not found")
+    if rider.cod_wallet_locked and order.payment and order.payment.method.value == "cash":
+        raise HTTPException(status_code=400, detail="This rider's COD wallet is locked and cannot accept new COD parcels")
 
     order.rider_id = rider.id
-    order.status = "assigned"
     order.rider_accepted = None
-    db.add(TrackingEvent(order_id=order.id, status="assigned", note=f"Assigned to rider {rider_id}"))
+    transition(db, order, OrderStatus.assigned, actor=current_user, note=f"Assigned to rider {rider_id}")
     db.commit()
 
     return {"message": "Rider assigned successfully"}
@@ -236,6 +240,21 @@ def analytics(
         for rider, deliveries, earnings in top_rider_rows
     ]
 
+    rto_count = status_counts.get(OrderStatus.rto.value, 0)
+    delivered_count = status_counts.get(OrderStatus.delivered.value, 0)
+    resolved_count = delivered_count + rto_count
+    rto_rate = round((rto_count / resolved_count) * 100, 1) if resolved_count else 0.0
+
+    cod_collected_total = db.query(func.sum(Settlement.amount)).scalar() or 0.0
+    cod_pending_total = pending_cod_amount(db)
+
+    avg_delivery_seconds = (
+        db.query(func.avg(func.extract("epoch", Order.updated_at - Order.created_at)))
+        .filter(Order.status == OrderStatus.delivered)
+        .scalar()
+    )
+    avg_delivery_hours = round(avg_delivery_seconds / 3600, 1) if avg_delivery_seconds else None
+
     return {
         "total_orders": total_orders,
         "total_revenue": round(total_revenue, 2),
@@ -243,6 +262,10 @@ def analytics(
         "channel_counts": channel_counts,
         "daily_last_7_days": daily,
         "top_riders": top_riders,
+        "rto_rate": rto_rate,
+        "cod_collected_total": round(cod_collected_total, 2),
+        "cod_pending_total": cod_pending_total,
+        "avg_delivery_hours": avg_delivery_hours,
     }
 
 

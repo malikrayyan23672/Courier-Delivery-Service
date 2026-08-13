@@ -78,3 +78,4 @@ class BusManifestOut(BaseModel):
 class ManifestStatusIn(BaseModel):
     status: str  # in_preparation / in_transit / arrived
     item_status: Optional[str] = None  # optional: scan all items to this status
+    scanned_item_ids: Optional[list[str]] = None  # optional: only these items were physically scanned on arrival

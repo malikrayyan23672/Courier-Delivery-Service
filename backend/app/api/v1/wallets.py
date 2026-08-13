@@ -6,6 +6,7 @@ from app.core.permissions import require_roles
 from app.models.user import User
 from app.models.business import Business
 from app.models.wallet import WalletTransaction, ReconciliationLog
+from app.services import log_service
 from app.schemas.wallet import (
     WalletOut,
     WalletLockIn,
@@ -32,7 +33,7 @@ def _wallet_out(b: Business) -> WalletOut:
 @router.get("", response_model=list[WalletOut])
 def list_wallets(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "finance")),
 ):
     return [_wallet_out(b) for b in db.query(Business).order_by(Business.created_at.desc()).all()]
 
@@ -42,7 +43,7 @@ def set_wallet_lock(
     business_id: str,
     payload: WalletLockIn,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "finance")),
 ):
     """Auto-lock (or unlock) a seller's COD wallet - blocks payouts until reconciled."""
     business = db.query(Business).filter(Business.id == business_id).first()
@@ -52,6 +53,14 @@ def set_wallet_lock(
     business.wallet_locked = payload.lock
     business.wallet_lock_reason = payload.reason if payload.lock else None
     db.commit()
+    log_service.create_log(
+        db,
+        action="wallet_locked" if payload.lock else "wallet_unlocked",
+        user_id=str(current_user.id),
+        entity_type="Business",
+        entity_id=str(business.id),
+        details=payload.reason,
+    )
     db.refresh(business)
     return _wallet_out(business)
 
@@ -60,7 +69,7 @@ def set_wallet_lock(
 def wallet_transactions(
     business_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "finance")),
 ):
     rows = (
         db.query(WalletTransaction)
@@ -76,7 +85,7 @@ def reconcile_wallet(
     business_id: str,
     payload: ReconciliationIn,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "finance")),
 ):
     """
     Digital reconciliation. Expected = what COD payouts say, actual = what the
@@ -107,6 +116,14 @@ def reconcile_wallet(
         business.wallet_lock_reason = f"Reconciliation mismatch of {difference}"
 
     db.commit()
+    log_service.create_log(
+        db,
+        action="wallet_reconciled" if status == "matched" else "wallet_reconciliation_mismatch",
+        user_id=str(current_user.id),
+        entity_type="Business",
+        entity_id=str(business.id),
+        details=f"Expected {payload.expected_amount}, actual {payload.actual_amount}, diff {difference}",
+    )
     db.refresh(log)
     return ReconciliationOut.model_validate(log)
 
@@ -115,7 +132,7 @@ def reconcile_wallet(
 def list_reconciliations(
     business_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "finance")),
 ):
     rows = (
         db.query(ReconciliationLog)

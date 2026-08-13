@@ -12,6 +12,8 @@ import {
   getRiderProfile,
   updateRiderAvailability,
   updateRiderLocation,
+  sendDeliveryOtp,
+  submitProofOfDelivery,
   Order,
   RiderMe,
   ApiError,
@@ -54,36 +56,48 @@ const STAR_ICON = (
 
 /* -------------------------------- status maps ------------------------------- */
 
+// Only the two edges a rider can advance directly via the generic status
+// endpoint - everything else is driven by hub/manifest scans, or by the
+// dedicated OTP+photo+GPS delivery modal (out_for_delivery -> delivered).
 const STATUS_FLOW: Record<string, string | null> = {
   assigned: 'picked_up',
-  picked_up: 'in_transit',
-  in_transit: 'delivered',
+  picked_up: 'out_for_delivery',
+  in_hub: null,
+  in_transit: null,
+  dest_hub: null,
+  out_for_delivery: null,
   delivered: null,
   failed: null,
+  rto: null,
   cancelled: null,
   created: null,
 };
 
 const STATUS_LABELS: Record<string, string> = {
   assigned: 'Mark picked up',
-  picked_up: 'Mark in transit',
-  in_transit: 'Mark delivered',
+  picked_up: 'Start delivery',
 };
 
 const STATUS_BADGE: Record<string, string> = {
   created: 'bg-[#EAF1FC] text-navy',
   assigned: 'bg-[#EAF1FC] text-navy',
   picked_up: 'bg-[#FBF3EA] text-orange',
+  in_hub: 'bg-[#FBF3EA] text-orange',
   in_transit: 'bg-[#FBF3EA] text-orange',
+  dest_hub: 'bg-[#FBF3EA] text-orange',
+  out_for_delivery: 'bg-[#FBF3EA] text-orange',
   delivered: 'bg-[#EAF7EF] text-success',
   failed: 'bg-[#FBEAE7] text-danger',
+  rto: 'bg-[#FBEAE7] text-danger',
   cancelled: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
-const ACTIVE_STATUSES = new Set(['assigned', 'picked_up', 'in_transit']);
+const ACTIVE_STATUSES = new Set(['assigned', 'picked_up', 'in_hub', 'in_transit', 'dest_hub', 'out_for_delivery']);
+// Statuses currently sitting with the hub/bus network - nothing for the rider to do but wait.
+const HUB_HELD_STATUSES = new Set(['in_hub', 'in_transit']);
 
 function statusLabel(status: string) {
-  return status.replace('_', ' ');
+  return status.replace(/_/g, ' ');
 }
 
 function initials(name: string) {
@@ -93,6 +107,20 @@ function initials(name: string) {
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase())
     .join('');
+}
+
+function getGeolocation(): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve, reject) => {
+    if (!('geolocation' in navigator)) {
+      reject(new Error("This device/browser doesn't support location sharing."));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => reject(new Error('Location permission denied - GPS is required for this step.')),
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  });
 }
 
 /* ---------------------------------- page ------------------------------------ */
@@ -119,6 +147,8 @@ function RiderContent() {
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
+  const [deliveringOrder, setDeliveringOrder] = useState<Order | null>(null);
+
   // Location is manual and one-shot: the rider taps "I've arrived at branch",
   // we grab their position once, send it once, and nothing runs in the
   // background after that - no watch, no interval, no polling, no re-render
@@ -138,29 +168,17 @@ function RiderContent() {
 
   function handleArrivedAtBranch() {
     if (!token) return;
-    if (!('geolocation' in navigator)) {
-      setLocationError("This device/browser doesn't support location sharing.");
-      return;
-    }
     setLocating(true);
     setLocationError('');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        updateRiderLocation(next.lat, next.lng, token)
-          .then(() => {
-            setCoords(next);
-            setLocationUpdatedAt(new Date());
-          })
-          .catch((err) => setLocationError(err instanceof ApiError ? err.message : 'Could not share location.'))
-          .finally(() => setLocating(false));
-      },
-      () => {
-        setLocationError('Location permission denied - turn it on to share your arrival.');
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000 }
-    );
+    getGeolocation()
+      .then((next) =>
+        updateRiderLocation(next.lat, next.lng, token).then(() => {
+          setCoords(next);
+          setLocationUpdatedAt(new Date());
+        })
+      )
+      .catch((err) => setLocationError(err instanceof Error ? err.message : 'Could not share location.'))
+      .finally(() => setLocating(false));
   }
 
   function loadProfile() {
@@ -203,7 +221,13 @@ function RiderContent() {
     try {
       await respondToDelivery(order.id, accept, token);
       if (accept) {
-        setDeliveries((prev) => prev.map((o) => (o.id === order.id ? { ...o, rider_accepted: true } : o)));
+        setDeliveries((prev) =>
+          prev.map((o) =>
+            o.id === order.id
+              ? { ...o, rider_accepted: true, status: o.status === 'dest_hub' ? 'out_for_delivery' : o.status }
+              : o
+          )
+        );
       } else {
         setDeliveries((prev) => prev.filter((o) => o.id !== order.id));
       }
@@ -221,11 +245,34 @@ function RiderContent() {
     setUpdatingId(order.id);
     setError('');
     try {
-      await updateDeliveryStatus(order.id, nextStatus, undefined, token);
+      // Both rider-advanceable edges (picked_up, out_for_delivery) require GPS server-side.
+      const location = await getGeolocation();
+      await updateDeliveryStatus(order.id, nextStatus, undefined, token, location);
       setDeliveries((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: nextStatus } : o)));
       loadProfile(); // stats (earnings/active count) may have changed
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not update status.');
+      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not update status.');
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function handleReportFailedAttempt(order: Order) {
+    if (!token) return;
+    setUpdatingId(order.id);
+    setError('');
+    try {
+      let location: { lat: number; lng: number } | undefined;
+      try {
+        location = await getGeolocation();
+      } catch {
+        location = undefined; // GPS optional on a failed-attempt report
+      }
+      const result = await updateDeliveryStatus(order.id, 'failed', 'Buyer unavailable / refused', token, location);
+      setDeliveries((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: result.status } : o)));
+      loadProfile();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not report this attempt.');
     } finally {
       setUpdatingId(null);
     }
@@ -237,13 +284,13 @@ function RiderContent() {
   }
 
   const pendingOffers = useMemo(
-    () => deliveries.filter((o) => o.status === 'assigned' && o.rider_accepted !== true),
+    () => deliveries.filter((o) => (o.status === 'assigned' || o.status === 'dest_hub') && o.rider_accepted !== true),
     [deliveries]
   );
   const activeDeliveries = useMemo(
     () =>
       deliveries.filter(
-        (o) => ACTIVE_STATUSES.has(o.status) && !(o.status === 'assigned' && o.rider_accepted !== true)
+        (o) => ACTIVE_STATUSES.has(o.status) && !((o.status === 'assigned' || o.status === 'dest_hub') && o.rider_accepted !== true)
       ),
     [deliveries]
   );
@@ -251,6 +298,13 @@ function RiderContent() {
     () => deliveries.filter((o) => o.status === 'delivered').slice(0, 5),
     [deliveries]
   );
+
+  const wallet = profile
+    ? {
+        pct: profile.cod_wallet_limit ? Math.min(100, (profile.cod_cash_held / profile.cod_wallet_limit) * 100) : 0,
+        atWarning: profile.cod_cash_held >= profile.cod_wallet_warning_at,
+      }
+    : null;
 
   return (
     <div className="min-h-screen bg-page">
@@ -314,6 +368,31 @@ function RiderContent() {
           </button>
         </div>
 
+        {/* COD cash-in-hand wallet */}
+        {profile && (
+          <div className={`bg-white rounded-card shadow-card p-4 mb-6 ${profile.cod_wallet_locked ? 'ring-2 ring-danger' : wallet?.atWarning ? 'ring-2 ring-warning' : ''}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">COD cash in hand</span>
+              <span className={`text-sm font-bold ${profile.cod_wallet_locked ? 'text-danger' : wallet?.atWarning ? 'text-warning' : 'text-ink'}`}>
+                Rs {profile.cod_cash_held.toLocaleString()} / {profile.cod_wallet_limit.toLocaleString()}
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-line overflow-hidden">
+              <div
+                className={`h-full rounded-full ${profile.cod_wallet_locked ? 'bg-danger' : wallet?.atWarning ? 'bg-warning' : 'bg-success'}`}
+                style={{ width: `${wallet?.pct ?? 0}%` }}
+              />
+            </div>
+            {profile.cod_wallet_locked ? (
+              <p className="text-xs text-danger mt-2 font-semibold">
+                Wallet locked - deposit cash at the hub before accepting new COD parcels.
+              </p>
+            ) : wallet?.atWarning ? (
+              <p className="text-xs text-warning mt-2">Approaching the COD limit - deposit cash soon to avoid a lock.</p>
+            ) : null}
+          </div>
+        )}
+
         {/* location - manual, one-shot, only visible while online */}
         {profile?.is_available && (
           <div className="bg-white rounded-card shadow-card p-4 mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -367,7 +446,9 @@ function RiderContent() {
                 >
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div>
-                      <span className="text-xs font-semibold uppercase tracking-wide text-orange">New delivery request</span>
+                      <span className="text-xs font-semibold uppercase tracking-wide text-orange">
+                        {order.status === 'dest_hub' ? 'Last-mile delivery request' : 'New pickup request'}
+                      </span>
                       <p className="font-mono font-bold text-ink mt-1">{order.tracking_number}</p>
                     </div>
                     {(order.final_price ?? order.estimated_price) != null && (
@@ -426,6 +507,8 @@ function RiderContent() {
           <div className="flex flex-col gap-4 mb-8">
             {activeDeliveries.map((order) => {
               const nextStatus = STATUS_FLOW[order.status];
+              const isHubHeld = HUB_HELD_STATUSES.has(order.status);
+              const isOutForDelivery = order.status === 'out_for_delivery';
               return (
                 <div key={order.id} className="bg-white rounded-card shadow-card p-5">
                   <div className="flex items-start justify-between gap-4 mb-4">
@@ -475,6 +558,28 @@ function RiderContent() {
                     </div>
                   ) : null}
 
+                  {isHubHeld && (
+                    <p className="text-xs text-muted-foreground italic">With the hub network - nothing to do until it reaches the destination hub.</p>
+                  )}
+
+                  {isOutForDelivery && (
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleReportFailedAttempt(order)}
+                        disabled={updatingId === order.id}
+                        className="flex-1 border border-line text-muted-foreground hover:text-danger hover:border-danger font-semibold text-sm py-2.5 rounded-[10px] transition-colors disabled:opacity-60"
+                      >
+                        Report failed attempt
+                      </button>
+                      <button
+                        onClick={() => setDeliveringOrder(order)}
+                        className="flex-[1.4] bg-navy hover:bg-navy-light text-white font-bold text-sm py-2.5 rounded-[10px] transition-colors"
+                      >
+                        Deliver
+                      </button>
+                    </div>
+                  )}
+
                   {nextStatus && (
                     <button
                       onClick={() => handleAdvanceStatus(order)}
@@ -523,6 +628,19 @@ function RiderContent() {
           </div>
         )}
       </main>
+
+      {deliveringOrder && token && (
+        <DeliveryModal
+          order={deliveringOrder}
+          token={token}
+          onClose={() => setDeliveringOrder(null)}
+          onDelivered={(updated) => {
+            setDeliveries((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+            setDeliveringOrder(null);
+            loadProfile();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -532,6 +650,157 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
     <div className="bg-white rounded-card shadow-card p-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</p>
       <p className={`font-display text-2xl font-bold ${accent}`}>{value}</p>
+    </div>
+  );
+}
+
+/* ------------------------------ delivery modal ------------------------------- */
+
+function DeliveryModal({
+  order,
+  token,
+  onClose,
+  onDelivered,
+}: {
+  order: Order;
+  token: string;
+  onClose: () => void;
+  onDelivered: (order: Order) => void;
+}) {
+  const [otpSent, setOtpSent] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [recipientName, setRecipientName] = useState(order.dropoff_address?.contact_name || '');
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSendOtp() {
+    setSendingOtp(true);
+    setError('');
+    try {
+      await sendDeliveryOtp(order.id, token);
+      setOtpSent(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not send OTP.');
+    } finally {
+      setSendingOtp(false);
+    }
+  }
+
+  async function handleCaptureGps() {
+    setLocating(true);
+    setError('');
+    try {
+      setCoords(await getGeolocation());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not capture GPS.');
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  async function handleSubmit() {
+    if (!otpCode || !photo || !coords) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const updated = await submitProofOfDelivery(
+        order.id,
+        { photo, otpCode, lat: coords.lat, lng: coords.lng, recipientName: recipientName || undefined },
+        token
+      );
+      onDelivered(updated);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not complete delivery.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const canSubmit = otpSent && !!otpCode && !!photo && !!coords && !submitting;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-6">
+      <div className="bg-white w-full sm:max-w-md sm:rounded-card rounded-t-2xl p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-display text-lg font-bold text-ink">Complete delivery</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-ink text-sm font-semibold">Close</button>
+        </div>
+        <p className="font-mono text-sm text-muted-foreground mb-4">{order.tracking_number}</p>
+
+        {error && <div className="bg-[#FBEAE7] text-danger text-sm rounded-[10px] px-4 py-3 mb-4">{error}</div>}
+
+        <div className="flex flex-col gap-4">
+          {/* Step 1: OTP */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">1. Recipient OTP</p>
+            {!otpSent ? (
+              <button
+                onClick={handleSendOtp}
+                disabled={sendingOtp}
+                className="w-full bg-orange hover:opacity-90 text-white font-bold text-sm py-2.5 rounded-[10px] disabled:opacity-60"
+              >
+                {sendingOtp ? 'Sending…' : 'Send OTP to recipient'}
+              </button>
+            ) : (
+              <input
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="6-digit OTP"
+                className="w-full border border-line rounded-[10px] px-4 py-2.5 text-sm font-mono tracking-widest"
+              />
+            )}
+          </div>
+
+          {/* Step 2: GPS */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">2. GPS location</p>
+            <button
+              onClick={handleCaptureGps}
+              disabled={locating}
+              className={`w-full border font-semibold text-sm py-2.5 rounded-[10px] transition-colors disabled:opacity-60 ${
+                coords ? 'border-success text-success' : 'border-line text-ink hover:border-navy'
+              }`}
+            >
+              {locating ? 'Capturing…' : coords ? `Captured (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})` : 'Capture current location'}
+            </button>
+          </div>
+
+          {/* Step 3: Photo */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">3. Proof photo</p>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+              className="w-full text-sm"
+            />
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Received by (optional)</p>
+            <input
+              value={recipientName}
+              onChange={(e) => setRecipientName(e.target.value)}
+              placeholder="Recipient name"
+              className="w-full border border-line rounded-[10px] px-4 py-2.5 text-sm"
+            />
+          </div>
+
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="w-full bg-navy hover:bg-navy-light text-white font-bold text-sm py-3 rounded-[10px] disabled:opacity-40 transition-colors"
+          >
+            {submitting ? 'Completing…' : 'Mark delivered'}
+          </button>
+          <p className="text-[0.7rem] text-muted-foreground text-center">OTP, photo, and GPS are all required - no exceptions.</p>
+        </div>
+      </div>
     </div>
   );
 }

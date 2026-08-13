@@ -25,9 +25,13 @@ const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' |
   created: 'info',
   assigned: 'warning',
   picked_up: 'warning',
+  in_hub: 'warning',
   in_transit: 'warning',
+  dest_hub: 'warning',
+  out_for_delivery: 'warning',
   delivered: 'success',
   failed: 'danger',
+  rto: 'danger',
   cancelled: 'secondary',
 };
 

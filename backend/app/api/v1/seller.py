@@ -1,10 +1,14 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.core.permissions import require_roles
 from app.models.user import User
 from app.models.business import Business
+from app.models.order import Order, OrderStatus
 from app.models.rnp import RNPPartner
 from app.models.seller_upload import SellerUpload
 from app.models.wallet import WalletTransaction
@@ -104,6 +108,47 @@ def seller_settlement_summary(
     return {
         "pending_count": len(pending_rows),
         "pending_amount": round(sum(s.amount for s in pending_rows), 2),
+    }
+
+
+@router.get("/analytics")
+def seller_analytics(
+    days: int = 14,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("business")),
+):
+    """Shipment volume trend + RTO rate for this seller's own orders."""
+    business = _require_business(db, current_user)
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    orders_q = (
+        db.query(Order)
+        .join(User, Order.customer_id == User.id)
+        .filter(User.business_id == business.id)
+    )
+
+    status_rows = orders_q.with_entities(Order.status, func.count(Order.id)).group_by(Order.status).all()
+    status_counts = {(s.value if hasattr(s, "value") else s): c for s, c in status_rows}
+    total = sum(status_counts.values())
+    rto_count = status_counts.get(OrderStatus.rto.value, 0)
+    delivered_count = status_counts.get(OrderStatus.delivered.value, 0)
+    resolved = delivered_count + rto_count
+    rto_rate = round((rto_count / resolved) * 100, 1) if resolved else 0.0
+
+    daily_rows = (
+        orders_q.with_entities(func.date(Order.created_at), func.count(Order.id))
+        .filter(Order.created_at >= since)
+        .group_by(func.date(Order.created_at))
+        .order_by(func.date(Order.created_at))
+        .all()
+    )
+    daily = [{"date": str(d), "shipments": c} for d, c in daily_rows]
+
+    return {
+        "total_shipments": total,
+        "rto_rate": rto_rate,
+        "status_counts": status_counts,
+        "daily_shipments": daily,
     }
 
 

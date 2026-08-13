@@ -111,33 +111,6 @@ export const INITIAL_DELIVERIES: Delivery[] = [
   { id: 'FX-582022', customer: 'Nimra Javed', zone: 'Cantt', rider: null, progress: 0, status: 'Ready', proof: '—' },
 ];
 
-export const RECEIVING_QUEUE = [
-  { id: 'FX-591044', from: 'Karachi Branch', sort: 'In Progress' },
-  { id: 'FX-591045', from: 'Islamabad Branch', sort: 'Pending' },
-  { id: 'FX-591046', from: 'Faisalabad Branch', sort: 'Sorted' },
-  { id: 'FX-591047', from: 'Multan Branch', sort: 'Pending' },
-];
-
-export const DISPATCH_QUEUE = [
-  { id: 'FX-592011', to: 'Rawalpindi HQ', status: 'Ready to Load' },
-  { id: 'FX-592012', to: 'Peshawar Branch', status: 'Loading' },
-  { id: 'FX-592013', to: 'Quetta Branch', status: 'Ready to Load' },
-];
-
-export const TRANSFER_HISTORY = [
-  { id: 'FX-590021', dir: 'Inbound', branch: 'Karachi Branch', date: 'Jul 07, 8:12 AM' },
-  { id: 'FX-590022', dir: 'Outbound', branch: 'Islamabad Branch', date: 'Jul 07, 9:40 AM' },
-  { id: 'FX-590023', dir: 'Inbound', branch: 'Multan Branch', date: 'Jul 06, 6:55 PM' },
-  { id: 'FX-590024', dir: 'Outbound', branch: 'Rawalpindi HQ', date: 'Jul 06, 4:20 PM' },
-];
-
-export const AGING_PARCELS = [
-  { id: 'FX-570091', shelf: 'B-14', days: 6, status: 'Unprocessed' },
-  { id: 'FX-570092', shelf: 'C-02', days: 5, status: 'Awaiting RTO' },
-  { id: 'FX-570093', shelf: 'A-19', days: 4, status: 'Unprocessed' },
-  { id: 'FX-570094', shelf: 'D-07', days: 4, status: 'Awaiting Pickup' },
-];
-
 export const STAFF: StaffMember[] = [
   { name: 'Hassan Raza', role: 'Branch Manager', attendance: 'Present', contact: '+92 300 1234567', perm: 'Full Access' },
   { name: 'Owais Farooq', role: 'Dispatch Officer', attendance: 'Present', contact: '+92 301 2345678', perm: 'Dispatch, Transfers' },

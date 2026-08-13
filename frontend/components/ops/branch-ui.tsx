@@ -17,6 +17,15 @@ const STATUS_TO_COLOR: Record<string, string> = {
   'Out for Delivery': 'amber', Delivered: 'green', Rescheduled: 'blue', 'En Route': 'amber',
   Arrived: 'green', 'Not Started': 'gray', Present: 'green', 'On Leave': 'amber', Absent: 'red',
   Sorted: 'green', 'In Progress': 'amber', Loading: 'amber', Inbound: 'blue', Outbound: 'amber',
+  // Raw backend order-status values (snake_case), used directly by the real
+  // /hub/* API responses wired into the receiving/dispatch/aging panels.
+  created: 'blue', assigned: 'amber', picked_up: 'green', in_hub: 'amber', in_transit: 'amber',
+  dest_hub: 'amber', out_for_delivery: 'amber', delivered: 'green', failed: 'red', rto: 'red',
+  cancelled: 'gray',
+  // Manifest statuses (bus network)
+  in_preparation: 'gray', arrived: 'green',
+  // Dispute statuses (finance)
+  open: 'amber', resolved: 'green', rejected: 'red',
 };
 
 export function Pill({ status, label }: { status: string; label?: string }) {

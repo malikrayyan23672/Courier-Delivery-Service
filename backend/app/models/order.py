@@ -10,12 +10,23 @@ from app.models.base import TimestampMixin, UUID_TYPE, gen_uuid
 
 
 class OrderStatus(str, enum.Enum):
-    created = "created"
-    assigned = "assigned"
-    picked_up = "picked_up"
-    in_transit = "in_transit"
-    delivered = "delivered"
-    failed = "failed"
+    """
+    The 8-state parcel journey (plus two operational extras: `assigned` - a
+    rider has been offered the pickup but hasn't scanned it yet, and
+    `cancelled` - killed before it ever entered the bus network). Transitions
+    are enforced centrally by `order_service.transition()` - no route handler
+    should assign `.status` directly.
+    """
+    created = "created"                    # BOOKED
+    assigned = "assigned"                  # pickup offered to a rider
+    picked_up = "picked_up"                # PICKED
+    in_hub = "in_hub"                      # IN_HUB - scanned in at origin hub
+    in_transit = "in_transit"              # IN_TRANSIT - manifest departed
+    dest_hub = "dest_hub"                  # DEST_HUB - scanned in at destination hub
+    out_for_delivery = "out_for_delivery"  # OUT_FOR_DELIVERY - last-mile rider assigned
+    delivered = "delivered"                # DELIVERED
+    failed = "failed"                      # a delivery attempt failed - may retry
+    rto = "rto"                            # RTO - 3 attempts exhausted or buyer refused
     cancelled = "cancelled"
 
 
@@ -57,7 +68,9 @@ class Order(Base, TimestampMixin):
     package_weight_kg = Column(Float, nullable=True)
     package_description = Column(String(255), nullable=True)
 
-    status = Column(Enum(OrderStatus), default=OrderStatus.created, index=True)
+    # native_enum=False -> stored as VARCHAR + Python-side validation, so adding
+    # a new status later is a plain column default, never an `ALTER TYPE`.
+    status = Column(Enum(OrderStatus, native_enum=False, length=30), default=OrderStatus.created, index=True)
 
     rider_id = Column(UUID_TYPE, ForeignKey("riders.id"), nullable=True)
     rider = relationship("RiderProfile", back_populates="deliveries")

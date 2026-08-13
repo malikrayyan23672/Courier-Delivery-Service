@@ -12,6 +12,7 @@ ROLES = [
     ("admin", "Operations staff with broad management access"),
     ("manager", "Manages branch operations"),
     ("business", "Seller/enterprise account with access to the seller portal"),
+    ("finance", "Manages COD settlements, payouts, rider wallets, and disputes"),
     ("super_admin", "Full system access including pricing and config"),
 ]
 

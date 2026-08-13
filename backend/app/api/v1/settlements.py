@@ -5,7 +5,9 @@ from app.database import get_db
 from app.core.permissions import require_roles
 from app.models.user import User
 from app.models.settlement import Settlement, SettlementStatus
+from app.models.dispute import Dispute, DisputeStatus
 from app.schemas.settlement import SettlementOut, SettleResultOut
+from app.services import log_service
 from app.services.settlement_service import settle_due_settlements, pending_cod_amount
 
 router = APIRouter(prefix="/admin/settlements", tags=["Admin - COD Settlements"])
@@ -31,7 +33,7 @@ def _to_out(s: Settlement) -> SettlementOut:
 def list_settlements(
     status_filter: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "finance")),
 ):
     q = db.query(Settlement).order_by(Settlement.created_at.desc())
     if status_filter:
@@ -42,7 +44,7 @@ def list_settlements(
 @router.get("/summary")
 def settlement_summary(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "finance")),
 ):
     """Pending COD exposure - drives the 'Settle T+1' button label."""
     pending = (
@@ -60,7 +62,7 @@ def settlement_summary(
 def settle_t1(
     remark: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "finance")),
 ):
     """
     Manual T+1 settlement. Pays out every pending COD order delivered on or
@@ -82,7 +84,7 @@ def settle_t1(
 def settle_one(
     settlement_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "finance")),
 ):
     settlement = db.query(Settlement).filter(Settlement.id == settlement_id).first()
     if not settlement:
@@ -94,6 +96,18 @@ def settle_one(
         raise HTTPException(
             status_code=409,
             detail="Seller wallet is auto-locked - reconcile the wallet before settling.",
+        )
+
+    has_open_dispute = (
+        db.query(Dispute)
+        .filter(Dispute.order_id == settlement.order_id, Dispute.status == DisputeStatus.open)
+        .first()
+        is not None
+    )
+    if has_open_dispute:
+        raise HTTPException(
+            status_code=409,
+            detail="This order has an open dispute - resolve it before settling.",
         )
 
     settlement.status = SettlementStatus.paid
@@ -118,5 +132,10 @@ def settle_one(
         )
 
     db.commit()
+    log_service.create_log(
+        db, action="settlement_paid", user_id=str(current_user.id),
+        entity_type="Settlement", entity_id=str(settlement.id),
+        details=f"Paid PKR {settlement.amount:.2f} (individual settle)",
+    )
     db.refresh(settlement)
     return _to_out(settlement)

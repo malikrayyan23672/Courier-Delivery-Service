@@ -15,6 +15,10 @@ class RiderMeOut(BaseModel):
     is_available: bool
     rating: float
     stats: RiderStatsOut
+    cod_cash_held: float = 0.0
+    cod_wallet_locked: bool = False
+    cod_wallet_limit: float = 0.0
+    cod_wallet_warning_at: float = 0.0
 
     class Config:
         from_attributes = True
@@ -34,3 +38,8 @@ class OfferResponse(BaseModel):
 class LocationUpdate(BaseModel):
     lat: float
     lng: float
+
+
+class DeliveryOtpOut(BaseModel):
+    message: str
+    expires_in_minutes: int

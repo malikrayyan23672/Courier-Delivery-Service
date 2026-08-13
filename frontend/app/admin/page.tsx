@@ -31,6 +31,11 @@ import {
   RnpTab,
   DiscountsTab,
 } from './components';
+import { ChartCard } from '@/components/charts/ChartCard';
+import { TrendLine } from '@/components/charts/TrendLine';
+import { ComparisonBars } from '@/components/charts/ComparisonBars';
+import { StatusDonut } from '@/components/charts/StatusDonut';
+import { STATUS as STATUS_COLORS } from '@/components/charts/palette';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -761,11 +766,9 @@ function AnalyticsTab({ token }: { token: string }) {
   if (error) return <div className="rounded-lg border border-destructive/30 bg-[#FBE9E5] px-4 py-3 text-sm text-destructive">{error}</div>;
   if (!data) return null;
 
-  const maxDaily = Math.max(1, ...data.daily_last_7_days.map((d) => d.revenue));
-  const statusEntries = Object.entries(data.status_counts);
-  const maxStatus = Math.max(1, ...statusEntries.map(([, c]) => c));
-  const channelEntries = Object.entries(data.channel_counts);
-  const maxChannel = Math.max(1, ...channelEntries.map(([, c]) => c));
+  const statusData = Object.entries(data.status_counts).map(([status, value]) => ({ label: status.replace(/_/g, ' '), value }));
+  const channelData = Object.entries(data.channel_counts).map(([channel, value]) => ({ label: channel.replace(/_/g, ' '), value }));
+  const money = (v: number) => `Rs ${v.toLocaleString()}`;
 
   return (
     <div className="flex flex-col gap-5 animate-fade-in">
@@ -780,17 +783,17 @@ function AnalyticsTab({ token }: { token: string }) {
         <Card>
           <CardContent className="p-5">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Revenue (delivered)</div>
-            <div className="mt-1 text-3xl font-bold text-success">Rs {data.total_revenue.toLocaleString()}</div>
+            <div className="mt-1 text-3xl font-bold text-success">{money(data.total_revenue)}</div>
             <div className="mt-1 text-xs text-muted-foreground">Network-wide</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Top rider earnings</div>
-            <div className="mt-1 text-3xl font-bold text-primary">
-              Rs {(data.top_riders[0]?.earnings ?? 0).toLocaleString()}
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">RTO rate</div>
+            <div className="mt-1 text-3xl font-bold" style={{ color: data.rto_rate > 15 ? STATUS_COLORS.critical : STATUS_COLORS.good }}>
+              {data.rto_rate}%
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">{data.top_riders[0]?.full_name ?? 'No data'}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Of resolved (delivered + RTO)</div>
           </CardContent>
         </Card>
         <Card>
@@ -804,53 +807,38 @@ function AnalyticsTab({ token }: { token: string }) {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle>Revenue — last 7 days</CardTitle>
-          <CardDescription>Per-day delivered revenue</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {data.daily_last_7_days.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">No delivered orders in the last 7 days yet.</p>
-          ) : (
-            <div className="flex h-40 items-end gap-3">
-              {data.daily_last_7_days.map((d) => (
-                <div key={d.date} className="flex flex-1 flex-col items-center gap-2">
-                  <span className="text-xs font-semibold text-ink">Rs {d.revenue.toLocaleString()}</span>
-                  <div className="w-full rounded-t-md bg-primary" style={{ height: `${Math.max(4, (d.revenue / maxDaily) * 100)}%` }} />
-                  <span className="text-[0.65rem] text-muted-foreground">{d.date.slice(5)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card>
+          <CardContent className="p-5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">COD collected (all-time)</div>
+            <div className="mt-1 text-2xl font-bold text-ink">{money(data.cod_collected_total)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">COD pending payout</div>
+            <div className="mt-1 text-2xl font-bold" style={{ color: STATUS_COLORS.warning }}>{money(data.cod_pending_total)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Avg. delivery time</div>
+            <div className="mt-1 text-2xl font-bold text-ink">{data.avg_delivery_hours != null ? `${data.avg_delivery_hours}h` : '—'}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <ChartCard title="Revenue — last 7 days" description="Per-day delivered revenue" empty={data.daily_last_7_days.length === 0} emptyMessage="No delivered orders in the last 7 days yet.">
+        <TrendLine data={data.daily_last_7_days} xKey="date" series={[{ key: 'revenue', label: 'Revenue' }]} valueFormatter={money} />
+      </ChartCard>
 
       <div className="grid gap-5 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle>Orders by status</CardTitle></CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {statusEntries.map(([status, count]) => (
-              <div key={status} className="flex items-center gap-3">
-                <span className="w-28 shrink-0 text-xs text-muted-foreground capitalize">{status.replace('_', ' ')}</span>
-                <Progress value={(count / maxStatus) * 100} className="h-2.5 flex-1" />
-                <span className="w-6 text-right text-xs font-semibold text-ink">{count}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle>Booking channel mix</CardTitle></CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {channelEntries.map(([channel, count]) => (
-              <div key={channel} className="flex items-center gap-3">
-                <span className="w-28 shrink-0 text-xs text-muted-foreground capitalize">{channel.replace('_', ' ')}</span>
-                <Progress value={(count / maxChannel) * 100} className="h-2.5 flex-1 [&>div]:bg-orange" />
-                <span className="w-6 text-right text-xs font-semibold text-ink">{count}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <ChartCard title="Orders by status" empty={statusData.length === 0}>
+          <ComparisonBars data={statusData} categoryKey="label" series={[{ key: 'value', label: 'Orders' }]} />
+        </ChartCard>
+        <ChartCard title="Booking channel mix" empty={channelData.length === 0}>
+          <StatusDonut data={channelData} centerLabel={{ value: String(data.total_orders), caption: 'total orders' }} />
+        </ChartCard>
       </div>
 
       <Card>
@@ -874,7 +862,7 @@ function AnalyticsTab({ token }: { token: string }) {
                     <TableCell className="font-bold">{i + 1}</TableCell>
                     <TableCell className="font-semibold">{r.full_name}</TableCell>
                     <TableCell className="text-right">{r.deliveries}</TableCell>
-                    <TableCell className="text-right font-semibold text-success">Rs {r.earnings.toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-semibold text-success">{money(r.earnings)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

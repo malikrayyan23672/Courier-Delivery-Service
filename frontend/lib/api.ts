@@ -376,6 +376,10 @@ export interface RiderMe {
   is_available: boolean;
   rating: number;
   stats: RiderStats;
+  cod_cash_held: number;
+  cod_wallet_locked: boolean;
+  cod_wallet_limit: number;
+  cod_wallet_warning_at: number;
 }
 
 export function getRiderProfile(token: string) {
@@ -410,13 +414,46 @@ export function respondToDelivery(orderId: string, accept: boolean, token: strin
   );
 }
 
-export function updateDeliveryStatus(orderId: string, newStatus: string, note: string | undefined, token: string) {
-  const params = new URLSearchParams({ new_status: newStatus, ...(note ? { note } : {}) });
+export function updateDeliveryStatus(
+  orderId: string,
+  newStatus: string,
+  note: string | undefined,
+  token: string,
+  coords?: { lat: number; lng: number }
+) {
+  const params = new URLSearchParams({
+    new_status: newStatus,
+    ...(note ? { note } : {}),
+    ...(coords ? { lat: String(coords.lat), lng: String(coords.lng) } : {}),
+  });
   return request<{ message: string; status: string }>(
     `/rider/deliveries/${orderId}/status?${params.toString()}`,
     { method: 'PATCH' },
     token
   );
+}
+
+export function sendDeliveryOtp(orderId: string, token: string) {
+  return request<{ message: string; expires_in_minutes: number }>(
+    `/rider/deliveries/${orderId}/send-delivery-otp`,
+    { method: 'POST' },
+    token
+  );
+}
+
+export function submitProofOfDelivery(
+  orderId: string,
+  payload: { photo: File; otpCode: string; lat: number; lng: number; recipientName?: string; note?: string },
+  token: string
+) {
+  const form = new FormData();
+  form.append('photo', payload.photo);
+  form.append('otp_code', payload.otpCode);
+  form.append('lat', String(payload.lat));
+  form.append('lng', String(payload.lng));
+  if (payload.recipientName) form.append('recipient_name', payload.recipientName);
+  if (payload.note) form.append('note', payload.note);
+  return request<Order>(`/rider/deliveries/${orderId}/proof-of-delivery`, { method: 'POST', body: form }, token);
 }
 
 // ---- Admin ----
@@ -548,6 +585,10 @@ export interface AdminAnalytics {
   channel_counts: Record<string, number>;
   daily_last_7_days: { date: string; orders: number; revenue: number }[];
   top_riders: { full_name: string; deliveries: number; earnings: number }[];
+  rto_rate: number;
+  cod_collected_total: number;
+  cod_pending_total: number;
+  avg_delivery_hours: number | null;
 }
 
 export function getAdminAnalytics(token: string) {
@@ -919,6 +960,17 @@ export function getSellerTransactions(token: string) {
   return request<WalletTransaction[]>('/seller/wallet/transactions', { method: 'GET' }, token);
 }
 
+export interface SellerAnalytics {
+  total_shipments: number;
+  rto_rate: number;
+  status_counts: Record<string, number>;
+  daily_shipments: { date: string; shipments: number }[];
+}
+
+export function getSellerAnalytics(token: string, days = 14) {
+  return request<SellerAnalytics>(`/seller/analytics?days=${days}`, { method: 'GET' }, token);
+}
+
 export async function uploadSellerFile(file: File, token: string) {
   const form = new FormData();
   form.append('file', file);
@@ -942,4 +994,184 @@ export function listSellerRNP(token: string) {
 
 export function getPublicDiscounts() {
   return request<Discount[]>('/discounts/public', { method: 'GET' });
+}
+
+// ---- Hub Operations ----
+
+export interface HubOrderSummary {
+  id: string;
+  tracking_number: string;
+  status: string;
+  package_description: string | null;
+  dropoff_city: string | null;
+  updated_at: string;
+}
+
+export interface HubAgingOrder extends HubOrderSummary {
+  hours_aging: number;
+}
+
+export interface HubManifestSummary {
+  id: string;
+  manifest_number: string | null;
+  coach_number: string | null;
+  status: string;
+  departure_at: string | null;
+  origin_city: string | null;
+  destination_city: string | null;
+  item_count: number;
+  operator_name: string | null;
+}
+
+export interface VendorScore {
+  operator_id: string;
+  operator_name: string;
+  total: number;
+  on_time: number;
+  on_time_pct: number;
+}
+
+export interface HubAnalytics {
+  daily: { date: string; parcels_in: number; parcels_out: number }[];
+  vendor_scores: VendorScore[];
+}
+
+function branchQuery(branchId?: string) {
+  return branchId ? `?branch_id=${branchId}` : '';
+}
+
+export function getHubInboundQueue(token: string, branchId?: string) {
+  return request<HubOrderSummary[]>(`/hub/inbound-queue${branchQuery(branchId)}`, { method: 'GET' }, token);
+}
+
+export function scanHubInbound(trackingNumber: string, token: string, branchId?: string) {
+  const params = new URLSearchParams({ tracking_number: trackingNumber, ...(branchId ? { branch_id: branchId } : {}) });
+  return request<HubOrderSummary>(`/hub/inbound/scan?${params.toString()}`, { method: 'POST' }, token);
+}
+
+export function getHubDispatchQueue(token: string, branchId?: string) {
+  return request<HubOrderSummary[]>(`/hub/dispatch-queue${branchQuery(branchId)}`, { method: 'GET' }, token);
+}
+
+export function getHubManifestHistory(token: string, branchId?: string) {
+  return request<HubManifestSummary[]>(`/hub/manifest-history${branchQuery(branchId)}`, { method: 'GET' }, token);
+}
+
+export function getHubAgingParcels(token: string, branchId?: string, hours = 4) {
+  const params = new URLSearchParams({ hours: String(hours), ...(branchId ? { branch_id: branchId } : {}) });
+  return request<HubAgingOrder[]>(`/hub/aging-parcels?${params.toString()}`, { method: 'GET' }, token);
+}
+
+export function getHubVendorScores(token: string, branchId?: string) {
+  return request<VendorScore[]>(`/hub/vendor-scores${branchQuery(branchId)}`, { method: 'GET' }, token);
+}
+
+export function getHubAnalytics(token: string, branchId?: string, days = 14) {
+  const params = new URLSearchParams({ days: String(days), ...(branchId ? { branch_id: branchId } : {}) });
+  return request<HubAnalytics>(`/hub/analytics?${params.toString()}`, { method: 'GET' }, token);
+}
+
+// ---- Finance & COD Engine ----
+
+export interface FinanceDashboard {
+  cod_collected_total: number;
+  cod_pending_payout: number;
+  cod_paid_today: number;
+  open_disputes: number;
+  wallet_locked_riders: number;
+  wallet_locked_businesses: number;
+  sla_compliance_pct: number;
+}
+
+export interface FinanceAnalytics {
+  cod_trend: { date: string; collected: number; paid: number }[];
+  sla: { on_time: number; late: number; compliance_pct: number };
+}
+
+export interface ReconciliationRow {
+  business_id?: string;
+  company_name?: string;
+  zone_id?: string;
+  zone_name?: string;
+  pending: number;
+  paid: number;
+  pending_count?: number;
+  paid_count?: number;
+}
+
+export interface ReconciliationReport {
+  by_business: ReconciliationRow[];
+  by_corridor: ReconciliationRow[];
+}
+
+export interface Dispute {
+  id: string;
+  order_id: string;
+  tracking_number: string | null;
+  business_id: string | null;
+  company_name: string | null;
+  raised_by_id: string;
+  reason: string;
+  status: string;
+  resolution_note: string | null;
+  resolved_at: string | null;
+  created_at: string | null;
+}
+
+export interface RiderWallet {
+  rider_id: string;
+  full_name: string;
+  phone: string | null;
+  cod_cash_held: number;
+  cod_wallet_locked: boolean;
+  wallet_limit: number;
+  wallet_warning_at: number;
+}
+
+export function getFinanceDashboard(token: string) {
+  return request<FinanceDashboard>('/finance/dashboard', { method: 'GET' }, token);
+}
+
+export function getFinanceAnalytics(token: string, days = 14) {
+  return request<FinanceAnalytics>(`/finance/analytics?days=${days}`, { method: 'GET' }, token);
+}
+
+export function getFinanceReconciliation(token: string) {
+  return request<ReconciliationReport>('/finance/reconciliation', { method: 'GET' }, token);
+}
+
+export function listDisputes(token: string, statusFilter?: string) {
+  return request<Dispute[]>(
+    `/finance/disputes${statusFilter ? `?status_filter=${statusFilter}` : ''}`,
+    { method: 'GET' },
+    token
+  );
+}
+
+export function createDispute(orderId: string, reason: string, token: string) {
+  return request<Dispute>(
+    '/finance/disputes',
+    { method: 'POST', body: JSON.stringify({ order_id: orderId, reason }) },
+    token
+  );
+}
+
+export function resolveDispute(disputeId: string, accepted: boolean, note: string | undefined, token: string) {
+  return request<Dispute>(
+    `/finance/disputes/${disputeId}/resolve`,
+    { method: 'PATCH', body: JSON.stringify({ accepted, note }) },
+    token
+  );
+}
+
+export function listRiderWallets(token: string) {
+  return request<RiderWallet[]>('/finance/rider-wallets', { method: 'GET' }, token);
+}
+
+export function unlockRiderWallet(riderId: string, note: string, token: string) {
+  return request<RiderWallet>(
+    `/finance/rider-wallets/${riderId}/unlock`,
+    { method: 'POST', body: JSON.stringify({ note }) },
+    token
+  );
 }

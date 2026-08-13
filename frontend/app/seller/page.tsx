@@ -11,6 +11,7 @@ import {
   getSellerSettlements,
   getSellerSettlementSummary,
   getSellerTransactions,
+  getSellerAnalytics,
   uploadSellerFile,
   listSellerUploads,
   registerRNP,
@@ -20,9 +21,14 @@ import {
   SellerUpload,
   WalletTransaction,
   RNP,
+  SellerAnalytics,
 } from '@/lib/api';
+import { ChartCard } from '@/components/charts/ChartCard';
+import { TrendLine } from '@/components/charts/TrendLine';
+import { StatusDonut } from '@/components/charts/StatusDonut';
+import { STATUS as STATUS_COLORS } from '@/components/charts/palette';
 
-type View = 'overview' | 'settlements' | 'files' | 'rnp';
+type View = 'overview' | 'analytics' | 'settlements' | 'files' | 'rnp';
 
 export default function SellerPage() {
   return (
@@ -44,6 +50,7 @@ function SellerContent() {
 
   const NAV: { key: View; label: string }[] = [
     { key: 'overview', label: 'Overview' },
+    { key: 'analytics', label: 'Analytics' },
     { key: 'settlements', label: 'COD Payouts' },
     { key: 'files', label: 'Bulk Orders' },
     { key: 'rnp', label: 'RNP Points' },
@@ -79,6 +86,7 @@ function SellerContent() {
         </div>
 
         {view === 'overview' && <OverviewTab token={token!} onNavigate={setView} />}
+        {view === 'analytics' && <AnalyticsTab token={token!} />}
         {view === 'settlements' && <SettlementsTab token={token!} />}
         {view === 'files' && <FilesTab token={token!} />}
         {view === 'rnp' && <RnpTab token={token!} />}
@@ -169,6 +177,48 @@ function OverviewTab({ token, onNavigate }: { token: string; onNavigate: (v: Vie
           </table>
         )}
       </div>
+    </div>
+  );
+}
+
+function AnalyticsTab({ token }: { token: string }) {
+  const [data, setData] = useState<SellerAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    getSellerAnalytics(token)
+      .then(setData)
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load analytics.'))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return <p className="text-muted-foreground text-sm">Loading analytics…</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (!data) return null;
+
+  const statusData = Object.entries(data.status_counts).map(([status, value]) => ({ label: status.replace(/_/g, ' '), value }));
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="bg-white rounded-card shadow-card px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total shipments</p>
+          <p className="text-2xl font-bold text-ink mt-1">{data.total_shipments}</p>
+        </div>
+        <div className="bg-white rounded-card shadow-card px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">RTO rate</p>
+          <p className="text-2xl font-bold mt-1" style={{ color: data.rto_rate > 15 ? STATUS_COLORS.critical : STATUS_COLORS.good }}>{data.rto_rate}%</p>
+        </div>
+      </div>
+
+      <ChartCard title="Shipments — last 14 days" empty={data.daily_shipments.length === 0} emptyMessage="No shipments in this period yet.">
+        <TrendLine data={data.daily_shipments} xKey="date" series={[{ key: 'shipments', label: 'Shipments' }]} />
+      </ChartCard>
+
+      <ChartCard title="Shipments by status" empty={statusData.length === 0}>
+        <StatusDonut data={statusData} centerLabel={{ value: String(data.total_shipments), caption: 'shipments' }} />
+      </ChartCard>
     </div>
   );
 }

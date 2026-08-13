@@ -34,8 +34,12 @@ class RiderProfile(Base, TimestampMixin):
 
     rating = Column(Float, default=5.0)
 
+    # Cash-in-hand COD wallet (Layer 4). Every COD delivery adds the collected
+    # amount here; a hub cash deposit (finance unlock) clears it. Locked at
+    # WALLET_LOCK_THRESHOLD - see settlement_service.py.
+    cod_cash_held = Column(Float, default=0.0)
+    cod_wallet_locked = Column(Boolean, default=False)
+
     user = relationship("User", back_populates="rider_profile")
     deliveries = relationship("Order", back_populates="rider")
     rider_assignments = relationship("RiderAssignment", back_populates="rider")
-
-    status = Column(Enum(RiderStatus), default=RiderStatus.pending_verification)

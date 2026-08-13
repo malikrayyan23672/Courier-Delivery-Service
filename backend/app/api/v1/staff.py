@@ -9,7 +9,7 @@ from app.models.role import Role
 from app.models.order import CreatedByType, BookingChannel
 from app.models.payment import PaymentMethod
 from app.schemas.order import StaffOrderCreateRequest, OrderOut
-from app.services.order_service import create_order
+from app.services.order_service import create_order, transition
 import secrets
 
 router = APIRouter(prefix="/staff", tags=["Staff Panel"])
@@ -159,11 +159,18 @@ def staff_assign_rider(
     )
     if not rider:
         raise HTTPException(status_code=404, detail="Active rider not found in your branch's zone")
+    if rider.cod_wallet_locked and order.payment and order.payment.method.value == "cash":
+        raise HTTPException(status_code=400, detail="This rider's COD wallet is locked and cannot accept new COD parcels")
 
     order.rider_id = rider.id
-    order.status = OrderStatus.assigned
     order.rider_accepted = None
-    db.add(TrackingEvent(order_id=order.id, status=OrderStatus.assigned.value, note=f"Manually assigned by staff {current_user.full_name} at branch {staff_profile.branch.name}"))
+    transition(
+        db,
+        order,
+        OrderStatus.assigned,
+        actor=current_user,
+        note=f"Manually assigned by staff {current_user.full_name} at branch {staff_profile.branch.name}",
+    )
     db.commit()
 
     return {"message": "Rider assigned successfully"}

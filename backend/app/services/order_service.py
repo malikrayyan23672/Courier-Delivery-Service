@@ -1,3 +1,5 @@
+import math
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
@@ -11,8 +13,98 @@ from app.models.staff import StaffProfile
 from app.models.branch import Branch
 from app.models.zone import Zone
 from app.models.discount import Discount
+from app.models.user import User
 from app.services.pricing_service import estimate_price
 from app.schemas.order import AddressInput
+from app.services import log_service
+
+
+# The 8-state parcel journey (+ `assigned`/`cancelled`, see OrderStatus docstring).
+# Every edge a route handler is allowed to take - anything not listed here is
+# rejected as a security incident (TRD: "no state can be skipped").
+ALLOWED_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
+    OrderStatus.created: {OrderStatus.assigned, OrderStatus.cancelled},
+    OrderStatus.assigned: {OrderStatus.created, OrderStatus.picked_up, OrderStatus.cancelled},
+    # Two legitimate paths from here: `in_hub` for a parcel entering the
+    # inter-city bus network, or straight to `out_for_delivery` when the same
+    # rider who picked it up also does the last mile (local, single-city
+    # delivery - this app's original flow, kept alongside the new hub network).
+    OrderStatus.picked_up: {OrderStatus.in_hub, OrderStatus.out_for_delivery, OrderStatus.cancelled},
+    OrderStatus.in_hub: {OrderStatus.in_transit, OrderStatus.cancelled},
+    OrderStatus.in_transit: {OrderStatus.dest_hub},
+    OrderStatus.dest_hub: {OrderStatus.out_for_delivery},
+    OrderStatus.out_for_delivery: {OrderStatus.delivered, OrderStatus.failed},
+    OrderStatus.failed: {OrderStatus.out_for_delivery, OrderStatus.rto},
+    OrderStatus.delivered: set(),
+    OrderStatus.rto: set(),
+    OrderStatus.cancelled: set(),
+}
+
+
+def haversine_meters(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    r = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lng2 - lng1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def transition(
+    db: Session,
+    order: Order,
+    new_status: OrderStatus,
+    actor: User | None = None,
+    note: str | None = None,
+    lat: float | None = None,
+    lng: float | None = None,
+    reference_address: Address | None = None,
+    geofence_meters: float = 500.0,
+) -> Order:
+    """
+    The single place `order.status` is allowed to change. Validates the edge
+    against ALLOWED_TRANSITIONS, writes a TrackingEvent (the immutable scan
+    log), and optionally checks the scan GPS against a reference address
+    (e.g. the seller's pickup address) - a mismatch is logged as a note on
+    the event rather than hard-blocked, since address geocoding isn't always
+    populated, but it's never silently dropped.
+    """
+    current = order.status if isinstance(order.status, OrderStatus) else OrderStatus(order.status)
+    allowed = ALLOWED_TRANSITIONS.get(current, set())
+
+    if new_status != current and new_status not in allowed:
+        log_service.create_log(
+            db,
+            action="invalid_state_transition",
+            user_id=str(actor.id) if actor else None,
+            entity_type="Order",
+            entity_id=str(order.id),
+            details=f"Rejected {current.value} -> {new_status.value}",
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot move an order from '{current.value}' to '{new_status.value}' - that state cannot be skipped.",
+        )
+
+    geofence_note = None
+    if lat is not None and lng is not None and reference_address and reference_address.lat and reference_address.lng:
+        distance = haversine_meters(lat, lng, reference_address.lat, reference_address.lng)
+        if distance > geofence_meters:
+            geofence_note = f"GPS {round(distance)}m from expected address (limit {round(geofence_meters)}m)"
+
+    order.status = new_status
+    combined_note = " | ".join(n for n in (note, geofence_note) if n)
+    db.add(
+        TrackingEvent(
+            order_id=order.id,
+            status=new_status.value,
+            note=combined_note or None,
+            lat=lat,
+            lng=lng,
+            changed_by_id=actor.id if actor else None,
+        )
+    )
+    return order
 
 
 def create_order(
@@ -158,28 +250,24 @@ def _auto_assign_rider(db: Session, order: Order) -> RiderProfile | None:
     if not order.zone_id:
         return None
 
-    rider = (
+    query = (
         db.query(RiderProfile)
         .join(Branch, RiderProfile.branch_id == Branch.id)
         .filter(
             RiderProfile.status == RiderStatus.active,
             RiderProfile.is_available.is_(True),
-            Branch.zone_id == order.zone_id
+            Branch.zone_id == order.zone_id,
         )
-        .order_by(RiderProfile.rating.desc(), RiderProfile.created_at.asc())
-        .first()
     )
+    # A rider whose COD cash-in-hand wallet is locked can't take on new COD parcels.
+    if order.payment and order.payment.method == PaymentMethod.cash:
+        query = query.filter(RiderProfile.cod_wallet_locked.is_(False))
+
+    rider = query.order_by(RiderProfile.rating.desc(), RiderProfile.created_at.asc()).first()
     if not rider:
         return None
 
     order.rider_id = rider.id
-    order.status = OrderStatus.assigned
     order.rider_accepted = None
-    db.add(
-        TrackingEvent(
-            order_id=order.id,
-            status=OrderStatus.assigned.value,
-            note=f"Auto-assigned to rider {rider.user.full_name}",
-        )
-    )
+    transition(db, order, OrderStatus.assigned, note=f"Auto-assigned to rider {rider.user.full_name}")
     return rider
