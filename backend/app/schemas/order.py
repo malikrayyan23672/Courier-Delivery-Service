@@ -40,6 +40,7 @@ class OrderCreateRequest(BaseModel):
     package_weight_kg: Optional[float] = Field(None, gt=0, le=MAX_PACKAGE_WEIGHT_KG)
     # package_size: Optional[str] = Field(None, max_length=50)
     package_description: Optional[str] = Field(None, max_length=255)
+    discount_code: Optional[str] = Field(None, max_length=50, description="Optional promo code (login-only discounts)")
 
 
 class StaffOrderCreateRequest(OrderCreateRequest):
@@ -88,6 +89,8 @@ class OrderOut(BaseModel):
     package_description: Optional[str] = None
     estimated_price: Optional[float] = None
     final_price: Optional[float] = None
+    discount_id: Optional[str] = None
+    discount_amount: Optional[float] = None
     rider_accepted: Optional[bool] = None
     zone_id: Optional[str] = None
     branch_id: Optional[str] = None
