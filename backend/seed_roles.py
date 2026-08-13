@@ -11,6 +11,7 @@ ROLES = [
     ("rider", "Delivery partner who fulfills orders"),
     ("admin", "Operations staff with broad management access"),
     ("manager", "Manages branch operations"),
+    ("business", "Seller/enterprise account with access to the seller portal"),
     ("super_admin", "Full system access including pricing and config"),
 ]
 

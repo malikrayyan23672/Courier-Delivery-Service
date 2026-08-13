@@ -18,8 +18,10 @@ from app.models.announcement import Announcement
 from app.models.audit_log import AuditLog
 from app.models.branch import Branch
 from app.models.business import Business
+from app.models.bus_network import BusOperator, BusSchedule, BusManifest
 from app.models.customer import Customer
 from app.models.delivery_attempt import DeliveryAttempt
+from app.models.discount import Discount
 from app.models.invoice import Invoice
 from app.models.live_tracking import LiveTracking
 from app.models.notification import Notification
@@ -29,6 +31,7 @@ from app.models.payment import Payment, PaymentMethod, PaymentStatus
 from app.models.pricing_rule import PricingRule
 from app.models.rider import RiderProfile, RiderStatus
 from app.models.rider_assignment import RiderAssignment
+from app.models.rnp import RNPPartner
 from app.models.role import Role
 from app.models.route import Route
 from app.models.staff import StaffProfile
@@ -46,6 +49,8 @@ ROLES = [
     ("staff", "Office/counter staff who book walk-in orders"),
     ("rider", "Delivery partner who fulfills orders"),
     ("admin", "Operations staff with broad management access"),
+    ("manager", "Manages branch operations"),
+    ("business", "Seller/enterprise account with access to the seller portal"),
     ("super_admin", "Full system access including pricing and config"),
 ]
 
@@ -107,6 +112,7 @@ USERS = [
     ("Lahore Rider", "lhr.rider@raftaarexpress.com", "03000000006", "6110100000006", "rider"),
     ("Ayesha Customer", "ayesha.customer@example.com", "03000000007", "6110100000007", "customer"),
     ("Bilal Customer", "bilal.customer@example.com", "03000000008", "6110100000008", "customer"),
+    ("North Star Traders", "seller@raftaarexpress.com", "03000000009", "6110100000009", "business"),
 ]
 
 ADDRESSES = [
@@ -287,35 +293,44 @@ def seed_profiles(db: Session, users, branches):
     return riders
 
 
-def seed_businesses(db: Session):
-    get_or_create(
-        db,
-        Business,
-        email="accounts@northstartraders.example",
-        defaults={
-            "company_name": "North Star Traders",
-            "business_type": "E-commerce",
-            "business_registration_number": "REG-98765432",
-            "estimated_monthly_shipments": "500",
-            "phone": "03000000901",
-            "business_address": "I-9 Industrial Area, Islamabad",
-            "website": "https://northstartraders.example",
-            "wallet_balance": 15000,
-            "credit_limit": 50000,
-            "status": "active",
-            "is_active": True,
-            "pickup_address": "I-9 Industrial Area, Islamabad",
-            "city": "Islamabad",
-            "province": "Islamabad Capital Territory",
-            "postal_code": "44000",
-            "country": "Pakistan",
-            "preferred_pickup_time": "10:00 AM",
-            "cod_service": True,
-            "bank_name": "HBL",
-            "account_title": "North Star Traders",
-            "account_number": "PK36HABB0000000000000000",
-        },
-    )
+def seed_businesses(db: Session, users):
+    seller_user = users["seller@raftaarexpress.com"]
+    business = db.query(Business).filter(Business.business_registration_number == "REG-98765432").first()
+    if not business:
+        business = Business(
+            business_registration_number="REG-98765432",
+            company_name="North Star Traders",
+            business_type="E-commerce",
+            estimated_monthly_shipments="500",
+            email=seller_user.email,
+            phone=seller_user.phone,
+            business_address="I-9 Industrial Area, Islamabad",
+            website="https://northstartraders.example",
+            wallet_balance=15000,
+            credit_limit=50000,
+            status="active",
+            is_active=True,
+            pickup_address="I-9 Industrial Area, Islamabad",
+            city="Islamabad",
+            province="Islamabad Capital Territory",
+            postal_code="44000",
+            country="Pakistan",
+            preferred_pickup_time="10:00 AM",
+            cod_service=True,
+            bank_name="HBL",
+            account_title="North Star Traders",
+            account_number="PK36HABB0000000000000000",
+        )
+        db.add(business)
+        db.flush()
+    else:
+        # Re-link the current seller email/phone to this business row.
+        business.email = seller_user.email
+        business.phone = seller_user.phone
+    if not seller_user.business_id:
+        seller_user.business_id = business.id
+        db.flush()
+    return business
 
 
 def seed_warehouses(db: Session, branches, users):
@@ -549,6 +564,145 @@ def seed_supporting_data(db: Session, users, branches, orders):
         get_or_create(db, SystemSetting, key=key, defaults={"value": value})
 
 
+def seed_bus_network(db: Session, users, branches):
+    """Layer 1 - Bus Network: operators, departures, and a manifest for the network."""
+    operators = {}
+    for name, city, phone in [
+        ("Faisal Movers", "Rawalpindi", "03001112221"),
+        ("Warraich Express", "Lahore", "03001112222"),
+        ("Manthar Express", "Karachi", "03001112223"),
+    ]:
+        op, _ = get_or_create(
+            db,
+            BusOperator,
+            name=name,
+            defaults={"city": city, "contact_phone": phone, "contact_email": f"ops@{name.lower().replace(' ', '')}.com", "status": "active"},
+        )
+        operators[name] = op
+
+    schedules = {}
+    for operator, origin, dest, time, interval in [
+        ("Faisal Movers", "Rawalpindi", "Karachi", "06:30", 30),
+        ("Warraich Express", "Lahore", "Karachi", "07:00", 45),
+        ("Manthar Express", "Karachi", "Lahore", "06:45", 30),
+    ]:
+        sched, _ = get_or_create(
+            db,
+            BusSchedule,
+            operator_id=operators[operator].id,
+            origin_city=origin,
+            destination_city=dest,
+            defaults={
+                "departure_time": time,
+                "departure_interval_min": interval,
+                "fare": 3500,
+                "status": "active",
+            },
+        )
+        schedules[(operator, origin, dest)] = sched
+
+    manifest, _ = get_or_create(
+        db,
+        BusManifest,
+        manifest_number="MF-DEMO-001",
+        defaults={
+            "schedule_id": schedules[("Faisal Movers", "Rawalpindi", "Karachi")].id,
+            "coach_number": "RWP-KHI-001",
+            "origin_city": "Rawalpindi",
+            "destination_city": "Karachi",
+            "status": "in_transit",
+        },
+    )
+    if not manifest.items:
+        from app.models.bus_network import ManifestItem
+        order = db.query(Order).filter(Order.tracking_number == "CR1000000001").first()
+        db.add(
+            ManifestItem(
+                manifest_id=manifest.id,
+                order_id=order.id if order else None,
+                crate_label=order.tracking_number if order else "CRATE-001",
+                scan_status="in_transit",
+            )
+        )
+    db.flush()
+    return manifest
+
+
+def seed_rnp(db: Session, users, branches):
+    """Layer 3 - RNP Network: a couple of neighbourhood points near the hubs."""
+    get_or_create(
+        db,
+        RNPPartner,
+        shop_name="General Store Saddar",
+        defaults={
+            "owner_name": "Aslam Shah",
+            "phone": "03001113331",
+            "city": "Rawalpindi",
+            "address": "Bank Road, Saddar",
+            "status": "approved",
+            "approved_by_id": users["admin@raftaarexpress.com"].id,
+        },
+    )
+    get_or_create(
+        db,
+        RNPPartner,
+        shop_name="Gulberg Grocers",
+        defaults={
+            "owner_name": "M. Iqbal",
+            "phone": "03001113332",
+            "city": "Lahore",
+            "address": "MM Alam Road, Gulberg III",
+            "status": "approved",
+            "approved_by_id": users["admin@raftaarexpress.com"].id,
+        },
+    )
+    get_or_create(
+        db,
+        RNPPartner,
+        shop_name="Shahrah-e-Faisal Medical Store",
+        defaults={
+            "owner_name": "Kashif",
+            "phone": "03001113333",
+            "city": "Karachi",
+            "address": "Shahrah-e-Faisal",
+            "status": "pending",
+        },
+    )
+
+
+def seed_discounts(db: Session):
+    """Layer 6 - Discounts. The auto-applied one is the signup bonus for first-time customers."""
+    get_or_create(
+        db,
+        Discount,
+        code="WELCOME10",
+        defaults={
+            "title": "First shipment 10% off",
+            "description": "Signed-in customers get 10% off their first shipment.",
+            "discount_type": "percentage",
+            "value": 10.0,
+            "max_discount_amount": 500.0,
+            "requires_login": True,
+            "is_auto_applied": True,
+            "is_active": True,
+        },
+    )
+    get_or_create(
+        db,
+        Discount,
+        code="SIGNUP25",
+        defaults={
+            "title": "Flat Rs. 250 signup discount",
+            "description": "Flat discount for registered customers on any shipment.",
+            "discount_type": "flat",
+            "value": 250.0,
+            "requires_login": True,
+            "is_auto_applied": False,
+            "is_active": True,
+        },
+    )
+
+
 def seed():
     db = SessionLocal()
     try:
@@ -559,19 +713,23 @@ def seed():
         seed_pricing(db, zones)
         users = seed_users(db, roles)
         riders = seed_profiles(db, users, branches)
-        seed_businesses(db)
+        seed_businesses(db, users)
         seed_warehouses(db, branches, users)
         seed_routes(db)
         addresses = seed_addresses(db)
         orders = seed_orders(db, users, riders, zones, branches, addresses)
         seed_order_details(db, orders, users, riders)
         seed_supporting_data(db, users, branches, orders)
+        seed_bus_network(db, users, branches)
+        seed_rnp(db, users, branches)
+        seed_discounts(db)
         db.commit()
         print("Database seeded successfully.")
         print(f"Demo password for seeded users: {PASSWORD}")
         print("Admin login: admin@raftaarexpress.com / Password123")
         print("Customer login: ayesha.customer@example.com / Password123")
         print("Rider login: rwp.rider@raftaarexpress.com / Password123")
+        print("Seller login: seller@raftaarexpress.com / Password123")
     except Exception:
         db.rollback()
         raise
