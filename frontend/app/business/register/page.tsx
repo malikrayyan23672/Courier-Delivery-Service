@@ -106,7 +106,7 @@ function SelectField({
     <div className="mb-4 flex flex-col gap-1.5">
       <label htmlFor={id} className="text-[0.82rem] font-semibold text-ink">{label}</label>
       <div className="relative">
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted pointer-events-none z-10">
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted-foreground pointer-events-none z-10">
           {icon}
         </span>
         <select
@@ -134,7 +134,7 @@ function PasswordField({
     <div className="mb-4 flex flex-col gap-1.5">
       <label htmlFor={id} className="text-[0.82rem] font-semibold text-ink">{label}</label>
       <div className="relative">
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted pointer-events-none">{icon}</span>
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted-foreground pointer-events-none">{icon}</span>
         <input
           id={id}
           type={visible ? 'text' : 'password'}
@@ -145,7 +145,7 @@ function PasswordField({
             focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,112,26,0.13)]
             ${error ? 'border-danger shadow-[0_0_0_3px_rgba(216,67,44,0.12)]' : 'border-line'}`}
         />
-        <button type="button" onClick={() => setVisible((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted" aria-label="Toggle password visibility">
+        <button type="button" onClick={() => setVisible((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground" aria-label="Toggle password visibility">
           <Icon path={ICONS.eye} />
         </button>
       </div>
@@ -349,7 +349,7 @@ export default function BusinessSignupPage() {
           </svg>
           <div>
             <div className="font-display text-2xl font-extrabold tracking-tight leading-none text-navy">FAST<span className="text-orange">EX</span></div>
-            <div className="text-[0.62rem] tracking-[0.22em] text-muted font-semibold mt-0.5">COURIER SERVICES</div>
+            <div className="text-[0.62rem] tracking-[0.22em] text-muted-foreground font-semibold mt-0.5">COURIER SERVICES</div>
           </div>
         </div>
 
@@ -373,7 +373,7 @@ export default function BusinessSignupPage() {
               </div>
               <div>
                 <div className="font-bold text-[0.98rem] text-navy">{f.title}</div>
-                <div className="text-[0.82rem] text-muted">{f.sub}</div>
+                <div className="text-[0.82rem] text-muted-foreground">{f.sub}</div>
               </div>
             </div>
           ))}
@@ -412,7 +412,7 @@ export default function BusinessSignupPage() {
           {[['10K+', 'Parcels Delivered'], ['500+', 'Cities Covered'], ['5K+', 'Happy Customers'], ['24/7', 'Customer Support']].map(([num, label]) => (
             <div key={label}>
               <div className="text-orange font-extrabold text-lg font-display">{num}</div>
-              <div className="text-muted text-[0.72rem]">{label}</div>
+              <div className="text-muted-foreground text-[0.72rem]">{label}</div>
             </div>
           ))}
         </div>
@@ -429,12 +429,12 @@ export default function BusinessSignupPage() {
                 </div>
                 <div>
                   <h2 className="font-display text-xl font-bold m-0">Create <span className="text-orange">Your Account</span></h2>
-                  <p className="text-muted text-sm mt-1 m-0">Sign up to get started with raftaarexpress</p>
+                  <p className="text-muted-foreground text-sm mt-1 m-0">Sign up to get started with raftaarexpress</p>
                 </div>
               </div>
 
               <div className="mb-7">
-                <div className="flex justify-between text-xs text-muted font-semibold mb-2">
+                <div className="flex justify-between text-xs text-muted-foreground font-semibold mb-2">
                   <span>Step <b className="text-orange">{step}</b> of 4</span>
                   <span>{STEP_NAMES[step]}</span>
                 </div>
@@ -519,7 +519,7 @@ export default function BusinessSignupPage() {
                         </button>
                         <div>
                           <div className="font-bold text-sm text-ink">{form.codRequired ? 'Yes' : 'No'}</div>
-                          <div className="text-xs text-muted">Turn on if you want us to collect cash from buyers and pay it out to you</div>
+                          <div className="text-xs text-muted-foreground">Turn on if you want us to collect cash from buyers and pay it out to you</div>
                         </div>
                       </div>
                     </div>
@@ -550,21 +550,21 @@ export default function BusinessSignupPage() {
 
                 {step === 4 && (
                   <>
-                    <p className="text-sm text-muted mb-5 leading-relaxed">
+                    <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
                       We&apos;ve sent a 6-digit verification code to <b className="text-ink">{maskEmail(form.sellerEmail)}</b>. Enter it below to confirm your account.
                     </p>
 
-                    <div className="text-xs text-muted bg-[#FBF3EA] border border-dashed border-[#F0C89A] px-3 py-2.5 rounded-lg mb-5">
+                    <div className="text-xs text-muted-foreground bg-[#FBF3EA] border border-dashed border-[#F0C89A] px-3 py-2.5 rounded-lg mb-5">
                       Demo mode — no real email is sent. Your one-time code is <b className="text-orange">{generatedOtp}</b>.
                     </div>
 
                     <OtpBoxes value={otpValue} onChange={setOtpValue} />
                     {otpError && <p className="text-[0.74rem] text-danger mb-3.5">{otpError}</p>}
 
-                    <p className="text-sm text-muted mb-5">
+                    <p className="text-sm text-muted-foreground mb-5">
                       Didn&apos;t get the code?{' '}
                       <button type="button" disabled={resendSeconds > 0} onClick={sendOtp}
-                        className="text-orange font-bold bg-transparent p-0 disabled:text-muted disabled:cursor-not-allowed">
+                        className="text-orange font-bold bg-transparent p-0 disabled:text-muted-foreground disabled:cursor-not-allowed">
                         {resendSeconds > 0 ? `Resend code (${resendSeconds}s)` : 'Resend code'}
                       </button>
                     </p>
@@ -573,7 +573,7 @@ export default function BusinessSignupPage() {
 
                 <div className="flex justify-between items-center mt-7">
                   <button type="button" onClick={goBack} disabled={step === 1}
-                    className="text-muted hover:text-ink font-bold text-sm px-1.5 py-3 bg-transparent disabled:invisible">
+                    className="text-muted-foreground hover:text-ink font-bold text-sm px-1.5 py-3 bg-transparent disabled:invisible">
                     ← Back
                   </button>
                   {step < 4 ? (
@@ -590,7 +590,7 @@ export default function BusinessSignupPage() {
                 </div>
               </form>
 
-              <p className="text-center mt-6 text-sm text-muted">
+              <p className="text-center mt-6 text-sm text-muted-foreground">
                 Already have an account?{' '}
                 <Link href="/login" className="text-orange font-bold no-underline">Login</Link>
               </p>
@@ -599,7 +599,7 @@ export default function BusinessSignupPage() {
             <div className="text-center py-8 px-2">
               <div className="w-[90px] h-[90px] rounded-full border-[3px] border-success flex items-center justify-center mx-auto mb-5 text-success text-4xl">✓</div>
               <h2 className="font-display text-xl font-bold mb-2">Account created</h2>
-              <p className="text-muted max-w-[42ch] mx-auto">
+              <p className="text-muted-foreground max-w-[42ch] mx-auto">
                 Your email is verified and your raftaarexpress seller account is being reviewed. We&apos;ll notify you once it&apos;s active.
               </p>
               <div className="inline-block mt-4.5 px-4 py-2.5 bg-page border border-dashed border-line rounded-lg text-sm tracking-wide font-bold text-navy">

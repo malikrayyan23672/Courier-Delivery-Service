@@ -16,7 +16,7 @@ const STATUS_COLORS: Record<string, string> = {
   in_transit: 'bg-[#FBF3EA] text-orange',
   delivered: 'bg-[#EAF7EF] text-success',
   failed: 'bg-[#FBEAE7] text-danger',
-  cancelled: 'bg-[#F0F0F0] text-muted',
+  cancelled: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
 const NEXT_STEP: Record<string, { title: string; detail: string }> = {
@@ -158,13 +158,13 @@ function ShipmentTrackingContent() {
       <main className="max-w-3xl mx-auto px-6 md:px-10 py-8">
         <button
           onClick={() => router.push('/dashboard')}
-          className="flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-navy transition-colors mb-6"
+          className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-navy transition-colors mb-6"
         >
           <span className="w-4 h-4">{BACK_ICON}</span>
           Back to My Shipments
         </button>
 
-        {loading && <p className="text-muted text-sm">Loading shipment…</p>}
+        {loading && <p className="text-muted-foreground text-sm">Loading shipment…</p>}
         {error && <p className="text-danger text-sm">{error}</p>}
 
         {order && (
@@ -173,13 +173,13 @@ function ShipmentTrackingContent() {
             <div className="bg-white rounded-card shadow-card p-6 md:p-8">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-1">Tracking Number</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Tracking Number</p>
                   <div className="flex items-center gap-2">
                     <h1 className="font-display text-xl font-bold text-ink font-mono">{order.tracking_number}</h1>
                     <button
                       onClick={handleCopy}
                       title="Copy tracking number"
-                      className="w-7 h-7 flex items-center justify-center rounded-md text-muted hover:text-orange hover:bg-page transition-colors"
+                      className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-orange hover:bg-page transition-colors"
                     >
                       <span className="w-4 h-4 block">{COPY_ICON}</span>
                     </button>
@@ -205,13 +205,13 @@ function ShipmentTrackingContent() {
                 <div className="flex gap-2">
                   <span className="w-4 h-4 text-orange mt-0.5 shrink-0">{PIN_ICON}</span>
                   <div>
-                    <p className="text-[0.7rem] font-semibold text-muted uppercase tracking-wide">Pickup</p>
+                    <p className="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide">Pickup</p>
                     <p className="text-sm font-semibold text-ink">{order.pickup_address?.city || order.pickup_address?.full_address || '—'}</p>
                   </div>
                 </div>
                 <div className="flex gap-2 justify-self-end text-right">
                   <div>
-                    <p className="text-[0.7rem] font-semibold text-muted uppercase tracking-wide">Drop-off</p>
+                    <p className="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide">Drop-off</p>
                     <p className="text-sm font-semibold text-ink">{order.dropoff_address?.city || order.dropoff_address?.full_address || '—'}</p>
                   </div>
                   <span className="w-4 h-4 text-navy mt-0.5 shrink-0">{PIN_ICON}</span>
@@ -238,7 +238,7 @@ function ShipmentTrackingContent() {
 
               {/* Stage labels */}
               {!isIssue && (
-                <div className="flex justify-between mt-3 text-[0.68rem] text-muted font-semibold">
+                <div className="flex justify-between mt-3 text-[0.68rem] text-muted-foreground font-semibold">
                   {STATUS_ORDER.map((s) => (
                     <span key={s} className={STATUS_ORDER.indexOf(order.status) >= STATUS_ORDER.indexOf(s) ? 'text-navy' : ''}>
                       {formatStatus(s)}
@@ -255,7 +255,7 @@ function ShipmentTrackingContent() {
                   isDelivered ? 'bg-[#EAF7EF]' : isIssue ? 'bg-[#FBEAE7]' : 'bg-[#FBF3EA]'
                 }`}
               >
-                <p className="text-[0.7rem] font-semibold uppercase tracking-wide mb-1.5 text-muted">
+                <p className="text-[0.7rem] font-semibold uppercase tracking-wide mb-1.5 text-muted-foreground">
                   {isDelivered ? 'Complete' : 'Next Step'}
                 </p>
                 <h3 className={`font-display font-bold text-lg mb-1.5 ${isDelivered ? 'text-success' : isIssue ? 'text-danger' : 'text-orange'}`}>
@@ -275,8 +275,8 @@ function ShipmentTrackingContent() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-ink">Order placed</p>
-                    <p className="text-xs text-muted mt-0.5">{formatDate(order.created_at)}</p>
-                    <p className="text-sm text-muted mt-2">No further log entries yet — this will update as your shipment moves.</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{formatDate(order.created_at)}</p>
+                    <p className="text-sm text-muted-foreground mt-2">No further log entries yet — this will update as your shipment moves.</p>
                   </div>
                 </div>
               ) : (
@@ -289,7 +289,7 @@ function ShipmentTrackingContent() {
                     </div>
                     <div className="pb-1">
                       <p className="text-sm font-semibold text-ink">Order placed</p>
-                      <p className="text-xs text-muted mt-0.5">{formatDate(order.created_at)}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{formatDate(order.created_at)}</p>
                     </div>
                   </div>
 
@@ -305,13 +305,13 @@ function ShipmentTrackingContent() {
                       </div>
                       <div className="pb-1">
                         <p className="text-sm font-semibold text-ink capitalize">{formatStatus(event.status)}</p>
-                        {event.note && <p className="text-sm text-muted">{event.note}</p>}
+                        {event.note && <p className="text-sm text-muted-foreground">{event.note}</p>}
                         {(event.lat != null && event.lng != null) && (
-                          <p className="text-xs text-muted">
+                          <p className="text-xs text-muted-foreground">
                             {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
                           </p>
                         )}
-                        <p className="text-xs text-muted mt-0.5">{formatDate(event.created_at)}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{formatDate(event.created_at)}</p>
                       </div>
                     </div>
                   ))}

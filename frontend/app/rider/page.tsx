@@ -77,7 +77,7 @@ const STATUS_BADGE: Record<string, string> = {
   in_transit: 'bg-[#FBF3EA] text-orange',
   delivered: 'bg-[#EAF7EF] text-success',
   failed: 'bg-[#FBEAE7] text-danger',
-  cancelled: 'bg-[#F0F0F0] text-muted',
+  cancelled: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
 const ACTIVE_STATUSES = new Set(['assigned', 'picked_up', 'in_transit']);
@@ -260,7 +260,7 @@ function RiderContent() {
           <span className="text-xs font-semibold uppercase tracking-wide text-orange bg-[#FBF3EA] px-3 py-1 rounded-full">
             Rider Panel
           </span>
-          <button onClick={handleLogout} className="text-sm font-semibold text-muted hover:text-navy transition-colors">
+          <button onClick={handleLogout} className="text-sm font-semibold text-muted-foreground hover:text-navy transition-colors">
             Log out
           </button>
         </div>
@@ -281,7 +281,7 @@ function RiderContent() {
               <p className="font-display font-bold text-ink leading-tight">
                 {profileLoading ? 'Loading…' : profile?.full_name}
               </p>
-              <div className="flex items-center gap-2 mt-0.5 text-xs text-muted">
+              <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
                 <span className="capitalize">{profile?.vehicle_type || 'Vehicle not set'}</span>
                 <span className="text-line">•</span>
                 <span className="flex items-center gap-1 text-orange">
@@ -297,7 +297,7 @@ function RiderContent() {
             disabled={profileLoading || togglingAvailability}
             className="flex items-center gap-3 disabled:opacity-60"
           >
-            <span className={`text-sm font-semibold ${profile?.is_available ? 'text-success' : 'text-muted'}`}>
+            <span className={`text-sm font-semibold ${profile?.is_available ? 'text-success' : 'text-muted-foreground'}`}>
               {profile?.is_available ? 'Online' : 'Offline'}
             </span>
             <span
@@ -318,17 +318,17 @@ function RiderContent() {
         {profile?.is_available && (
           <div className="bg-white rounded-card shadow-card p-4 mb-6 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm">
-              <span className={locationUpdatedAt ? 'text-success' : 'text-muted'}>{LOCATE_ICON}</span>
+              <span className={locationUpdatedAt ? 'text-success' : 'text-muted-foreground'}>{LOCATE_ICON}</span>
               {coords && locationUpdatedAt ? (
                 <span className="text-ink">
                   Arrival shared —{' '}
-                  <span className="font-mono text-xs text-muted">
+                  <span className="font-mono text-xs text-muted-foreground">
                     {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
                   </span>{' '}
-                  <span className="text-xs text-muted">· at {locationUpdatedAt.toLocaleTimeString()}</span>
+                  <span className="text-xs text-muted-foreground">· at {locationUpdatedAt.toLocaleTimeString()}</span>
                 </span>
               ) : (
-                <span className="text-muted">Tap in once you're at the branch</span>
+                <span className="text-muted-foreground">Tap in once you're at the branch</span>
               )}
             </div>
             <div className="flex items-center gap-3">
@@ -356,7 +356,7 @@ function RiderContent() {
           <>
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-display text-lg font-bold text-ink">Incoming offers</h2>
-              <span className="text-xs text-muted">{pendingOffers.length} waiting</span>
+              <span className="text-xs text-muted-foreground">{pendingOffers.length} waiting</span>
             </div>
             <div className="flex flex-col gap-4 mb-8">
               {pendingOffers.map((order) => (
@@ -392,7 +392,7 @@ function RiderContent() {
                     <button
                       onClick={() => handleRespond(order, false)}
                       disabled={respondingId === order.id}
-                      className="flex-1 border border-line text-muted hover:text-danger hover:border-danger font-semibold text-sm py-2.5 rounded-[10px] transition-colors disabled:opacity-60"
+                      className="flex-1 border border-line text-muted-foreground hover:text-danger hover:border-danger font-semibold text-sm py-2.5 rounded-[10px] transition-colors disabled:opacity-60"
                     >
                       Decline
                     </button>
@@ -413,13 +413,13 @@ function RiderContent() {
         {/* active deliveries */}
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-display text-lg font-bold text-ink">Active deliveries</h2>
-          <span className="text-xs text-muted">{activeDeliveries.length} assigned</span>
+          <span className="text-xs text-muted-foreground">{activeDeliveries.length} assigned</span>
         </div>
 
         {loadingDeliveries ? (
-          <p className="text-muted text-sm mb-8">Loading deliveries…</p>
+          <p className="text-muted-foreground text-sm mb-8">Loading deliveries…</p>
         ) : activeDeliveries.length === 0 ? (
-          <div className="bg-white rounded-card shadow-card p-6 text-muted text-sm mb-8">
+          <div className="bg-white rounded-card shadow-card p-6 text-muted-foreground text-sm mb-8">
             No active deliveries right now. New assignments will show up here while you're online.
           </div>
         ) : (
@@ -458,7 +458,7 @@ function RiderContent() {
                       </span>
                     </div>
                     {(order.package_description || order.package_weight_kg) && (
-                      <div className="flex items-start gap-2 text-muted">
+                      <div className="flex items-start gap-2 text-muted-foreground">
                         <span className="mt-0.5">{BOX_ICON}</span>
                         <span>
                           {order.package_description || 'Package'}
@@ -469,7 +469,7 @@ function RiderContent() {
                   </div>
 
                   {order.dropoff_address?.contact_name || order.dropoff_address?.contact_phone ? (
-                    <div className="text-xs text-muted mb-4">
+                    <div className="text-xs text-muted-foreground mb-4">
                       Receiver: {order.dropoff_address?.contact_name || '—'}
                       {order.dropoff_address?.contact_phone ? ` · ${order.dropoff_address.contact_phone}` : ''}
                     </div>
@@ -495,7 +495,7 @@ function RiderContent() {
           <h2 className="font-display text-lg font-bold text-ink">Recently delivered</h2>
         </div>
         {completedDeliveries.length === 0 ? (
-          <div className="bg-white rounded-card shadow-card p-6 text-muted text-sm">
+          <div className="bg-white rounded-card shadow-card p-6 text-muted-foreground text-sm">
             Nothing delivered yet — completed drop-offs will show up here.
           </div>
         ) : (
@@ -504,7 +504,7 @@ function RiderContent() {
               <div key={order.id} className="bg-white rounded-card shadow-card px-5 py-3.5 flex items-center justify-between gap-4">
                 <div>
                   <p className="font-mono font-bold text-ink text-sm">{order.tracking_number}</p>
-                  <p className="text-xs text-muted truncate max-w-xs">
+                  <p className="text-xs text-muted-foreground truncate max-w-xs">
                     {order.dropoff_address?.full_address || 'Dropoff address unavailable'}
                   </p>
                 </div>
@@ -530,7 +530,7 @@ function RiderContent() {
 function StatCard({ label, value, accent }: { label: string; value: string; accent: string }) {
   return (
     <div className="bg-white rounded-card shadow-card p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-1">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</p>
       <p className={`font-display text-2xl font-bold ${accent}`}>{value}</p>
     </div>
   );

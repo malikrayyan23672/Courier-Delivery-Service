@@ -39,7 +39,7 @@ const STATUS_COLORS: Record<string, string> = {
   in_transit: 'bg-[#FBF3EA] text-orange',
   delivered: 'bg-[#EAF7EF] text-success',
   failed: 'bg-[#FBEAE7] text-danger',
-  cancelled: 'bg-[#F0F0F0] text-muted',
+  cancelled: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
 export default function StaffPage() {
@@ -177,7 +177,7 @@ function StaffContent() {
           <span className="text-xs font-semibold uppercase tracking-wide text-orange bg-[#FBF3EA] px-3 py-1 rounded-full">
             Staff Panel
           </span>
-          <button onClick={handleLogout} className="text-sm font-semibold text-muted hover:text-navy transition-colors">
+          <button onClick={handleLogout} className="text-sm font-semibold text-muted-foreground hover:text-navy transition-colors">
             Log out
           </button>
         </div>
@@ -189,7 +189,7 @@ function StaffContent() {
           <button
             onClick={() => setTab('book')}
             className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-              tab === 'book' ? 'border-orange text-orange' : 'border-transparent text-muted hover:text-ink'
+              tab === 'book' ? 'border-orange text-orange' : 'border-transparent text-muted-foreground hover:text-ink'
             }`}
           >
             Book Walk-in Shipment
@@ -197,7 +197,7 @@ function StaffContent() {
           <button
             onClick={() => setTab('orders')}
             className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-              tab === 'orders' ? 'border-orange text-orange' : 'border-transparent text-muted hover:text-ink'
+              tab === 'orders' ? 'border-orange text-orange' : 'border-transparent text-muted-foreground hover:text-ink'
             }`}
           >
             Branch Orders
@@ -207,7 +207,7 @@ function StaffContent() {
         {tab === 'book' ? (
           <div>
             <h1 className="font-display text-2xl font-bold text-ink mb-1">Book a Walk-in Shipment</h1>
-            <p className="text-muted text-sm mb-6">
+            <p className="text-muted-foreground text-sm mb-6">
               For customers booking in person at the counter. Payment is collected on the spot.
             </p>
 
@@ -341,7 +341,7 @@ function StaffContent() {
         ) : (
           <div>
             <h1 className="font-display text-2xl font-bold text-ink mb-1">Branch Shipments</h1>
-            <p className="text-muted text-sm mb-6">
+            <p className="text-muted-foreground text-sm mb-6">
               Manage deliveries associated with your branch and assign riders manually.
             </p>
 
@@ -353,14 +353,14 @@ function StaffContent() {
 
             <div className="bg-white rounded-card shadow-card overflow-hidden">
               {loadingOrders ? (
-                <p className="p-6 text-muted text-sm text-center">Loading orders…</p>
+                <p className="p-6 text-muted-foreground text-sm text-center">Loading orders…</p>
               ) : orders.length === 0 ? (
-                <p className="p-6 text-muted text-sm text-center">No shipments booked for this branch yet.</p>
+                <p className="p-6 text-muted-foreground text-sm text-center">No shipments booked for this branch yet.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
                     <thead>
-                      <tr className="border-b border-line text-muted bg-[#FBFCFE]">
+                      <tr className="border-b border-line text-muted-foreground bg-[#FBFCFE]">
                         <th className="px-6 py-3 font-semibold">Tracking #</th>
                         <th className="px-6 py-3 font-semibold">Status</th>
                         <th className="px-6 py-3 font-semibold">Destination</th>
@@ -382,7 +382,7 @@ function StaffContent() {
                           </td>
                           <td className="px-6 py-4">
                             <p className="text-ink max-w-xs truncate">{order.dropoff_address?.full_address}</p>
-                            <span className="text-xs text-muted block mt-0.5">{order.dropoff_address?.city || 'Lahore'}</span>
+                            <span className="text-xs text-muted-foreground block mt-0.5">{order.dropoff_address?.city || 'Lahore'}</span>
                           </td>
                           <td className="px-6 py-4">
                             {order.status === 'created' ? (
@@ -402,7 +402,7 @@ function StaffContent() {
                                 ))}
                               </select>
                             ) : (
-                              <span className="text-muted text-xs">—</span>
+                              <span className="text-muted-foreground text-xs">—</span>
                             )}
                           </td>
                         </tr>

@@ -1,7 +1,7 @@
 'use client';
 
 const PILL_COLORS: Record<string, string> = {
-  gray: 'bg-line text-muted',
+  gray: 'bg-line text-muted-foreground',
   amber: 'bg-[#FDF1DD] text-[#B8710A]',
   green: 'bg-[#EAF7EF] text-success',
   red: 'bg-[#FBEAE7] text-danger',
@@ -28,8 +28,8 @@ export function AvatarChip({ name }: { name: string | null }) {
   if (!name) {
     return (
       <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-full bg-line flex items-center justify-center text-xs font-bold text-muted">–</div>
-        <span className="text-muted text-sm">Unassigned</span>
+        <div className="w-7 h-7 rounded-full bg-line flex items-center justify-center text-xs font-bold text-muted-foreground">–</div>
+        <span className="text-muted-foreground text-sm">Unassigned</span>
       </div>
     );
   }
@@ -53,7 +53,7 @@ export function KpiCard({
         {icon}
       </div>
       <div className="text-2xl font-bold text-ink font-display">{num}</div>
-      <div className="text-xs text-muted mt-0.5">{label}</div>
+      <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
       <div className="text-xs font-semibold mt-1.5" style={{ color: trendColor }}>{trend}</div>
     </div>
   );
@@ -65,7 +65,7 @@ export function StatStrip({ items }: { items: { num: string | number; label: str
       {items.map((it) => (
         <div key={it.label}>
           <div className="text-xl font-bold text-ink font-display">{it.num}</div>
-          <div className="text-xs text-muted mt-0.5">{it.label}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">{it.label}</div>
         </div>
       ))}
     </div>

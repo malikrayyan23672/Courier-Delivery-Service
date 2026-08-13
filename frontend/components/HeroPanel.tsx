@@ -46,7 +46,7 @@ export function HeroPanel({
             </div>
             <div>
               <div className="font-bold text-sm">{perk.title}</div>
-              <div className="text-[0.82rem] text-muted">{perk.subtitle}</div>
+              <div className="text-[0.82rem] text-muted-foreground">{perk.subtitle}</div>
             </div>
           </div>
         ))}
@@ -61,7 +61,7 @@ export function HeroPanel({
         ].map(([num, label]) => (
           <div key={label}>
             <div className="text-orange font-extrabold text-lg font-display">{num}</div>
-            <div className="text-muted text-[0.7rem]">{label}</div>
+            <div className="text-muted-foreground text-[0.7rem]">{label}</div>
           </div>
         ))}
       </div>

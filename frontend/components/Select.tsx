@@ -28,7 +28,7 @@ export function SelectField({
         {label}
       </label>
       <div className="relative">
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted pointer-events-none">
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted-foreground pointer-events-none">
           {icon}
         </span>
         <select
@@ -49,7 +49,7 @@ export function SelectField({
             </option>
           ))}
         </select>
-        <span className="absolute right-3.5 top-1/2 -translate-y-1/2 w-[14px] h-[14px] text-muted pointer-events-none">
+        <span className="absolute right-3.5 top-1/2 -translate-y-1/2 w-[14px] h-[14px] text-muted-foreground pointer-events-none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
           </svg>

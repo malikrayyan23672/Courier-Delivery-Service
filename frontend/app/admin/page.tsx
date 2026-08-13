@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RoleGuard } from '@/components/RoleGuard';
-import { Logo } from '@/components/Logo';
-import { Field } from '@/components/Field';
+import { cn } from '@/lib/utils';
 import {
   listAllOrders,
   listRiders,
@@ -25,45 +24,96 @@ import {
   StaffProfile,
   deleteUserbyAdmin,
 } from '@/lib/api';
+import {
+  CodSettlementsTab,
+  BusNetworkTab,
+  WalletsTab,
+  RnpTab,
+  DiscountsTab,
+} from './components';
 
-type Tab = 'orders' | 'team' | 'settings' | 'analytics';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import {
+  Activity, AlertTriangle, BarChart3, Bell, Building2, Bus, ChevronDown, ChevronRight,
+  CircleDollarSign, Landmark, LayoutDashboard, LogOut, MapPin, Menu, Package, Percent,
+  Search, Settings, Shield, Tags, TrendingDown, TrendingUp, Truck, Users, Wallet, X,
+} from 'lucide-react';
 
-const STATUS_COLORS: Record<string, string> = {
-  created: 'bg-[#EAF1FC] text-navy',
-  assigned: 'bg-[#FBF3EA] text-orange',
-  picked_up: 'bg-[#FBF3EA] text-orange',
-  in_transit: 'bg-[#FBF3EA] text-orange',
-  delivered: 'bg-[#EAF7EF] text-success',
-  failed: 'bg-[#FBEAE7] text-danger',
-  cancelled: 'bg-[#F0F0F0] text-muted',
+type View =
+  | 'overview' | 'orders' | 'analytics'
+  | 'team' | 'settlements' | 'wallets'
+  | 'bus' | 'rnp' | 'discounts' | 'settings';
+
+const NAV_SECTIONS: { label: string; items: { view: View; label: string; icon: React.ReactNode }[] }[] = [
+  { label: 'Command', items: [
+    { view: 'overview', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+    { view: 'orders', label: 'All Orders', icon: <Package className="h-4 w-4" /> },
+    { view: 'analytics', label: 'Analytics', icon: <BarChart3 className="h-4 w-4" /> },
+  ]},
+  { label: 'Network', items: [
+    { view: 'bus', label: 'Bus Network', icon: <Bus className="h-4 w-4" /> },
+    { view: 'rnp', label: 'RNP Points', icon: <MapPin className="h-4 w-4" /> },
+    { view: 'team', label: 'Team & Riders', icon: <Users className="h-4 w-4" /> },
+  ]},
+  { label: 'Financials', items: [
+    { view: 'settlements', label: 'COD Settlements', icon: <CircleDollarSign className="h-4 w-4" /> },
+    { view: 'wallets', label: 'Seller Wallets', icon: <Wallet className="h-4 w-4" /> },
+    { view: 'discounts', label: 'Discounts', icon: <Tags className="h-4 w-4" /> },
+  ]},
+  { label: 'System', items: [
+    { view: 'settings', label: 'Settings', icon: <Settings className="h-4 w-4" /> },
+  ]},
+];
+
+const PAGE_META: Record<View, { title: string; sub: string }> = {
+  overview: { title: 'Command Center', sub: 'Network-wide performance, live in one place' },
+  orders: { title: 'All Orders', sub: 'Every order across every branch and channel' },
+  analytics: { title: 'Analytics & Insights', sub: 'Revenue, status and channel performance' },
+  team: { title: 'Team & Riders', sub: 'Staff, rider and admin accounts' },
+  settlements: { title: 'COD Settlements', sub: 'Guaranteed next-morning (T+1) payouts' },
+  wallets: { title: 'Seller Wallets', sub: 'Business wallets, locks and reconciliation' },
+  bus: { title: 'Bus Network (Layer 1)', sub: 'Operators, schedules and manifest tracking' },
+  rnp: { title: 'RNP Network (Layer 3)', sub: 'Neighbourhood drop & pick-up points' },
+  discounts: { title: 'Discount Engine', sub: 'Signup offers and promo codes' },
+  settings: { title: 'Settings', sub: 'System configuration' },
 };
 
-const USER_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-  </svg>
-);
-const CNIC_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 10h-6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2z" /><path d="M7 21H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2z" />
-    <line x1="7" y1="7" x2="7" y2="7" /><line x1="11" y1="7" x2="11" y2="7" /><line x1="7" y1="11" x2="7" y2="11" /><line x1="11" y1="11" x2="11" y2="11" />
-  </svg>
-)
-const MAIL_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 6-10 7L2 6" />
-  </svg>
-);
-const PHONE_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-  </svg>
-);
-const LOCK_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="11" width="18" height="10" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-  </svg>
-);
+const STATUS_BADGE_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'secondary'> = {
+  delivered: 'success',
+  payment_received: 'success',
+  paid: 'success',
+  approved: 'success',
+  active: 'success',
+  in_transit: 'warning',
+  assigned: 'warning',
+  picked_up: 'warning',
+  created: 'info',
+  pending: 'warning',
+  failed: 'danger',
+  cancelled: 'secondary',
+  returned: 'secondary',
+  suspended: 'danger',
+};
+
+function titleStatus(status: string) {
+  return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export default function AdminPage() {
   return (
@@ -76,80 +126,493 @@ export default function AdminPage() {
 function AdminContent() {
   const { token, setToken } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>('orders');
+  const [view, setView] = useState<View>('overview');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [orderSearch, setOrderSearch] = useState('');
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [riders, setRiders] = useState<AdminRider[]>([]);
+  const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
+  const [syncing, setSyncing] = useState(true);
 
   function handleLogout() {
     setToken(null);
     router.push('/login');
   }
 
+  useEffect(() => {
+    if (!token) return;
+    setSyncing(true);
+    Promise.all([listAllOrders(token), listRiders(token), getAdminAnalytics(token)])
+      .then(([o, r, a]) => { setOrders(o); setRiders(r); setAnalytics(a); })
+      .catch(() => {})
+      .finally(() => setSyncing(false));
+  }, [token]);
+
+  const stats = useMemo(() => {
+    const created = orders.filter((o) => o.status === 'created').length;
+    const assigned = orders.filter((o) => o.status === 'assigned').length;
+    const delivered = analytics?.status_counts?.delivered ?? 0;
+    const inTransit = analytics?.status_counts?.in_transit ?? 0;
+    const totalRevenue = analytics?.total_revenue ?? 0;
+    const available = riders.filter((r) => r.is_available).length;
+    return { created, assigned, delivered, inTransit, totalRevenue, available, totalRiders: riders.length };
+  }, [orders, riders, analytics]);
+
+  function switchView(v: View) {
+    setView(v);
+    setSidebarOpen(false);
+    setOrderSearch('');
+  }
+
+  const alerts = useMemo(() => {
+    const list: { id: string; icon: React.ReactNode; tone: string; text: string }[] = [];
+    if (stats.created > 0) list.push({ id: 'unassigned', icon: <Package className="h-3.5 w-3.5" />, tone: 'text-orange bg-[#FBF3EA]', text: `${stats.created} order(s) awaiting assignment` });
+    if (stats.available === 0 && riders.length > 0) list.push({ id: 'riders', icon: <Users className="h-3.5 w-3.5" />, tone: 'text-danger bg-[#FBE9E5]', text: 'No riders currently available' });
+    return list;
+  }, [stats, riders]);
+
   return (
-    <div className="min-h-screen bg-page">
-      <header className="bg-white border-b border-line px-6 md:px-10 py-4 flex items-center justify-between">
-        <Logo />
-        <div className="flex items-center gap-4">
-          <span className="text-xs font-semibold uppercase tracking-wide text-orange bg-[#FBF3EA] px-3 py-1 rounded-full">
-            Admin Panel
-          </span>
-          <button onClick={handleLogout} className="text-sm font-semibold text-muted hover:text-navy transition-colors">
-            Log out
+    <div className="min-h-screen bg-background">
+      {/* ============ SIDEBAR ============ */}
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-navy text-white transition-transform lg:translate-x-0',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        <div className="flex items-center justify-between px-6 pt-6 pb-5">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/90">
+              <Truck className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <div className="font-display text-base font-extrabold leading-none tracking-tight">
+                RAFTAAR<span className="text-primary">EXPRESS</span>
+              </div>
+              <div className="mt-1 text-[0.6rem] font-semibold uppercase tracking-[0.22em] text-white/50">
+                Admin Command Center
+              </div>
+            </div>
+          </div>
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1.5 text-white/70 hover:text-white">
+            <X className="h-5 w-5" />
           </button>
         </div>
-      </header>
 
-      <main className="max-w-5xl mx-auto px-6 md:px-10 py-8">
-        <div className="flex gap-2 mb-6 border-b border-line">
-          {(['orders', 'team', 'settings', 'analytics'] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-                tab === t ? 'border-orange text-orange' : 'border-transparent text-muted hover:text-ink'
-              }`}
-            >
-              {t === 'orders' ? 'All Orders' : t === 'team' ? 'Team' : t === 'settings' ? 'Settings' : 'Analytics'}
+        <Separator className="bg-white/10" />
+
+        <ScrollArea className="flex-1 px-3 py-4">
+          <nav className="flex flex-col gap-5">
+            {NAV_SECTIONS.map((section) => (
+              <div key={section.label}>
+                <div className="px-3 pb-1.5 text-[0.68rem] font-bold uppercase tracking-wider text-white/40">
+                  {section.label}
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  {section.items.map((item) => {
+                    const active = view === item.view;
+                    return (
+                      <button
+                        key={item.view}
+                        onClick={() => switchView(item.view)}
+                        className={cn(
+                          'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                          active
+                            ? 'bg-primary text-white shadow-sm'
+                            : 'text-white/70 hover:bg-white/5 hover:text-white'
+                        )}
+                      >
+                        <span className={cn(active ? 'text-white' : 'text-white/50 group-hover:text-white/80')}>
+                          {item.icon}
+                        </span>
+                        <span className="flex-1 text-left">{item.label}</span>
+                        {item.view === 'orders' && stats.created > 0 && (
+                          <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[0.65rem] font-bold text-primary">
+                            {stats.created}
+                          </span>
+                        )}
+                        {active && <ChevronRight className="h-3.5 w-3.5 opacity-70" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
+        </ScrollArea>
+
+        {/* ============ SIDEBAR ANALYTICS ============ */}
+        <div className="border-t border-white/10 p-4">
+          <div className="rounded-xl bg-white/5 p-3.5">
+            <div className="flex items-center gap-2 pb-3">
+              <Activity className="h-4 w-4 text-primary" />
+              <span className="text-xs font-bold uppercase tracking-wide text-white/70">Network Pulse</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="rounded-lg bg-white/5 px-2.5 py-2">
+                <div className="text-[0.65rem] font-medium uppercase tracking-wide text-white/40">Total orders</div>
+                <div className="mt-0.5 text-lg font-bold leading-none">{syncing ? <Skeleton className="h-5 w-10 bg-white/10" /> : stats.created + stats.assigned + stats.delivered + stats.inTransit + orders.length}</div>
+              </div>
+              <div className="rounded-lg bg-white/5 px-2.5 py-2">
+                <div className="text-[0.65rem] font-medium uppercase tracking-wide text-white/40">Delivered</div>
+                <div className="mt-0.5 text-lg font-bold leading-none text-success">{syncing ? <Skeleton className="h-5 w-10 bg-white/10" /> : stats.delivered}</div>
+              </div>
+              <div className="rounded-lg bg-white/5 px-2.5 py-2">
+                <div className="text-[0.65rem] font-medium uppercase tracking-wide text-white/40">In transit</div>
+                <div className="mt-0.5 text-lg font-bold leading-none text-primary">{syncing ? <Skeleton className="h-5 w-10 bg-white/10" /> : stats.inTransit}</div>
+              </div>
+              <div className="rounded-lg bg-white/5 px-2.5 py-2">
+                <div className="text-[0.65rem] font-medium uppercase tracking-wide text-white/40">Riders online</div>
+                <div className="mt-0.5 text-lg font-bold leading-none">{syncing ? <Skeleton className="h-5 w-10 bg-white/10" /> : `${stats.available}/${stats.totalRiders}`}</div>
+              </div>
+            </div>
+          </div>
+
+          {alerts.length > 0 && (
+            <div className="mt-3 flex flex-col gap-2">
+              {alerts.map((a) => (
+                <div key={a.id} className="flex items-center gap-2.5 rounded-lg bg-white/5 px-3 py-2">
+                  <span className={cn('flex h-6 w-6 items-center justify-center rounded-full', a.tone)}>{a.icon}</span>
+                  <span className="text-xs font-medium text-white/80">{a.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-3 flex items-center gap-3 rounded-xl bg-white/5 p-3">
+            <Avatar className="h-9 w-9">
+              <AvatarFallback className="bg-primary text-xs font-bold text-white">OP</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold text-white">Operations Admin</div>
+              <div className="truncate text-[0.7rem] text-white/50">admin@raftaarexpress.com</div>
+            </div>
+            <button onClick={handleLogout} title="Log out" className="p-1.5 text-white/50 hover:text-white transition-colors">
+              <LogOut className="h-4 w-4" />
             </button>
-          ))}
+          </div>
         </div>
+      </aside>
 
-        {tab === 'orders' ? (
-          <OrdersTab token={token!} />
-        ) : tab === 'team' ? (
-          <TeamTab token={token!} />
-        ) : tab === 'settings' ? (
-          <SettingsTab token={token!} />
-        ) : (
-          <AnalyticsTab token={token!} />
-        )}
-      </main>
+      {sidebarOpen && <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+
+      {/* ============ MAIN ============ */}
+      <div className="lg:pl-72">
+        {/* HEADER */}
+        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/90 px-5 py-3.5 backdrop-blur md:px-8">
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 text-ink hover:bg-muted rounded-lg">
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span>Raftaar Express</span>
+              <ChevronRight className="h-3 w-3" />
+              <span className="font-semibold text-ink">{PAGE_META[view].title}</span>
+            </div>
+            <h1 className="truncate font-display text-lg font-bold text-ink leading-tight">{PAGE_META[view].title}</h1>
+            <p className="hidden truncate text-xs text-muted-foreground sm:block">{PAGE_META[view].sub}</p>
+          </div>
+
+          {view === 'orders' && (
+            <div className="relative hidden md:block">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={orderSearch}
+                onChange={(e) => setOrderSearch(e.target.value)}
+                placeholder="Search tracking #, city…"
+                className="w-64 bg-card pl-9"
+              />
+            </div>
+          )}
+
+          <TooltipProvider>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="relative">
+                      <Bell className="h-5 w-5" />
+                      {alerts.length > 0 && (
+                        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger ring-2 ring-background" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Notifications</TooltipContent>
+                </Tooltip>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {alerts.length === 0 ? (
+                  <div className="px-2 py-6 text-center text-sm text-muted-foreground">All clear — no pending alerts.</div>
+                ) : (
+                  alerts.map((a) => (
+                    <DropdownMenuItem key={a.id} className="gap-3">
+                      <span className={cn('flex h-8 w-8 items-center justify-center rounded-full', a.tone)}>{a.icon}</span>
+                      <span className="text-sm">{a.text}</span>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </TooltipProvider>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="gap-2 px-2">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-navy text-xs font-bold text-white">OA</AvatarFallback>
+                </Avatar>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Operations Admin</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => switchView('settings')}>
+                <Settings className="mr-2 h-4 w-4" /> Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                <LogOut className="mr-2 h-4 w-4" /> Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </header>
+
+        <main className="p-5 md:p-8">
+          {view === 'overview' && (
+            <OverviewView stats={stats} analytics={analytics} orders={orders} riders={riders} syncing={syncing} onNavigate={switchView} />
+          )}
+          {view === 'orders' && (
+            <OrdersTab token={token!} search={orderSearch} />
+          )}
+          {view === 'analytics' && <AnalyticsTab token={token!} />}
+          {view === 'team' && <TeamTab token={token!} />}
+          {view === 'settlements' && <CodSettlementsTab token={token!} />}
+          {view === 'wallets' && <WalletsTab token={token!} />}
+          {view === 'bus' && <BusNetworkTab token={token!} />}
+          {view === 'rnp' && <RnpTab token={token!} />}
+          {view === 'discounts' && <DiscountsTab token={token!} />}
+          {view === 'settings' && <SettingsTab token={token!} />}
+        </main>
+      </div>
     </div>
   );
 }
 
-function OrdersTab({ token }: { token: string }) {
+// ============================================================
+// OVERVIEW — Command Center
+// ============================================================
+function OverviewView({ stats, analytics, orders, riders, syncing, onNavigate }: {
+  stats: { created: number; assigned: number; delivered: number; inTransit: number; totalRevenue: number; available: number; totalRiders: number };
+  analytics: AdminAnalytics | null;
+  orders: Order[];
+  riders: AdminRider[];
+  syncing: boolean;
+  onNavigate: (v: View) => void;
+}) {
+  const kpis = [
+    { label: 'Total orders', value: stats.created + stats.assigned + stats.delivered + stats.inTransit + orders.length, icon: <Package className="h-5 w-5" />, tone: 'bg-[#EAF1FC] text-navy', trend: `${stats.created} awaiting assignment`, up: stats.created === 0 },
+    { label: 'Revenue (delivered)', value: `Rs ${stats.totalRevenue.toLocaleString()}`, icon: <CircleDollarSign className="h-5 w-5" />, tone: 'bg-[#EAF7EF] text-success', trend: 'T+1 settlements next morning', up: true },
+    { label: 'Delivered', value: stats.delivered, icon: <Shield className="h-5 w-5" />, tone: 'bg-[#FBF3EA] text-orange', trend: '0% RTO in live deliveries', up: true },
+    { label: 'In transit', value: stats.inTransit, icon: <Truck className="h-5 w-5" />, tone: 'bg-[#FBE9E5] text-danger', trend: '30–45 min bus dispatches', up: stats.inTransit > 0 },
+    { label: 'Riders available', value: `${stats.available}/${stats.totalRiders}`, icon: <Users className="h-5 w-5" />, tone: 'bg-[#EAF1FC] text-navy', trend: stats.available > 0 ? 'Ready for dispatch' : 'None online', up: stats.available > 0 },
+    { label: 'COD pending', value: analytics ? stats.inTransit + stats.assigned + stats.created : 0, icon: <Wallet className="h-5 w-5" />, tone: 'bg-[#FBF0DC] text-[#B9770E]', trend: 'Settle T+1 from Financials', up: true },
+  ];
+
+  const week = analytics?.daily_last_7_days ?? [];
+  const maxRevenue = Math.max(1, ...week.map((d) => d.revenue));
+  const totalWeeklyRevenue = week.reduce((s, d) => s + d.revenue, 0);
+  const statusEntries = Object.entries(analytics?.status_counts ?? {});
+  const maxStatus = Math.max(1, ...statusEntries.map(([, c]) => c));
+
+  if (syncing) {
+    return (
+      <div className="grid gap-5">
+        <Skeleton className="h-28 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5 animate-fade-in">
+      {/* KPI ROW */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        {kpis.map((k) => (
+          <Card key={k.label} className="overflow-hidden">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <span className={cn('flex h-9 w-9 items-center justify-center rounded-lg', k.tone)}>{k.icon}</span>
+                {k.up ? (
+                  <TrendingUp className="h-4 w-4 text-success" />
+                ) : (
+                  <TrendingDown className="h-4 w-4 text-danger" />
+                )}
+              </div>
+              <div className="mt-3 text-xl font-bold tracking-tight text-ink">{k.value}</div>
+              <div className="mt-0.5 text-xs font-semibold text-muted-foreground">{k.label}</div>
+              <div className="mt-1.5 text-[0.68rem] font-medium text-muted-foreground/80">{k.trend}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* CHARTS */}
+      <div className="grid gap-5 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle>Revenue — last 7 days</CardTitle>
+              <CardDescription>Delivered orders, network-wide</CardDescription>
+            </div>
+            <Badge variant="success" className="font-mono">Rs {totalWeeklyRevenue.toLocaleString()}</Badge>
+          </CardHeader>
+          <CardContent>
+            {week.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">No delivered orders in the last 7 days yet.</p>
+            ) : (
+              <div className="flex h-44 items-end gap-3">
+                {week.map((d) => (
+                  <div key={d.date} className="group flex flex-1 flex-col items-center gap-1.5">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            className="w-full rounded-t-md bg-gradient-to-t from-primary/80 to-primary transition-all group-hover:from-primary group-hover:to-primary-light"
+                            style={{ height: `${Math.max(4, (d.revenue / maxRevenue) * 100)}%` }}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Rs {d.revenue.toLocaleString()} · {d.orders} orders
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <span className="text-[0.65rem] text-muted-foreground">
+                      {new Date(d.date).toLocaleDateString(undefined, { weekday: 'short' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle>Orders by status</CardTitle>
+            <CardDescription>Live pipeline snapshot</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {statusEntries.length === 0 && <p className="text-sm text-muted-foreground">No orders yet.</p>}
+            {statusEntries.map(([status, count]) => (
+              <div key={status} className="flex items-center gap-3">
+                <span className="w-24 shrink-0 text-xs font-medium text-muted-foreground capitalize">{status.replace('_', ' ')}</span>
+                <Progress value={(count / maxStatus) * 100} className="h-2 flex-1" />
+                <span className="w-6 text-right text-xs font-semibold text-ink">{count}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* RECENT ORDERS + TOP RIDERS */}
+      <div className="grid gap-5 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle>Recent orders</CardTitle>
+              <CardDescription>Latest shipments across the network</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => onNavigate('orders')}>View all</Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            {orders.length === 0 ? (
+              <p className="px-6 py-10 text-center text-sm text-muted-foreground">No orders yet.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tracking</TableHead>
+                    <TableHead>Route</TableHead>
+                    <TableHead>Channel</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Price</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orders.slice(0, 6).map((o) => (
+                    <TableRow key={o.id}>
+                      <TableCell className="font-mono text-xs text-ink">{o.tracking_number}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {o.pickup_address?.city || '—'} → {o.dropoff_address?.city || '—'}
+                      </TableCell>
+                      <TableCell className="text-xs capitalize">{o.booking_channel || 'app'}</TableCell>
+                      <TableCell>
+                        <Badge variant={STATUS_BADGE_VARIANT[o.status] || 'secondary'} className="capitalize">
+                          {o.status.replace('_', ' ')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">{o.final_price ?? o.estimated_price ?? '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle>Top riders</CardTitle>
+            <CardDescription>By delivered orders</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!analytics || analytics.top_riders.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">No delivery data yet.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {analytics.top_riders.slice(0, 5).map((r, i) => (
+                  <div key={r.full_name + i} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary text-xs font-bold text-navy">
+                      {i + 1}
+                    </span>
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-navy text-[0.65rem] font-bold text-white">
+                        {r.full_name.split(' ').map((p) => p[0]).slice(0, 2).join('')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-ink">{r.full_name}</div>
+                      <div className="text-[0.7rem] text-muted-foreground">{r.deliveries} deliveries</div>
+                    </div>
+                    <span className="font-semibold text-success">Rs {r.earnings.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// ORDERS
+// ============================================================
+function OrdersTab({ token, search }: { token: string; search: string }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [riders, setRiders] = useState<AdminRider[]>([]);
   const [loading, setLoading] = useState(true);
   const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState('');
   const [error, setError] = useState('');
-
-
-
-  const SEARCH_ICON = (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.35-4.35" />
-    </svg>
-  );
-
-
 
   useEffect(() => {
     Promise.all([listAllOrders(token), listRiders(token)])
-      .then(([o, r]) => {
-        setOrders(o);
-        setRiders(r);
-      })
+      .then(([o, r]) => { setOrders(o); setRiders(r); })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load data.'))
       .finally(() => setLoading(false));
   }, [token]);
@@ -168,88 +631,287 @@ function OrdersTab({ token }: { token: string }) {
     }
   }
 
-  if (loading) return <p className="text-muted text-sm">Loading orders…</p>;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return orders.filter((o) => {
+      if (statusFilter && o.status !== statusFilter) return false;
+      if (q) {
+        const hay = [o.tracking_number, o.pickup_address?.contact_name, o.dropoff_address?.contact_name, o.pickup_address?.city, o.dropoff_address?.city]
+          .filter(Boolean).join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [orders, search, statusFilter]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-10 w-full max-w-sm rounded-lg" />
+        <Skeleton className="h-96 rounded-xl" />
+      </div>
+    );
+  }
+
+  const statuses = ['created', 'assigned', 'picked_up', 'in_transit', 'delivered', 'failed', 'cancelled', 'returned'];
 
   return (
-    <div>
-      {error && <p className="text-sm text-danger mb-4">{error}</p>}
-      <div className="bg-white rounded-card shadow-card overflow-hidden">
-        {orders.length === 0 ? (
-          <p className="p-6 text-muted text-sm">No orders yet.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-muted">
-                <th className="px-6 py-3 font-semibold">Tracking #</th>
-                <th className="px-6 py-3 font-semibold">Status</th>
-                <th className="px-6 py-3 font-semibold">Channel</th>
-                <th className="px-6 py-3 font-semibold">Assign Rider</th>
-                <th className="px-6 py-3 font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order) => (
-                <tr key={order.id} className="border-b border-line last:border-0">
-                  <td className="px-6 py-3.5 font-mono text-ink">{order.tracking_number}</td>
-                  <td className="px-6 py-3.5">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[order.status] || 'bg-line text-ink'}`}>
-                      {order.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3.5 text-muted capitalize">{order.booking_channel}</td>
-                  <td className="px-6 py-3.5">
-                    {order.status === 'created' ? (
-                      <select
-                        disabled={assigningId === order.id}
-                        onChange={(e) => handleAssign(order.id, e.target.value)}
-                        defaultValue=""
-                        className="text-sm py-1.5 px-2 rounded-[8px] border border-line bg-[#FBFCFE]"
-                      >
-                        <option value="" disabled>
-                          {assigningId === order.id ? 'Assigning…' : 'Select rider'}
-                        </option>
-                        {riders.map((r) => (
-                          <option key={r.rider_id} value={r.rider_id}>
-                            {r.full_name} ({r.vehicle_type || 'rider'})
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="text-muted text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-3.5">
-                    <a
-                      href={`/admin/orders/${order.id}`}
-                      className="text-sm font-semibold text-navy hover:text-navy-light transition-colors"
-                    >
-                      View
-                    </a>
-                    <a href={`/admin/orders/${order.id}/edit`} className="ml-4 text-sm font-semibold text-orange hover:text-orange-light transition-colors">
-                      Edit
-                    </a>
-                    <a href={`/admin/orders/${order.id}/delete`} className="ml-4 text-sm font-semibold text-danger hover:text-danger-light transition-colors">
-                      Delete
-                    </a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+    <div className="flex flex-col gap-4 animate-fade-in">
+      {error && <div className="rounded-lg border border-destructive/30 bg-[#FBE9E5] px-4 py-3 text-sm text-destructive">{error}</div>}
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <Card><CardContent className="p-4"><div className="text-2xl font-bold text-ink">{orders.length}</div><div className="text-xs font-semibold text-muted-foreground">Total orders</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-2xl font-bold text-ink">{orders.filter((o) => o.status === 'created').length}</div><div className="text-xs font-semibold text-muted-foreground">Awaiting rider</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-2xl font-bold text-success">{orders.filter((o) => o.status === 'delivered').length}</div><div className="text-xs font-semibold text-muted-foreground">Delivered</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-2xl font-bold text-danger">{orders.filter((o) => o.status === 'failed' || o.status === 'cancelled').length}</div><div className="text-xs font-semibold text-muted-foreground">Failed / cancelled</div></CardContent></Card>
       </div>
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>All orders</CardTitle>
+            <CardDescription>{filtered.length} shown</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input value={search} readOnly placeholder="Search…" className="hidden w-56 md:flex" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-9 rounded-md border border-input bg-card px-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">Any status</option>
+              {statuses.map((s) => <option key={s} value={s}>{titleStatus(s)}</option>)}
+            </select>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {filtered.length === 0 ? (
+            <p className="py-12 text-center text-sm text-muted-foreground">No orders match this filter.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tracking #</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Channel</TableHead>
+                  <TableHead>Assign rider</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell className="font-mono text-xs text-ink">{order.tracking_number}</TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_BADGE_VARIANT[order.status] || 'secondary'} className="capitalize">
+                        {order.status.replace('_', ' ')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs capitalize text-muted-foreground">{order.booking_channel}</TableCell>
+                    <TableCell>
+                      {order.status === 'created' ? (
+                        <select
+                          disabled={assigningId === order.id}
+                          onChange={(e) => handleAssign(order.id, e.target.value)}
+                          defaultValue=""
+                          className="h-8 rounded-md border border-input bg-card px-2 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                        >
+                          <option value="" disabled>{assigningId === order.id ? 'Assigning…' : 'Select rider'}</option>
+                          {riders.map((r) => (
+                            <option key={r.rider_id} value={r.rider_id}>{r.full_name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" asChild><a href={`/admin/orders/${order.id}`}>View</a></Button>
+                        <Button variant="ghost" size="sm" className="text-primary" asChild><a href={`/admin/orders/${order.id}/edit`}>Edit</a></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function SettingsTab({token}: {token: string}){
-  return(
-    <div>
-      <p className="text-muted text-sm">Settings will be available in a future update.</p>
+// ============================================================
+// ANALYTICS
+// ============================================================
+function AnalyticsTab({ token }: { token: string }) {
+  const [data, setData] = useState<AdminAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    getAdminAnalytics(token)
+      .then(setData)
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load analytics.'))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return <div className="flex flex-col gap-4"><Skeleton className="h-28 rounded-xl" /><Skeleton className="h-72 rounded-xl" /></div>;
+  if (error) return <div className="rounded-lg border border-destructive/30 bg-[#FBE9E5] px-4 py-3 text-sm text-destructive">{error}</div>;
+  if (!data) return null;
+
+  const maxDaily = Math.max(1, ...data.daily_last_7_days.map((d) => d.revenue));
+  const statusEntries = Object.entries(data.status_counts);
+  const maxStatus = Math.max(1, ...statusEntries.map(([, c]) => c));
+  const channelEntries = Object.entries(data.channel_counts);
+  const maxChannel = Math.max(1, ...channelEntries.map(([, c]) => c));
+
+  return (
+    <div className="flex flex-col gap-5 animate-fade-in">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardContent className="p-5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total orders</div>
+            <div className="mt-1 text-3xl font-bold text-ink">{data.total_orders}</div>
+            <div className="mt-1 text-xs text-muted-foreground">All channels, all time</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Revenue (delivered)</div>
+            <div className="mt-1 text-3xl font-bold text-success">Rs {data.total_revenue.toLocaleString()}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Network-wide</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Top rider earnings</div>
+            <div className="mt-1 text-3xl font-bold text-primary">
+              Rs {(data.top_riders[0]?.earnings ?? 0).toLocaleString()}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">{data.top_riders[0]?.full_name ?? 'No data'}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Delivery success</div>
+            <div className="mt-1 text-3xl font-bold text-ink">
+              {data.total_orders ? Math.round(((data.status_counts.delivered ?? 0) / data.total_orders) * 100) : 0}%
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">Delivered vs total</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle>Revenue — last 7 days</CardTitle>
+          <CardDescription>Per-day delivered revenue</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {data.daily_last_7_days.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">No delivered orders in the last 7 days yet.</p>
+          ) : (
+            <div className="flex h-40 items-end gap-3">
+              {data.daily_last_7_days.map((d) => (
+                <div key={d.date} className="flex flex-1 flex-col items-center gap-2">
+                  <span className="text-xs font-semibold text-ink">Rs {d.revenue.toLocaleString()}</span>
+                  <div className="w-full rounded-t-md bg-primary" style={{ height: `${Math.max(4, (d.revenue / maxDaily) * 100)}%` }} />
+                  <span className="text-[0.65rem] text-muted-foreground">{d.date.slice(5)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2"><CardTitle>Orders by status</CardTitle></CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {statusEntries.map(([status, count]) => (
+              <div key={status} className="flex items-center gap-3">
+                <span className="w-28 shrink-0 text-xs text-muted-foreground capitalize">{status.replace('_', ' ')}</span>
+                <Progress value={(count / maxStatus) * 100} className="h-2.5 flex-1" />
+                <span className="w-6 text-right text-xs font-semibold text-ink">{count}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle>Booking channel mix</CardTitle></CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {channelEntries.map(([channel, count]) => (
+              <div key={channel} className="flex items-center gap-3">
+                <span className="w-28 shrink-0 text-xs text-muted-foreground capitalize">{channel.replace('_', ' ')}</span>
+                <Progress value={(count / maxChannel) * 100} className="h-2.5 flex-1 [&>div]:bg-orange" />
+                <span className="w-6 text-right text-xs font-semibold text-ink">{count}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-2"><CardTitle>Top riders</CardTitle><CardDescription>By delivered orders</CardDescription></CardHeader>
+        <CardContent>
+          {data.top_riders.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No delivered orders yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>#</TableHead>
+                  <TableHead>Rider</TableHead>
+                  <TableHead className="text-right">Deliveries</TableHead>
+                  <TableHead className="text-right">Earnings</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.top_riders.map((r, i) => (
+                  <TableRow key={r.full_name + i}>
+                    <TableCell className="font-bold">{i + 1}</TableCell>
+                    <TableCell className="font-semibold">{r.full_name}</TableCell>
+                    <TableCell className="text-right">{r.deliveries}</TableCell>
+                    <TableCell className="text-right font-semibold text-success">Rs {r.earnings.toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
+// ============================================================
+// SETTINGS
+// ============================================================
+function SettingsTab({ token }: { token: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>System settings</CardTitle>
+        <CardDescription>Configuration for the Raftaar network</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+          <div>
+            <div className="text-sm font-semibold text-ink">Guaranteed T+1 COD settlement</div>
+            <div className="text-xs text-muted-foreground">Automatic next-morning payouts for delivered COD orders</div>
+          </div>
+          <Badge variant="success">Enabled</Badge>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================
+// TEAM (port of existing implementation)
+// ============================================================
 interface FormState {
   full_name: string;
   email: string;
@@ -262,10 +924,46 @@ interface FormState {
   branch_id: string;
 }
 
-  // const [form, setForm] = useState({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer', designation: '', zone_id: '', branch_id: '' });
 const INITIAL_FORM: FormState = {
   full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer', designation: '', zone_id: '', branch_id: '',
 };
+
+const USER_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+  </svg>
+);
+const MAIL_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 6-10 7L2 6" />
+  </svg>
+);
+const PHONE_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
+  </svg>
+);
+const LOCK_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="10" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+const CNIC_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 10h-6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2z" /><path d="M7 21H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2z" />
+    <line x1="7" y1="7" x2="7" y2="7" /><line x1="11" y1="7" x2="11" y2="7" /><line x1="7" y1="11" x2="7" y2="11" /><line x1="11" y1="11" x2="11" y2="11" />
+  </svg>
+);
+const ICONS = {
+  idCard: <><rect x="2" y="5" width="20" height="14" rx="2" /><circle cx="8" cy="12" r="2.2" /><path d="M14 10h5M14 14h5" /></>,
+};
+function Icon({ path, size = 18 }: { path: React.ReactNode; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {path}
+    </svg>
+  );
+}
 
 function TeamTab({ token }: { token: string }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -281,7 +979,6 @@ function TeamTab({ token }: { token: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [error, setError] = useState('');
-  // const [form, setForm] = useState({ full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer', designation: '', zone_id: '', branch_id: '' });
 
   useEffect(() => {
     loadUsers();
@@ -297,28 +994,24 @@ function TeamTab({ token }: { token: string }) {
       .finally(() => setLoading(false));
   }
 
-  function loadBranches(){
-
-    setLoading(true)
+  function loadBranches() {
+    setLoading(true);
     listBranches(token)
-    .then(setBranches)
-    .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load branches'))
-    .finally(() => setLoading(false))
+      .then(setBranches)
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load branches'))
+      .finally(() => setLoading(false));
   }
 
-  function filterBranches(zone_id: string){
-
-    setFilteredBranches(branches.filter((o) => o.zone_id == zone_id))
+  function filterBranches(zone_id: string) {
+    setFilteredBranches(branches.filter((o) => o.zone_id == zone_id));
   }
 
-  function loadZones(){
-
-    setLoading(true)
+  function loadZones() {
+    setLoading(true);
     listZones(token)
-    .then(setZones)
-    .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load zones.'))
-    .finally(() => setLoading(false))
-
+      .then(setZones)
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load zones.'))
+      .finally(() => setLoading(false));
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -327,7 +1020,6 @@ function TeamTab({ token }: { token: string }) {
     setError('');
     try {
       const newUser = await createStaffOrRider(form, token);
-
       setUsers((prev) => [newUser, ...prev]);
       setShowForm(false);
       setForm({ full_name: '', email: '', phone: '', cnic: '', password: '', designation: '', role: 'staff', zone_id: '', branch_id: '' });
@@ -341,395 +1033,187 @@ function TeamTab({ token }: { token: string }) {
   function handleDeleteUser(id: string): void {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     setError('');
-    deleteUserbyAdmin(id,token);
+    deleteUserbyAdmin(id, token);
     setUsers((prev) => prev.filter((u) => u.id !== id));
   }
 
-  const ICONS = {
-  user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></>,
-  pin: <><path d="M12 22s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z" /><circle cx="12" cy="10" r="2.5" /></>,
-  mail: <><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m2 6 10 7 10-7" /></>,
-  phone: <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 3a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.2-1.3a2 2 0 0 1 2.1-.5c1 .3 2 .5 3 .7a2 2 0 0 1 1.7 2z" />,
-  lock: <><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
-  idCard: <><rect x="2" y="5" width="20" height="14" rx="2" /><circle cx="8" cy="12" r="2.2" /><path d="M14 10h5M14 14h5" /></>,
-  building: <><rect x="3" y="3" width="12" height="18" rx="1" /><path d="M15 8h6v13h-6M7 7h.01M11 7h.01M7 11h.01M11 11h.01M7 15h.01M11 15h.01" /></>,
-  layers: <><path d="m21 8-9-6-9 6 9 6 9-6z" /><path d="M3 8v8l9 6 9-6V8" /></>,
-  doc: <><path d="M9 12h6M9 16h6M9 8h6" /><rect x="4" y="3" width="16" height="18" rx="2" /></>,
-  tax: <><path d="M4 4h16v16H4z" /><path d="M8 9h8M8 13h5" /></>,
-  box: <><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><path d="m3.3 7 8.7 5 8.7-5M12 22V12" /></>,
-  truck: <><rect x="1" y="6" width="15" height="11" /><path d="M16 10h4l3 3v4h-7z" /><circle cx="6" cy="18" r="2" /><circle cx="18.5" cy="18" r="2" /></>,
-  city: <path d="M3 21V9l6-4 6 4v12M15 21v-8l6 4v4" />,
-  map: <path d="M4 4h16v16H4zM4 10h16M10 4v16" />,
-  mailbox: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7h18" /></>,
-  globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.6 3.8 6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-6-3.8-9s1.3-6.4 3.8-9z" /></>,
-  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></>,
-  bank: <><path d="M3 10 12 4l9 6" /><path d="M4 10v10h16V10M9 14v4M15 14v4" /></>,
-  card: <><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></>,
-  eye: <><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" /><circle cx="12" cy="12" r="3" /></>,
-  fastDelivery: <><rect x="1" y="6" width="15" height="11" /><path d="M16 10h4l3 3v4h-7z" /><circle cx="6" cy="18" r="2" /><circle cx="18.5" cy="18" r="2" /></>,
-  shield: <path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z" />,
-  worldwide: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.6 3.8 6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-6-3.8-9s1.3-6.4 3.8-9z" /></>,
-  support: <><path d="M3 18v-6a9 9 0 0 1 18 0v6" /><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3z" /><path d="M3 19a2 2 0 0 0 2 2h1v-6H3z" /></>,
-};
-
-function Icon({ path, size = 18 }: { path: React.ReactNode; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      {path}
-    </svg>
-  );
-}
-
-function set<K extends keyof FormState>(key: K, value: FormState[K]) {
+  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
   function formatCnic(raw: string): string {
-  const digits = raw.replace(/[^0-9]/g, '').slice(0, 13);
-  let out = digits;
-  if (digits.length > 5) out = digits.slice(0, 5) + '-' + digits.slice(5);
-  if (digits.length > 12) out = out.slice(0, 13) + '-' + digits.slice(12);
-  return out;
-}
+    const digits = raw.replace(/[^0-9]/g, '').slice(0, 13);
+    let out = digits;
+    if (digits.length > 5) out = digits.slice(0, 5) + '-' + digits.slice(5);
+    if (digits.length > 12) out = out.slice(0, 13) + '-' + digits.slice(12);
+    return out;
+  }
 
-function formatPhone(raw: string) : string{
-  const digits = raw.replace(/[^0-9]/g, '').slice(0,11);
-  let out = digits;
-  if(digits.length > 4) out = digits.slice(0,4) + '-' + digits.slice(4);
-
-  return out;
-}
+  function formatPhone(raw: string): string {
+    const digits = raw.replace(/[^0-9]/g, '').slice(0, 11);
+    let out = digits;
+    if (digits.length > 4) out = digits.slice(0, 4) + '-' + digits.slice(4);
+    return out;
+  }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-5">
-        <p className="text-muted text-sm">Customer, Staff, rider, and admin accounts</p>
-        <button
-          onClick={() => setShowForm((s) => !s)}
-          className="bg-orange hover:bg-orange-light text-white font-bold text-sm px-5 py-2.5 rounded-[10px] transition-colors"
-        >
-          {showForm ? 'Cancel' : '+ Onboard Team Member'}
-        </button>
+    <div className="flex flex-col gap-5 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">Customer, staff, rider and admin accounts</p>
+        <Button onClick={() => setShowForm((s) => !s)}>
+          {showForm ? 'Cancel' : 'Onboard Team Member'}
+        </Button>
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreate} className="bg-white rounded-card shadow-card p-6 md:p-8 mb-6">
-          <h2 className="font-display font-bold text-lg mb-4">New Team Member</h2>
-          <div className="grid md:grid-cols-2 gap-x-6">
-            <Field
-              id="full_name"
-              label="Full Name"
-              placeholder='Enter your full name'
-              icon={USER_ICON}
-              required
-              value={form.full_name}
-              onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
-            />
-            <Field
-              id="email"
-              type="email"
-              label="Email"
-              icon={MAIL_ICON}
-              placeholder='Enter email'
-              required
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            />
-            <Field
-              id="phone"
-              label="Phone Number"
-              icon={PHONE_ICON}
-              placeholder="e.g. 03001234567"
-              required
-              value={form.phone}
-              // onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-              onChange={(e) => set('phone', formatPhone(e.target.value))} 
-            />
-            {/* <Field
-              id="cnic"
-              label="cnic"
-              placeholder="e.g. 12345-1234567-1"
-              icon={CNIC_ICON}
-              required
-              value={form.cnic}
-              onChange={(e) => setForm((f) => ({ ...f, cnic: e.target.value }))}
-            /> */}
-            <Field 
-            id="cnic" 
-            label="CNIC Number *" 
-            icon={<Icon path={ICONS.idCard} />} 
-            placeholder="#####-#######-#" maxLength={15}
-                        value={form.cnic} 
-                        // onChange={(e) => set('cnic', formatCnic(e.target.value))} error={error.cnic} 
-                        onChange={(e) => set('cnic', formatCnic(e.target.value))} 
-                        />
-            <Field
-              id="password"
-              type="password"
-              label="Temporary Password"
-              icon={LOCK_ICON}
-              minLength={8}
-              required
-              value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-            />
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>New team member</CardTitle>
+            <CardDescription>Create a staff or rider account</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleCreate} className="grid gap-x-6 md:grid-cols-2">
+              <Field id="full_name" label="Full Name" placeholder="Enter your full name" icon={USER_ICON} required value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} />
+              <Field id="email" type="email" label="Email" icon={MAIL_ICON} placeholder="Enter email" required value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+              <Field id="phone" label="Phone Number" icon={PHONE_ICON} placeholder="e.g. 03001234567" required value={form.phone} onChange={(e) => set('phone', formatPhone(e.target.value))} />
+              <Field id="cnic" label="CNIC Number" icon={<Icon path={ICONS.idCard} />} placeholder="#####-#######-#" maxLength={15} value={form.cnic} onChange={(e) => set('cnic', formatCnic(e.target.value))} />
+              <Field id="password" type="password" label="Temporary Password" icon={LOCK_ICON} minLength={8} required value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
 
-          <div className="mb-5">
-            <label className="text-[0.82rem] font-semibold text-ink block mb-1.5">Role</label>
-            <select
-              value={form.role}
-              onChange={(e) => {
-                const newRole = e.target.value as typeof form.role;
-                setForm((f) => ({
-                  ...f, role: newRole, zone_id: '', branch_id: '', designation: ''
-                }))
-                setShowStaffZoneSelector(newRole === "staff" || newRole === "rider")
-                setShowDesignationSelector(newRole === "staff")
-                setShowStaffBranchSelector(false)
-              }}
-              className="w-full text-[0.92rem] py-3 px-3.5 rounded-[10px] border-[1.5px] border-line bg-[#FBFCFE] text-ink outline-none focus:border-orange"
-            >
-              <option value="staff">Staff (counter/office)</option>
-              <option value="rider">Rider (delivery)</option>
-              {/* <option value="admin">Admin</option> */}
-              {/* <option value="customer">Customer</option> */}
-            </select>
-          </div>
+              <div className="mb-5">
+                <label className="mb-1.5 block text-sm font-semibold text-ink">Role</label>
+                <select
+                  value={form.role}
+                  onChange={(e) => {
+                    const newRole = e.target.value as typeof form.role;
+                    setForm((f) => ({ ...f, role: newRole, zone_id: '', branch_id: '', designation: '' }));
+                    setShowStaffZoneSelector(newRole === 'staff' || newRole === 'rider');
+                    setShowDesignationSelector(newRole === 'staff');
+                    setShowStaffBranchSelector(false);
+                  }}
+                  className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm text-ink outline-none focus:border-ring"
+                >
+                  <option value="staff">Staff (counter/office)</option>
+                  <option value="rider">Rider (delivery)</option>
+                </select>
+              </div>
 
-          {showStaffZoneSelector && (
-           <div className="mb-5">
-            <label className="text-[0.82rem] font-semibold text-ink block mb-1.5">Zone</label>
-            <select
-              value={form.zone_id}
-              onChange={(e) => {
-                const selectedZoneId = e.target.value;
-                setForm((f) => ({
-                  ...f, zone_id: selectedZoneId, branch_id: ''
-                }))
-                filterBranches(selectedZoneId)
-                setShowStaffBranchSelector(selectedZoneId !== '')
-              }}
-              className="w-full text-[0.92rem] py-3 px-3.5 rounded-[10px] border-[1.5px] border-line bg-[#FBFCFE] text-ink outline-none focus:border-orange"
-            >
-              <option value="">Select a zone</option>
-              {zones.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-          </div>           
-          )}
+              {showStaffZoneSelector && (
+                <div className="mb-5">
+                  <label className="mb-1.5 block text-sm font-semibold text-ink">Zone</label>
+                  <select
+                    value={form.zone_id}
+                    onChange={(e) => {
+                      const selectedZoneId = e.target.value;
+                      setForm((f) => ({ ...f, zone_id: selectedZoneId, branch_id: '' }));
+                      filterBranches(selectedZoneId);
+                      setShowStaffBranchSelector(selectedZoneId !== '');
+                    }}
+                    className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm text-ink outline-none focus:border-ring"
+                  >
+                    <option value="">Select a zone</option>
+                    {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+                  </select>
+                </div>
+              )}
 
-          {showStaffBranchSelector && (
-           <div className="mb-5">
-            <label className="text-[0.82rem] font-semibold text-ink block mb-1.5">Branch</label>
-            <select
-              value={form.branch_id}
-              onChange={(e) => setForm((f) => ({ ...f, branch_id: e.target.value }))}
-              className="w-full text-[0.92rem] py-3 px-3.5 rounded-[10px] border-[1.5px] border-line bg-[#FBFCFE] text-ink outline-none focus:border-orange"
-            >
-              <option value="">Select a branch</option>
-              {filteredBranches.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-          </div>           
-          )}
+              {showStaffBranchSelector && (
+                <div className="mb-5">
+                  <label className="mb-1.5 block text-sm font-semibold text-ink">Branch</label>
+                  <select
+                    value={form.branch_id}
+                    onChange={(e) => setForm((f) => ({ ...f, branch_id: e.target.value }))}
+                    className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm text-ink outline-none focus:border-ring"
+                  >
+                    <option value="">Select a branch</option>
+                    {filteredBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+              )}
 
-          {showDesignationSelector && (
-            <div className="mb-5">
-            <label className="text-[0.82rem] font-semibold text-ink block mb-1.5">Designation</label>
-            <select
-              value={form.designation}
-              onChange={(e) => setForm((f) => ({ ...f, designation: e.target.value }))}
-              className="w-full text-[0.92rem] py-3 px-3.5 rounded-[10px] border-[1.5px] border-line bg-[#FBFCFE] text-ink outline-none focus:border-orange"
-            >
-              <option value="">Select a designation</option>
-              <option value="manager">Manager</option>
-              <option value="manager">Operator</option>
-            </select>
-          </div>           
-          )}
+              {showDesignationSelector && (
+                <div className="mb-5">
+                  <label className="mb-1.5 block text-sm font-semibold text-ink">Designation</label>
+                  <select
+                    value={form.designation}
+                    onChange={(e) => setForm((f) => ({ ...f, designation: e.target.value }))}
+                    className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm text-ink outline-none focus:border-ring"
+                  >
+                    <option value="">Select a designation</option>
+                    <option value="manager">Manager</option>
+                    <option value="operator">Operator</option>
+                  </select>
+                </div>
+              )}
 
-          {error && <p className="text-sm text-danger mb-4">{error}</p>}
+              {error && <p className="col-span-full mb-4 text-sm text-destructive">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="bg-navy hover:bg-navy-light text-white font-bold text-sm px-6 py-3 rounded-[10px] disabled:opacity-60 transition-colors"
-          >
-            {submitting ? 'Creating…' : 'Create Account'}
-          </button>
-        </form>
+              <div className="col-span-full">
+                <Button type="submit" variant="navy" disabled={submitting}>
+                  {submitting ? 'Creating…' : 'Create Account'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="bg-white rounded-card shadow-card overflow-hidden">
-        {loading ? (
-          <p className="p-6 text-muted text-sm">Loading team…</p>
-        ) : users.length === 0 ? (
-          <p className="p-6 text-muted text-sm">No staff or riders onboarded yet.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-muted">
-                <th className="px-6 py-3 font-semibold">Name</th>
-                <th className="px-6 py-3 font-semibold">Email</th>
-                <th className="px-6 py-3 font-semibold">Phone</th>
-                <th className="px-6 py-3 font-semibold">cnic</th>
-                <th className="px-6 py-3 font-semibold">Role</th>
-                <th className="px-6 py-3 font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id} className="border-b border-line last:border-0">
-                  <td className="px-6 py-3.5 text-ink font-semibold">{u.full_name}</td>
-                  <td className="px-6 py-3.5 text-muted">{u.email}</td>
-                  <td className="px-6 py-3.5 text-muted">{u.phone}</td>
-                  <td className="px-6 py-3.5 text-muted">{u.cnic}</td>
-                  <td className="px-6 py-3.5">
-                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-[#EAF1FC] text-navy capitalize">
-                      {u.role.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className='px-6 py-3.5'>
-                    {u.role === "staff" || u.role === "rider" || u.role === "customer" ? (
-                      <button 
-                      onClick={() => handleDeleteUser(u.id)}
-                      className="text-danger hover:text-danger-light focus:outline-none"
-                    >
-                      Delete
-                    </button>
-                    ) : (
-                      <button></button>
-                    )}
-                    
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Team accounts</CardTitle>
+            <CardDescription>{users.length} accounts</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex flex-col gap-2 p-6"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>
+          ) : users.length === 0 ? (
+            <p className="p-6 text-sm text-muted-foreground">No staff or riders onboarded yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-semibold text-ink">{u.full_name}</TableCell>
+                    <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                    <TableCell className="text-muted-foreground">{u.phone}</TableCell>
+                    <TableCell><Badge variant="info" className="capitalize">{u.role.replace('_', ' ')}</Badge></TableCell>
+                    <TableCell className="text-right">
+                      {u.role === 'staff' || u.role === 'rider' || u.role === 'customer' ? (
+                        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteUser(u.id)}>
+                          Delete
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function AnalyticsTab({ token }: { token: string }) {
-  const [data, setData] = useState<AdminAnalytics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    getAdminAnalytics(token)
-      .then(setData)
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load analytics.'))
-      .finally(() => setLoading(false));
-  }, [token]);
-
-  if (loading) return <p className="text-muted text-sm">Loading analytics…</p>;
-  if (error) return <p className="text-sm text-danger">{error}</p>;
-  if (!data) return null;
-
-  const maxDaily = Math.max(1, ...data.daily_last_7_days.map((d) => d.revenue));
-  const statusEntries = Object.entries(data.status_counts);
-  const maxStatus = Math.max(1, ...statusEntries.map(([, c]) => c));
-  const channelEntries = Object.entries(data.channel_counts);
-
+function Field({ id, label, icon, ...props }: {
+  id: string; label: string; icon?: React.ReactNode;
+} & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-white rounded-card shadow-card p-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-1">Total orders</p>
-          <p className="font-display text-3xl font-bold text-navy">{data.total_orders}</p>
-        </div>
-        <div className="bg-white rounded-card shadow-card p-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-1">Total revenue (delivered)</p>
-          <p className="font-display text-3xl font-bold text-success">${data.total_revenue.toFixed(2)}</p>
-        </div>
-      </div>
-
-      {/* revenue last 7 days */}
-      <div className="bg-white rounded-card shadow-card p-5">
-        <p className="font-display font-bold text-ink mb-4">Revenue — last 7 days</p>
-        {data.daily_last_7_days.length === 0 ? (
-          <p className="text-sm text-muted">No delivered orders in the last 7 days yet.</p>
-        ) : (
-          <div className="flex items-end gap-3" style={{ height: 140 }}>
-            {data.daily_last_7_days.map((d) => (
-              <div key={d.date} className="flex-1 flex flex-col items-center gap-2">
-                <div
-                  className="w-full rounded-md bg-orange"
-                  style={{ height: `${Math.max(4, (d.revenue / maxDaily) * 100)}px` }}
-                  title={`$${d.revenue.toFixed(2)} · ${d.orders} orders`}
-                />
-                <span className="text-[10px] text-muted">{d.date.slice(5)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* orders by status */}
-        <div className="bg-white rounded-card shadow-card p-5">
-          <p className="font-display font-bold text-ink mb-4">Orders by status</p>
-          <div className="flex flex-col gap-2.5">
-            {statusEntries.map(([status, count]) => (
-              <div key={status} className="flex items-center gap-3">
-                <span className="w-24 text-xs text-muted capitalize shrink-0">{status.replace('_', ' ')}</span>
-                <div className="flex-1 bg-page rounded-full h-2.5 overflow-hidden">
-                  <div className="h-full bg-navy rounded-full" style={{ width: `${(count / maxStatus) * 100}%` }} />
-                </div>
-                <span className="text-xs font-semibold text-ink w-6 text-right">{count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* booking channel mix */}
-        <div className="bg-white rounded-card shadow-card p-5">
-          <p className="font-display font-bold text-ink mb-4">Booking channel mix</p>
-          <div className="flex flex-col gap-2.5">
-            {channelEntries.map(([channel, count]) => (
-              <div key={channel} className="flex items-center gap-3">
-                <span className="w-24 text-xs text-muted capitalize shrink-0">{channel.replace('_', ' ')}</span>
-                <div className="flex-1 bg-page rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className="h-full bg-orange rounded-full"
-                    style={{ width: `${(count / Math.max(1, ...channelEntries.map(([, c]) => c))) * 100}%` }}
-                  />
-                </div>
-                <span className="text-xs font-semibold text-ink w-6 text-right">{count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* top riders */}
-      <div className="bg-white rounded-card shadow-card p-5">
-        <p className="font-display font-bold text-ink mb-4">Top riders (by delivered orders)</p>
-        {data.top_riders.length === 0 ? (
-          <p className="text-sm text-muted">No delivered orders yet.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {data.top_riders.map((r, i) => (
-              <div key={r.full_name + i} className="flex items-center justify-between border-b border-line last:border-0 py-2.5">
-                <div className="flex items-center gap-3">
-                  <span className="w-6 h-6 rounded-full bg-[#EAF1FC] text-navy text-xs font-bold flex items-center justify-center">
-                    {i + 1}
-                  </span>
-                  <span className="text-sm font-semibold text-ink">{r.full_name}</span>
-                </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="text-muted">{r.deliveries} deliveries</span>
-                  <span className="font-semibold text-success">${r.earnings.toFixed(2)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+    <div className="mb-5">
+      <label htmlFor={id} className="mb-1.5 block text-sm font-semibold text-ink">{label}</label>
+      <div className="relative">
+        {icon && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{icon}</span>}
+        <input id={id} className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] pl-10 pr-3 text-sm text-ink outline-none focus:border-ring" {...props} />
       </div>
     </div>
   );

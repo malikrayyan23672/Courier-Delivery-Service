@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { RoleGuard } from '@/components/RoleGuard';
 import { useAuth } from '@/context/AuthContext';
-import { Loader } from "@googlemaps/js-api-loader";
 
 import {
   ApiError,
@@ -26,7 +25,6 @@ import {
   Pickup, Delivery, ScanLogEntry,
 } from './data';
 import { Pill, AvatarChip, KpiCard, StatStrip, Toasts } from './components';
-import { request } from 'http';
 
 type View = 'overview' | 'pickups' | 'deliveries' | 'parcelops' | 'warehouse' | 'riders' | 'staff' | 'servicearea' | 'map' | 'reports' | 'alerts';
 
@@ -385,7 +383,7 @@ function BranchDashboardContent() {
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="font-display text-lg font-bold text-ink truncate">{branchDetails?.name}</h1>
-            <div className="text-xs text-muted truncate">{branchDetails?.address}</div>
+            <div className="text-xs text-muted-foreground truncate">{branchDetails?.address}</div>
           </div>
           <button onClick={() => switchView('alerts')} className="relative p-2 text-ink hover:bg-page rounded-lg" title="Alerts">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
@@ -492,7 +490,7 @@ function OverviewView({managerProfile, branchDetails, pendingPickups, pickedUpCo
             <Pill status="green" label="● Active" />
             <Pill status="blue" label="Regional Hub" />
           </div>
-          <div className="text-xs text-muted mb-2">Branch Code: LHE-CTR-01</div>
+          <div className="text-xs text-muted-foreground mb-2">Branch Code: LHE-CTR-01</div>
           <p className="text-sm text-ink max-w-xl leading-relaxed">
             12-B, Gulberg III, Main Boulevard, Lahore, Punjab, Pakistan — serving Lahore metro and surrounding districts.
           </p>
@@ -502,23 +500,23 @@ function OverviewView({managerProfile, branchDetails, pendingPickups, pickedUpCo
             Open in Google Maps
           </a>
           <div className="grid sm:grid-cols-3 gap-4 mt-5">
-            <div><div className="text-[0.68rem] text-muted font-semibold uppercase">Working Hours</div><div className="text-sm text-ink mt-0.5">Mon–Sat · 8AM–10PM</div></div>
-            <div><div className="text-[0.68rem] text-muted font-semibold uppercase">Branch Type</div><div className="text-sm text-ink mt-0.5">Regional Hub</div></div>
-            <div><div className="text-[0.68rem] text-muted font-semibold uppercase">Today's Status</div><div className="text-sm text-ink mt-0.5">Operating normally</div></div>
+            <div><div className="text-[0.68rem] text-muted-foreground font-semibold uppercase">Working Hours</div><div className="text-sm text-ink mt-0.5">Mon–Sat · 8AM–10PM</div></div>
+            <div><div className="text-[0.68rem] text-muted-foreground font-semibold uppercase">Branch Type</div><div className="text-sm text-ink mt-0.5">Regional Hub</div></div>
+            <div><div className="text-[0.68rem] text-muted-foreground font-semibold uppercase">Today's Status</div><div className="text-sm text-ink mt-0.5">Operating normally</div></div>
           </div>
         </div>
         <div className="lg:w-64 flex-none bg-page rounded-xl p-4">
-          <div className="text-xs font-bold text-muted uppercase mb-2">Branch Manager</div>
+          <div className="text-xs font-bold text-muted-foreground uppercase mb-2">Branch Manager</div>
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-full bg-navy text-white flex items-center justify-center font-bold text-sm flex-none">HR</div>
             <div>
               {/* <div className="font-bold text-sm text-ink">{managerProfile.manager_id}</div> */}
-              {/* <div className="text-xs text-muted">+92 300 1234567</div> */}
+              {/* <div className="text-xs text-muted-foreground">+92 300 1234567</div> */}
               <div className="font-bold text-sm text-ink">{managerProfile?.full_name ?? 'Branch Manager'}</div>
-              <div className="text-xs text-muted">{managerProfile?.phone ?? '—'}</div>
+              <div className="text-xs text-muted-foreground">{managerProfile?.phone ?? '—'}</div>
             </div>
           </div>
-          <p className="text-xs text-muted mt-3 leading-relaxed">On-site since 6:45 AM. Reachable on radio channel 3 for escalations.</p>
+          <p className="text-xs text-muted-foreground mt-3 leading-relaxed">On-site since 6:45 AM. Reachable on radio channel 3 for escalations.</p>
         </div>
       </div>
 
@@ -529,7 +527,7 @@ function OverviewView({managerProfile, branchDetails, pendingPickups, pickedUpCo
       <div className="grid lg:grid-cols-2 gap-6">
         <section className="bg-white border border-line rounded-2xl p-5">
           <h2 className="font-display font-bold text-base mb-1">Recent Activity</h2>
-          <p className="text-xs text-muted mb-4">Real-time events across the branch</p>
+          <p className="text-xs text-muted-foreground mb-4">Real-time events across the branch</p>
           <div className="flex flex-col gap-3">
             {ACTIVITY.map((a, i) => (
               <div key={i} className="flex items-start gap-3">
@@ -538,7 +536,7 @@ function OverviewView({managerProfile, branchDetails, pendingPickups, pickedUpCo
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-ink">{a.text}</div>
-                  <div className="text-xs text-muted mt-0.5">{a.time}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{a.time}</div>
                 </div>
               </div>
             ))}
@@ -547,7 +545,7 @@ function OverviewView({managerProfile, branchDetails, pendingPickups, pickedUpCo
 
         <section className="bg-white border border-line rounded-2xl p-5">
           <h2 className="font-display font-bold text-base mb-1">Quick Actions</h2>
-          <p className="text-xs text-muted mb-4">Common branch tasks</p>
+          <p className="text-xs text-muted-foreground mb-4">Common branch tasks</p>
           <div className="grid grid-cols-2 gap-2.5">
             {quickActions.map((q) => (
               <button key={q.label}
@@ -566,7 +564,7 @@ function OverviewView({managerProfile, branchDetails, pendingPickups, pickedUpCo
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="font-display font-bold text-base">Priority Alerts</h2>
-            <p className="text-xs text-muted">Needs branch manager attention</p>
+            <p className="text-xs text-muted-foreground">Needs branch manager attention</p>
           </div>
           <button onClick={() => switchView('alerts')} className="text-xs font-bold text-orange">View all →</button>
         </div>
@@ -593,7 +591,7 @@ function PickupsView({ pickups, total, pending, assigned, done, failed, progress
       ]} />
 
       <div className="mt-4 mb-4">
-        <div className="text-xs font-semibold text-muted mb-1.5">Pickup completion today</div>
+        <div className="text-xs font-semibold text-muted-foreground mb-1.5">Pickup completion today</div>
         <div className="h-2 bg-line rounded-full overflow-hidden">
           <div className="h-full bg-orange transition-all" style={{ width: `${progressPct}%` }} />
         </div>
@@ -601,7 +599,7 @@ function PickupsView({ pickups, total, pending, assigned, done, failed, progress
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
           <input type="text" placeholder="Search customer or zone…" value={search} onChange={(e) => setSearch(e.target.value)}
             className="w-full text-sm py-2.5 pl-9 pr-3 rounded-lg border border-line bg-page outline-none focus:border-orange" />
         </div>
@@ -615,7 +613,7 @@ function PickupsView({ pickups, total, pending, assigned, done, failed, progress
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-line text-left text-muted text-xs">
+            <tr className="border-b border-line text-left text-muted-foreground text-xs">
               <th className="py-2.5 pr-4">Pickup ID</th><th className="py-2.5 pr-4">Customer / Location</th>
               <th className="py-2.5 pr-4">Time Slot</th><th className="py-2.5 pr-4">Assigned Rider</th>
               <th className="py-2.5 pr-4">Rider Status</th><th className="py-2.5 pr-4">Status</th><th className="py-2.5">Action</th>
@@ -625,15 +623,15 @@ function PickupsView({ pickups, total, pending, assigned, done, failed, progress
             {pickups.map((p: Pickup) => (
               <tr key={p.id} className="border-b border-line last:border-0">
                 <td className="py-3 pr-4 font-mono text-xs text-ink">{p.id}</td>
-                <td className="py-3 pr-4">{p.customer}<div className="text-xs text-muted">{p.zone}</div></td>
-                <td className="py-3 pr-4 text-muted">{p.slot}</td>
+                <td className="py-3 pr-4">{p.customer}<div className="text-xs text-muted-foreground">{p.zone}</div></td>
+                <td className="py-3 pr-4 text-muted-foreground">{p.slot}</td>
                 <td className="py-3 pr-4"><AvatarChip name={p.rider} /></td>
-                <td className="py-3 pr-4">{p.rider ? <Pill status={p.arrival} /> : <span className="text-muted">—</span>}</td>
-                <td className="py-3 pr-4"><Pill status={p.status} />{p.fail && <div className="text-xs text-muted mt-1">{p.fail}</div>}</td>
+                <td className="py-3 pr-4">{p.rider ? <Pill status={p.arrival} /> : <span className="text-muted-foreground">—</span>}</td>
+                <td className="py-3 pr-4"><Pill status={p.status} />{p.fail && <div className="text-xs text-muted-foreground mt-1">{p.fail}</div>}</td>
                 <td className="py-3">
                   {p.status === 'Pending'
                     ? <button onClick={() => onQuickAssign(p.id)} className="text-xs font-bold text-orange border border-orange/30 rounded-lg px-3 py-1.5 hover:bg-[#FBF3EA]">Quick Assign</button>
-                    : <span className="text-muted text-xs">—</span>}
+                    : <span className="text-muted-foreground text-xs">—</span>}
                 </td>
               </tr>
             ))}
@@ -659,7 +657,7 @@ function DeliveriesView({ deliveries, ready, out, done, failed, search, setSearc
 
       <div className="flex flex-col sm:flex-row gap-3 my-4">
         <div className="relative flex-1">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
           <input type="text" placeholder="Search customer or order ID…" value={search} onChange={(e) => setSearch(e.target.value)}
             className="w-full text-sm py-2.5 pl-9 pr-3 rounded-lg border border-line bg-page outline-none focus:border-orange" />
         </div>
@@ -673,7 +671,7 @@ function DeliveriesView({ deliveries, ready, out, done, failed, search, setSearc
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-line text-left text-muted text-xs">
+            <tr className="border-b border-line text-left text-muted-foreground text-xs">
               <th className="py-2.5 pr-4">Order ID</th><th className="py-2.5 pr-4">Customer / Zone</th>
               <th className="py-2.5 pr-4">Assigned Rider</th><th className="py-2.5 pr-4">Progress</th>
               <th className="py-2.5 pr-4">Status</th><th className="py-2.5 pr-4">Proof</th><th className="py-2.5">Action</th>
@@ -683,7 +681,7 @@ function DeliveriesView({ deliveries, ready, out, done, failed, search, setSearc
             {deliveries.map((d: Delivery) => (
               <tr key={d.id} className="border-b border-line last:border-0">
                 <td className="py-3 pr-4 font-mono text-xs text-ink">{d.id}</td>
-                <td className="py-3 pr-4">{d.customer}<div className="text-xs text-muted">{d.zone}</div></td>
+                <td className="py-3 pr-4">{d.customer}<div className="text-xs text-muted-foreground">{d.zone}</div></td>
                 <td className="py-3 pr-4"><AvatarChip name={d.rider} /></td>
                 <td className="py-3 pr-4 min-w-[100px]">
                   <div className="h-1.5 bg-line rounded-full overflow-hidden">
@@ -691,11 +689,11 @@ function DeliveriesView({ deliveries, ready, out, done, failed, search, setSearc
                   </div>
                 </td>
                 <td className="py-3 pr-4"><Pill status={d.status} /></td>
-                <td className="py-3 pr-4 text-muted">{d.proof}</td>
+                <td className="py-3 pr-4 text-muted-foreground">{d.proof}</td>
                 <td className="py-3">
                   {d.status === 'Failed'
                     ? <button onClick={() => onReschedule(d.id)} className="text-xs font-bold text-orange border border-orange/30 rounded-lg px-3 py-1.5 hover:bg-[#FBF3EA]">Reschedule</button>
-                    : <span className="text-muted text-xs">—</span>}
+                    : <span className="text-muted-foreground text-xs">—</span>}
                 </td>
               </tr>
             ))}
@@ -714,7 +712,7 @@ function ParcelOpsView({ scanInput, setScanInput, scanLog, onScan, toast }: any)
     <>
       <section className="bg-white border border-line rounded-2xl p-5">
         <h2 className="font-display font-bold text-base mb-1">Scan Parcel</h2>
-        <p className="text-xs text-muted mb-4">Simulate barcode / QR scan for incoming or outgoing parcels</p>
+        <p className="text-xs text-muted-foreground mb-4">Simulate barcode / QR scan for incoming or outgoing parcels</p>
         <div className="flex flex-col sm:flex-row gap-2.5">
           <input type="text" placeholder="Enter or scan tracking barcode…" value={scanInput} onChange={(e) => setScanInput(e.target.value)}
             className="flex-1 text-sm py-2.5 px-3.5 rounded-lg border border-line bg-page outline-none focus:border-orange" />
@@ -723,12 +721,12 @@ function ParcelOpsView({ scanInput, setScanInput, scanLog, onScan, toast }: any)
         </div>
         <div className="mt-4 flex flex-col gap-2 max-h-48 overflow-y-auto">
           {scanLog.length === 0
-            ? <div className="text-xs text-muted">No scans yet — enter a tracking ID above.</div>
+            ? <div className="text-xs text-muted-foreground">No scans yet — enter a tracking ID above.</div>
             : scanLog.slice(0, 8).map((s: ScanLogEntry, i: number) => (
               <div key={i} className="flex items-center gap-3 text-sm border-b border-line last:border-0 pb-2">
                 <Pill status={s.type === 'Incoming' ? 'blue' : 'amber'} label={s.type} />
                 <span className="font-mono text-xs">{s.id}</span>
-                <span className="text-xs text-muted ml-auto">{s.time}</span>
+                <span className="text-xs text-muted-foreground ml-auto">{s.time}</span>
               </div>
             ))}
         </div>
@@ -737,9 +735,9 @@ function ParcelOpsView({ scanInput, setScanInput, scanLog, onScan, toast }: any)
       <div className="grid lg:grid-cols-2 gap-6">
         <section className="bg-white border border-line rounded-2xl p-5">
           <h2 className="font-display font-bold text-base mb-1">Receiving Queue</h2>
-          <p className="text-xs text-muted mb-3">Awaiting sort</p>
+          <p className="text-xs text-muted-foreground mb-3">Awaiting sort</p>
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-muted text-xs border-b border-line"><th className="py-2">Tracking ID</th><th className="py-2">From Branch</th><th className="py-2">Sorting Status</th></tr></thead>
+            <thead><tr className="text-left text-muted-foreground text-xs border-b border-line"><th className="py-2">Tracking ID</th><th className="py-2">From Branch</th><th className="py-2">Sorting Status</th></tr></thead>
             <tbody>
               {RECEIVING_QUEUE.map((r) => (
                 <tr key={r.id} className="border-b border-line last:border-0">
@@ -752,9 +750,9 @@ function ParcelOpsView({ scanInput, setScanInput, scanLog, onScan, toast }: any)
         </section>
         <section className="bg-white border border-line rounded-2xl p-5">
           <h2 className="font-display font-bold text-base mb-1">Dispatch Queue</h2>
-          <p className="text-xs text-muted mb-3">Ready to leave the branch</p>
+          <p className="text-xs text-muted-foreground mb-3">Ready to leave the branch</p>
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-muted text-xs border-b border-line"><th className="py-2">Tracking ID</th><th className="py-2">To Branch</th><th className="py-2">Dispatch Status</th></tr></thead>
+            <thead><tr className="text-left text-muted-foreground text-xs border-b border-line"><th className="py-2">Tracking ID</th><th className="py-2">To Branch</th><th className="py-2">Dispatch Status</th></tr></thead>
             <tbody>
               {DISPATCH_QUEUE.map((r) => (
                 <tr key={r.id} className="border-b border-line last:border-0">
@@ -771,7 +769,7 @@ function ParcelOpsView({ scanInput, setScanInput, scanLog, onScan, toast }: any)
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="font-display font-bold text-base">Transfer History</h2>
-            <p className="text-xs text-muted">Inter-branch parcel movements</p>
+            <p className="text-xs text-muted-foreground">Inter-branch parcel movements</p>
           </div>
           <div className="flex gap-2">
             <button onClick={() => toast('Damaged parcel report submitted.')} className="text-xs font-bold border border-line rounded-lg px-3 py-1.5 hover:bg-page">Report Damaged</button>
@@ -779,13 +777,13 @@ function ParcelOpsView({ scanInput, setScanInput, scanLog, onScan, toast }: any)
           </div>
         </div>
         <table className="w-full text-sm">
-          <thead><tr className="text-left text-muted text-xs border-b border-line"><th className="py-2">Tracking ID</th><th className="py-2">Direction</th><th className="py-2">Branch</th><th className="py-2">Date</th></tr></thead>
+          <thead><tr className="text-left text-muted-foreground text-xs border-b border-line"><th className="py-2">Tracking ID</th><th className="py-2">Direction</th><th className="py-2">Branch</th><th className="py-2">Date</th></tr></thead>
           <tbody>
             {TRANSFER_HISTORY.map((r) => (
               <tr key={r.id} className="border-b border-line last:border-0">
                 <td className="py-2.5 font-mono text-xs">{r.id}</td>
                 <td className="py-2.5"><Pill status={r.dir === 'Inbound' ? 'blue' : 'amber'} label={r.dir} /></td>
-                <td className="py-2.5">{r.branch}</td><td className="py-2.5 text-muted">{r.date}</td>
+                <td className="py-2.5">{r.branch}</td><td className="py-2.5 text-muted-foreground">{r.date}</td>
               </tr>
             ))}
           </tbody>
@@ -806,7 +804,7 @@ function WarehouseView({ shelfCells }: { shelfCells: ('low' | 'mid' | 'high')[] 
       <div className="grid lg:grid-cols-2 gap-6">
         <section className="bg-white border border-line rounded-2xl p-5">
           <h2 className="font-display font-bold text-base mb-1">Storage Capacity</h2>
-          <p className="text-xs text-muted mb-4">Rack occupancy across the warehouse floor</p>
+          <p className="text-xs text-muted-foreground mb-4">Rack occupancy across the warehouse floor</p>
           <div className="grid grid-cols-10 gap-1.5">
             {shelfCells.length === 0
               ? Array.from({ length: 60 }).map((_, i) => <div key={i} className="aspect-square rounded bg-line animate-pulse" />)
@@ -814,7 +812,7 @@ function WarehouseView({ shelfCells }: { shelfCells: ('low' | 'mid' | 'high')[] 
                 <div key={i} className="aspect-square rounded" style={{ background: shelfColor[c], border: `1px solid ${shelfBorder[c]}` }} />
               ))}
           </div>
-          <div className="flex gap-4 mt-4 text-xs text-muted">
+          <div className="flex gap-4 mt-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: shelfColor.low, border: `1px solid ${shelfBorder.low}` }} />Low</span>
             <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: shelfColor.mid, border: `1px solid ${shelfBorder.mid}` }} />Mid</span>
             <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: shelfColor.high, border: `1px solid ${shelfBorder.high}` }} />Near capacity</span>
@@ -826,7 +824,7 @@ function WarehouseView({ shelfCells }: { shelfCells: ('low' | 'mid' | 'high')[] 
           <div className="flex items-center gap-6">
             <div className="w-28 h-28 rounded-full flex items-center justify-center flex-none" style={{ background: 'conic-gradient(#2563EB 0% 72%, #E4E8F0 72% 100%)' }}>
               <div className="w-20 h-20 rounded-full bg-white flex flex-col items-center justify-center">
-                <b className="text-lg font-display">72%</b><span className="text-xs text-muted">used</span>
+                <b className="text-lg font-display">72%</b><span className="text-xs text-muted-foreground">used</span>
               </div>
             </div>
             <ul className="text-sm space-y-1.5">
@@ -847,9 +845,9 @@ function WarehouseView({ shelfCells }: { shelfCells: ('low' | 'mid' | 'high')[] 
 
       <section className="bg-white border border-line rounded-2xl p-5">
         <h2 className="font-display font-bold text-base mb-1">Aging Parcels</h2>
-        <p className="text-xs text-muted mb-3">Parcels sitting longest without movement</p>
+        <p className="text-xs text-muted-foreground mb-3">Parcels sitting longest without movement</p>
         <table className="w-full text-sm">
-          <thead><tr className="text-left text-muted text-xs border-b border-line"><th className="py-2">Tracking ID</th><th className="py-2">Shelf Location</th><th className="py-2">Days in Warehouse</th><th className="py-2">Status</th></tr></thead>
+          <thead><tr className="text-left text-muted-foreground text-xs border-b border-line"><th className="py-2">Tracking ID</th><th className="py-2">Shelf Location</th><th className="py-2">Days in Warehouse</th><th className="py-2">Status</th></tr></thead>
           <tbody>
             {AGING_PARCELS.map((a) => (
               <tr key={a.id} className="border-b border-line last:border-0">
@@ -879,7 +877,7 @@ function RidersView({ riders, onlineRiders, busyRiders, offlineRiders, toast }: 
       ]} />
       <section className="bg-white border border-line rounded-2xl p-5">
         <h2 className="font-display font-bold text-base mb-1">Rider Roster</h2>
-        <p className="text-xs text-muted mb-4">Availability, live status and performance</p>
+        <p className="text-xs text-muted-foreground mb-4">Availability, live status and performance</p>
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {riders.map((r: typeof INITIAL_RIDERS[number]) => {
             const dotColor = r.status === 'online' ? '#1E8E5A' : r.status === 'busy' ? '#F2A93B' : '#8A94A6';
@@ -892,17 +890,17 @@ function RidersView({ riders, onlineRiders, busyRiders, offlineRiders, toast }: 
                   </div>
                   <div>
                     <div className="font-bold text-sm text-ink">{r.name}</div>
-                    <div className="text-xs text-muted">{r.vehicle}</div>
+                    <div className="text-xs text-muted-foreground">{r.vehicle}</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2.5 text-xs mb-3">
-                  <div><div className="text-muted">Status</div><div className="font-semibold text-ink">{r.status === 'online' ? 'Available' : r.status === 'busy' ? 'On Delivery' : 'Offline'}</div></div>
-                  <div><div className="text-muted">Success Rate</div><div className="font-semibold text-ink">{r.success}%</div></div>
-                  <div className="col-span-2"><div className="text-muted">GPS Location</div><div className="font-semibold text-ink text-[0.72rem]">{r.gps}</div></div>
-                  <div className="col-span-2"><div className="text-muted">Performance</div><div className="text-orange">{'★'.repeat(Math.round(r.score))}{'☆'.repeat(5 - Math.round(r.score))}</div></div>
+                  <div><div className="text-muted-foreground">Status</div><div className="font-semibold text-ink">{r.status === 'online' ? 'Available' : r.status === 'busy' ? 'On Delivery' : 'Offline'}</div></div>
+                  <div><div className="text-muted-foreground">Success Rate</div><div className="font-semibold text-ink">{r.success}%</div></div>
+                  <div className="col-span-2"><div className="text-muted-foreground">GPS Location</div><div className="font-semibold text-ink text-[0.72rem]">{r.gps}</div></div>
+                  <div className="col-span-2"><div className="text-muted-foreground">Performance</div><div className="text-orange">{'★'.repeat(Math.round(r.score))}{'☆'.repeat(5 - Math.round(r.score))}</div></div>
                 </div>
                 <div className="flex items-center justify-between border-t border-line pt-3">
-                  <span className="text-xs text-muted">{r.deliveries} deliveries today</span>
+                  <span className="text-xs text-muted-foreground">{r.deliveries} deliveries today</span>
                   <button onClick={() => toast(`Shipment assignment started for ${r.name}.`)} className="text-xs font-bold text-orange border border-orange/30 rounded-lg px-3 py-1.5 hover:bg-[#FBF3EA]">Assign</button>
                 </div>
               </div>
@@ -923,19 +921,19 @@ function StaffView() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-display font-bold text-base">Branch Staff</h2>
-          <p className="text-xs text-muted">Roles, attendance and permissions</p>
+          <p className="text-xs text-muted-foreground">Roles, attendance and permissions</p>
         </div>
         <button className="bg-orange hover:bg-orange-light text-white font-bold text-xs px-4 py-2 rounded-lg">+ Add Staff</button>
       </div>
       <table className="w-full text-sm">
-        <thead><tr className="text-left text-muted text-xs border-b border-line"><th className="py-2">Name</th><th className="py-2">Role</th><th className="py-2">Attendance</th><th className="py-2">Contact</th><th className="py-2">Permissions</th></tr></thead>
+        <thead><tr className="text-left text-muted-foreground text-xs border-b border-line"><th className="py-2">Name</th><th className="py-2">Role</th><th className="py-2">Attendance</th><th className="py-2">Contact</th><th className="py-2">Permissions</th></tr></thead>
         <tbody>
           {STAFF.map((s) => (
             <tr key={s.name} className="border-b border-line last:border-0">
               <td className="py-3"><AvatarChip name={s.name} /></td>
               <td className="py-3">{s.role}</td>
               <td className="py-3"><Pill status={s.attendance} /></td>
-              <td className="py-3 text-muted">{s.contact}</td>
+              <td className="py-3 text-muted-foreground">{s.contact}</td>
               <td className="py-3"><Pill status="blue" label={s.perm} /></td>
             </tr>
           ))}
@@ -952,14 +950,14 @@ function ServiceAreaView() {
   return (
     <section className="bg-white border border-line rounded-2xl p-5">
       <h2 className="font-display font-bold text-base mb-1">Coverage Zones</h2>
-      <p className="text-xs text-muted mb-4">Cities, postal codes and delivery capabilities served by this branch</p>
+      <p className="text-xs text-muted-foreground mb-4">Cities, postal codes and delivery capabilities served by this branch</p>
       <table className="w-full text-sm">
-        <thead><tr className="text-left text-muted text-xs border-b border-line"><th className="py-2">Zone</th><th className="py-2">Postal Codes</th><th className="py-2">Delivery Radius</th><th className="py-2">Same-Day</th><th className="py-2">Express</th></tr></thead>
+        <thead><tr className="text-left text-muted-foreground text-xs border-b border-line"><th className="py-2">Zone</th><th className="py-2">Postal Codes</th><th className="py-2">Delivery Radius</th><th className="py-2">Same-Day</th><th className="py-2">Express</th></tr></thead>
         <tbody>
           {ZONES.map((z) => (
             <tr key={z.zone} className="border-b border-line last:border-0">
               <td className="py-3 font-bold text-ink">{z.zone}</td>
-              <td className="py-3 font-mono text-xs text-muted">{z.codes}</td>
+              <td className="py-3 font-mono text-xs text-muted-foreground">{z.codes}</td>
               <td className="py-3">{z.radius}</td>
               <td className="py-3"><Pill status={z.sameDay ? 'green' : 'gray'} label={z.sameDay ? 'Available' : 'Not available'} /></td>
               <td className="py-3"><Pill status={z.express ? 'blue' : 'gray'} label={z.express ? 'Available' : 'Not available'} /></td>
@@ -986,7 +984,7 @@ function MapView({ riders }: { riders: typeof INITIAL_RIDERS }) {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-display font-bold text-base">Live Operations Map</h2>
-          <p className="text-xs text-muted">Branch, riders, pickups and deliveries in real time</p>
+          <p className="text-xs text-muted-foreground">Branch, riders, pickups and deliveries in real time</p>
         </div>
         <Pill status="amber" label="Moderate traffic" />
       </div>
@@ -996,7 +994,7 @@ function MapView({ riders }: { riders: typeof INITIAL_RIDERS }) {
         {pickupPins.map((p) => <MapPin key={p.label} x={p.x} y={p.y} color="#F2A93B" label={p.label} />)}
         {deliveryPins.map((d) => <MapPin key={d.label} x={d.x} y={d.y} color="#1E8E5A" label={d.label} />)}
       </div>
-      <div className="flex flex-wrap gap-4 mt-4 text-xs text-muted">
+      <div className="flex flex-wrap gap-4 mt-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-navy" />Branch</span>
         <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-[#2563EB]" />Rider (active)</span>
         <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-[#B7BEC9]" />Rider (idle)</span>
@@ -1039,7 +1037,7 @@ function ReportsView({ riders }: { riders: typeof INITIAL_RIDERS }) {
               <div key={w.d} className="flex-1 flex flex-col items-center gap-1.5">
                 <span className="text-xs font-semibold text-ink">{w.v}</span>
                 <div className="w-full bg-orange rounded-t" style={{ height: `${(w.v / max) * 100}%` }} />
-                <span className="text-xs text-muted">{w.d}</span>
+                <span className="text-xs text-muted-foreground">{w.d}</span>
               </div>
             ))}
           </div>
@@ -1049,7 +1047,7 @@ function ReportsView({ riders }: { riders: typeof INITIAL_RIDERS }) {
           <div className="flex items-center gap-6">
             <div className="w-28 h-28 rounded-full flex items-center justify-center flex-none" style={{ background: 'conic-gradient(#1E8E5A 0% 91%, #D8432C 91% 96%, #E4E8F0 96% 100%)' }}>
               <div className="w-20 h-20 rounded-full bg-white flex flex-col items-center justify-center">
-                <b className="text-lg font-display">91%</b><span className="text-xs text-muted">success</span>
+                <b className="text-lg font-display">91%</b><span className="text-xs text-muted-foreground">success</span>
               </div>
             </div>
             <ul className="text-sm space-y-1.5">
@@ -1064,9 +1062,9 @@ function ReportsView({ riders }: { riders: typeof INITIAL_RIDERS }) {
       <div className="grid lg:grid-cols-2 gap-6">
         <section className="bg-white border border-line rounded-2xl p-5">
           <h2 className="font-display font-bold text-base mb-1">Rider Productivity</h2>
-          <p className="text-xs text-muted mb-3">Top performers this week</p>
+          <p className="text-xs text-muted-foreground mb-3">Top performers this week</p>
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-muted text-xs border-b border-line"><th className="py-2">Rider</th><th className="py-2">Deliveries</th><th className="py-2">Success Rate</th></tr></thead>
+            <thead><tr className="text-left text-muted-foreground text-xs border-b border-line"><th className="py-2">Rider</th><th className="py-2">Deliveries</th><th className="py-2">Success Rate</th></tr></thead>
             <tbody>
               {topRiders.map((r) => (
                 <tr key={r.name} className="border-b border-line last:border-0">
@@ -1088,7 +1086,7 @@ function ReportsView({ riders }: { riders: typeof INITIAL_RIDERS }) {
                 <div className="h-1.5 bg-line rounded-full overflow-hidden"><div className="h-full bg-[#B7BEC9]" style={{ width: `${c.network}%` }} /></div>
               </div>
             ))}
-            <div className="text-xs text-muted mt-1"><span className="text-orange font-bold">■</span> This branch &nbsp; <span className="text-[#B7BEC9] font-bold">■</span> Network average</div>
+            <div className="text-xs text-muted-foreground mt-1"><span className="text-orange font-bold">■</span> This branch &nbsp; <span className="text-[#B7BEC9] font-bold">■</span> Network average</div>
           </div>
         </section>
       </div>
@@ -1114,7 +1112,7 @@ function AlertsView() {
   return (
     <section className="bg-white border border-line rounded-2xl p-5">
       <h2 className="font-display font-bold text-base mb-1">Alerts & Notifications</h2>
-      <p className="text-xs text-muted mb-4">Everything flagged for branch manager review</p>
+      <p className="text-xs text-muted-foreground mb-4">Everything flagged for branch manager review</p>
       <div className="flex flex-col gap-2.5">
         {ALERTS.map((a, i) => <AlertCard key={i} alert={a} />)}
       </div>
@@ -1131,8 +1129,8 @@ function AlertCard({ alert }: { alert: { sev: string; title: string; msg: string
       </div>
       <div>
         <div className="font-bold text-sm text-ink">{alert.title}</div>
-        <div className="text-xs text-muted mt-0.5">{alert.msg}</div>
-        <div className="text-xs text-muted/70 mt-1">{alert.time}</div>
+        <div className="text-xs text-muted-foreground mt-0.5">{alert.msg}</div>
+        <div className="text-xs text-muted-foreground/70 mt-1">{alert.time}</div>
       </div>
     </div>
   );

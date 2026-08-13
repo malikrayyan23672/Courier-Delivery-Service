@@ -1,3 +1,5 @@
+'use client';
+
 import { RoleGuard } from "@/components/RoleGuard";
 import Styles from "./page.module.css"
 import Script from "next/script";

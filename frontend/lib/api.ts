@@ -72,8 +72,9 @@ async function request<T>(
   token?: string | null,
   _isRetry = false
 ): Promise<T> {
+  const isFormData = options.body instanceof FormData;
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
@@ -197,6 +198,7 @@ export interface OrderCreatePayload {
   package_weight_kg?: number;
   package_size?: string | null;
   package_description?: string;
+  discount_code?: string | null;
 }
 
 export interface AddressOut {
@@ -218,6 +220,8 @@ export interface Order {
   package_description?: string | null;
   estimated_price?: number;
   final_price?: number;
+  discount_id?: string | null;
+  discount_amount?: number | null;
   rider_accepted?: boolean | null;
   created_at?: string;
 }
@@ -566,4 +570,376 @@ export interface TrackingResult {
 
 export function trackOrder(trackingNumber: string) {
   return request<TrackingResult>(`/tracking/${trackingNumber}`);
+}
+
+// ---- COD Settlements (Layer 1: T+1 payout) ----
+
+export interface Settlement {
+  id: string;
+  order_id: string;
+  business_id: string | null;
+  company_name: string | null;
+  tracking_number: string | null;
+  amount: number;
+  settle_due_on: string | null;
+  status: string;
+  settled_at: string | null;
+  remark: string | null;
+  created_at: string | null;
+}
+
+export function listSettlements(token: string, statusFilter?: string) {
+  return request<Settlement[]>(
+    `/admin/settlements${statusFilter ? `?status_filter=${statusFilter}` : ''}`,
+    { method: 'GET' },
+    token
+  );
+}
+
+export function getSettlementSummary(token: string) {
+  return request<{ pending_count: number; pending_amount: number }>(
+    '/admin/settlements/summary',
+    { method: 'GET' },
+    token
+  );
+}
+
+export function settleT1(token: string, remark?: string) {
+  return request<{ settled: Settlement[]; blocked: Settlement[] }>(
+    `/admin/settlements/settle-t1${remark ? `?remark=${encodeURIComponent(remark)}` : ''}`,
+    { method: 'POST' },
+    token
+  );
+}
+
+export function settleOne(settlementId: string, token: string) {
+  return request<Settlement>(`/admin/settlements/${settlementId}/settle`, { method: 'POST' }, token);
+}
+
+// ---- Seller Wallets (Layer 6: auto-lock + reconciliation) ----
+
+export interface Wallet {
+  id: string;
+  company_name: string;
+  email: string | null;
+  wallet_balance: number;
+  wallet_locked: boolean;
+  wallet_lock_reason: string | null;
+  status: string | null;
+}
+
+export interface WalletTransaction {
+  id: string;
+  amount: number;
+  balance_after: number | null;
+  transaction_type: string | null;
+  reference: string | null;
+  created_at: string | null;
+}
+
+export interface Reconciliation {
+  id: string;
+  business_id: string;
+  expected_amount: number;
+  actual_amount: number;
+  difference: number;
+  status: string;
+  notes: string | null;
+  created_at: string | null;
+}
+
+export function listWallets(token: string) {
+  return request<Wallet[]>('/admin/wallets', { method: 'GET' }, token);
+}
+
+export function setWalletLock(businessId: string, lock: boolean, reason: string | undefined, token: string) {
+  return request<Wallet>(
+    `/admin/wallets/${businessId}/lock`,
+    { method: 'PATCH', body: JSON.stringify({ lock, reason }) },
+    token
+  );
+}
+
+export function listWalletTransactions(businessId: string, token: string) {
+  return request<WalletTransaction[]>(`/admin/wallets/${businessId}/transactions`, { method: 'GET' }, token);
+}
+
+export function reconcileWallet(
+  businessId: string,
+  expected_amount: number,
+  actual_amount: number,
+  notes: string | undefined,
+  token: string
+) {
+  return request<Reconciliation>(
+    `/admin/wallets/${businessId}/reconcile`,
+    { method: 'POST', body: JSON.stringify({ expected_amount, actual_amount, notes }) },
+    token
+  );
+}
+
+export function listReconciliations(businessId: string, token: string) {
+  return request<Reconciliation[]>(`/admin/wallets/${businessId}/reconciliations`, { method: 'GET' }, token);
+}
+
+// ---- Bus Network (Layer 1) ----
+
+export interface BusOperator {
+  id: string;
+  name: string;
+  city: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  status: string;
+}
+
+export type BusOperatorCreate = Omit<BusOperator, 'id' | 'city' | 'contact_phone' | 'contact_email' | 'status'> & {
+  city?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
+  status?: string;
+};
+
+export interface BusSchedule {
+  id: string;
+  operator_id: string;
+  operator_name: string | null;
+  origin_city: string;
+  destination_city: string;
+  origin_branch_id: string | null;
+  destination_branch_id: string | null;
+  departure_time: string | null;
+  departure_interval_min: number | null;
+  fare: number | null;
+  status: string | null;
+}
+
+export type BusScheduleCreate = Omit<BusSchedule, 'id' | 'operator_name' | 'origin_branch_id' | 'destination_branch_id'> & {
+  origin_branch_id?: string | null;
+  destination_branch_id?: string | null;
+};
+
+export interface ManifestItem {
+  id: string;
+  order_id: string | null;
+  crate_label: string | null;
+  scan_status: string | null;
+  scanned_at: string | null;
+  tracking_number: string | null;
+}
+
+export interface BusManifest {
+  id: string;
+  manifest_number: string | null;
+  coach_number: string | null;
+  departure_at: string | null;
+  origin_city: string | null;
+  destination_city: string | null;
+  status: string | null;
+  operator_name: string | null;
+  items: ManifestItem[];
+}
+
+export function listBusOperators(token: string) {
+  return request<BusOperator[]>('/admin/bus/operators', { method: 'GET' }, token);
+}
+
+export function createBusOperator(payload: BusOperatorCreate, token: string) {
+  return request<BusOperator>('/admin/bus/operators', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function listBusSchedules(token: string) {
+  return request<BusSchedule[]>('/admin/bus/schedules', { method: 'GET' }, token);
+}
+
+export function createBusSchedule(
+  payload: BusScheduleCreate,
+  token: string
+) {
+  return request<BusSchedule>('/admin/bus/schedules', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function listBusManifests(token: string) {
+  return request<BusManifest[]>('/admin/bus/manifests', { method: 'GET' }, token);
+}
+
+export function createBusManifest(
+  payload: {
+    schedule_id?: string;
+    manifest_number?: string;
+    coach_number?: string;
+    departure_at?: string;
+    origin_city?: string;
+    destination_city?: string;
+  },
+  token: string
+) {
+  return request<BusManifest>('/admin/bus/manifests', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function addManifestItem(manifestId: string, orderId: string | undefined, crateLabel: string | undefined, token: string) {
+  const params = new URLSearchParams();
+  if (orderId) params.set('order_id', orderId);
+  if (crateLabel) params.set('crate_label', crateLabel);
+  return request<BusManifest>(
+    `/admin/bus/manifests/${manifestId}/items?${params.toString()}`,
+    { method: 'POST' },
+    token
+  );
+}
+
+export function updateManifestStatus(
+  manifestId: string,
+  status: string,
+  itemStatus: string | undefined,
+  token: string
+) {
+  return request<BusManifest>(
+    `/admin/bus/manifests/${manifestId}/status`,
+    { method: 'PATCH', body: JSON.stringify({ status, item_status: itemStatus }) },
+    token
+  );
+}
+
+// ---- RNP Network (Layer 3) ----
+
+export interface RNP {
+  id: string;
+  shop_name: string;
+  owner_name: string | null;
+  phone: string;
+  city: string | null;
+  address: string | null;
+  latitude: string | null;
+  longitude: string | null;
+  status: string;
+  created_at: string | null;
+}
+
+export function listRNP(token: string, statusFilter?: string) {
+  return request<RNP[]>(
+    `/admin/rnp${statusFilter ? `?status_filter=${statusFilter}` : ''}`,
+    { method: 'GET' },
+    token
+  );
+}
+
+export function setRNPStatus(rnpId: string, status: string, token: string) {
+  return request<RNP>(`/admin/rnp/${rnpId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }, token);
+}
+
+// ---- Discounts (Layer 6) ----
+
+export interface Discount {
+  id: string;
+  code: string | null;
+  title: string;
+  description: string | null;
+  discount_type: string;
+  value: number;
+  max_discount_amount: number | null;
+  min_order_value: number | null;
+  requires_login: boolean;
+  is_auto_applied: boolean;
+  max_uses: number | null;
+  uses_count: number;
+  is_active: boolean;
+  expires_at: string | null;
+}
+
+export type DiscountCreate = Omit<Discount, 'id' | 'uses_count' | 'code' | 'description' | 'max_discount_amount' | 'min_order_value' | 'max_uses' | 'expires_at'> & {
+  code?: string | null;
+  description?: string | null;
+  max_discount_amount?: number | null;
+  min_order_value?: number | null;
+  max_uses?: number | null;
+  expires_at?: string | null;
+};
+
+export function listDiscounts(token: string) {
+  return request<Discount[]>('/discounts', { method: 'GET' }, token);
+}
+
+export function createDiscount(payload: DiscountCreate, token: string) {
+  return request<Discount>('/discounts', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function toggleDiscount(discountId: string, isActive: boolean, token: string) {
+  return request<Discount>(`/discounts/${discountId}/toggle?is_active=${isActive}`, { method: 'PATCH' }, token);
+}
+
+// ---- Seller Portal ----
+
+export interface SellerMe {
+  business_id: string;
+  company_name: string;
+  email: string | null;
+  phone: string | null;
+  business_type: string | null;
+  cod_service: boolean;
+  wallet_balance: number;
+  wallet_locked: boolean;
+  wallet_lock_reason: string | null;
+  status: string | null;
+  verified: boolean;
+}
+
+export interface SellerSettlement {
+  id: string;
+  order_id: string;
+  tracking_number: string | null;
+  amount: number;
+  settle_due_on: string | null;
+  status: string;
+  settled_at: string | null;
+}
+
+export interface SellerUpload {
+  id: string;
+  original_filename: string;
+  file_type: string | null;
+  row_count: number | null;
+  status: string;
+  created_at: string | null;
+}
+
+export function getSellerMe(token: string) {
+  return request<SellerMe>('/seller/me', { method: 'GET' }, token);
+}
+
+export function getSellerSettlements(token: string) {
+  return request<SellerSettlement[]>('/seller/settlements', { method: 'GET' }, token);
+}
+
+export function getSellerSettlementSummary(token: string) {
+  return request<{ pending_count: number; pending_amount: number }>('/seller/settlements/summary', { method: 'GET' }, token);
+}
+
+export function getSellerTransactions(token: string) {
+  return request<WalletTransaction[]>('/seller/wallet/transactions', { method: 'GET' }, token);
+}
+
+export async function uploadSellerFile(file: File, token: string) {
+  const form = new FormData();
+  form.append('file', file);
+  return request<SellerUpload>('/seller/uploads', {
+    method: 'POST',
+    body: form,
+  }, token);
+}
+
+export function listSellerUploads(token: string) {
+  return request<SellerUpload[]>('/seller/uploads', { method: 'GET' }, token);
+}
+
+export function registerRNP(payload: { shop_name: string; owner_name?: string; phone: string; city?: string; address?: string }, token: string) {
+  return request<RNP>('/seller/rnp', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function listSellerRNP(token: string) {
+  return request<RNP[]>('/seller/rnp', { method: 'GET' }, token);
+}
+
+export function getPublicDiscounts() {
+  return request<Discount[]>('/discounts/public', { method: 'GET' });
 }

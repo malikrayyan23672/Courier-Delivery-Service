@@ -11,14 +11,14 @@ const STATUS_COLORS: Record<string, string> = {
   in_transit: 'bg-[#FBF3EA] text-orange',
   delivered: 'bg-[#EAF7EF] text-success',
   failed: 'bg-[#FBEAE7] text-danger',
-  cancelled: 'bg-[#F0F0F0] text-muted',
+  cancelled: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
 const PAYMENT_STATUS_COLORS: Record<string, string> = {
   paid: 'bg-[#EAF7EF] text-success',
   pending: 'bg-[#FBF3EA] text-orange',
   failed: 'bg-[#FBEAE7] text-danger',
-  refunded: 'bg-[#F0F0F0] text-muted',
+  refunded: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
 const STATUS_ORDER = ['created', 'assigned', 'picked_up', 'in_transit', 'delivered'];
@@ -104,7 +104,7 @@ export function OrderDetailModal({
       >
         <div className="flex items-start justify-between px-6 md:px-8 py-5 border-b border-line">
           <div>
-            <p className="text-xs font-semibold text-muted tracking-wide uppercase mb-1">Shipment details</p>
+            <p className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-1">Shipment details</p>
             <div className="flex items-center gap-2">
               <h2 className="font-display font-bold text-lg text-ink font-mono">
                 {order ? order.tracking_number : 'Loading…'}
@@ -113,7 +113,7 @@ export function OrderDetailModal({
                 <button
                   onClick={handleCopy}
                   title="Copy tracking number"
-                  className="w-7 h-7 flex items-center justify-center rounded-md text-muted hover:text-orange hover:bg-page transition-colors"
+                  className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-orange hover:bg-page transition-colors"
                 >
                   <span className="w-4 h-4 block">{COPY_ICON}</span>
                 </button>
@@ -123,14 +123,14 @@ export function OrderDetailModal({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-muted hover:text-ink hover:bg-page transition-colors shrink-0"
+            className="w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-ink hover:bg-page transition-colors shrink-0"
           >
             <span className="w-4.5 h-4.5 block">{CLOSE_ICON}</span>
           </button>
         </div>
 
         <div className="px-6 md:px-8 py-6 max-h-[70vh] overflow-y-auto">
-          {loading && <p className="text-muted text-sm">Loading shipment details…</p>}
+          {loading && <p className="text-muted-foreground text-sm">Loading shipment details…</p>}
           {error && <p className="text-danger text-sm">{error}</p>}
 
           {order && (
@@ -141,7 +141,7 @@ export function OrderDetailModal({
                   <span className={`px-3 py-1.5 rounded-full text-xs font-semibold ${STATUS_COLORS[order.status] || 'bg-line text-ink'}`}>
                     {formatStatus(order.status)}
                   </span>
-                  <span className="text-xs text-muted">Booked {formatDate(order.created_at)}</span>
+                  <span className="text-xs text-muted-foreground">Booked {formatDate(order.created_at)}</span>
                 </div>
 
                 {!isTerminalIssue && (
@@ -165,14 +165,14 @@ export function OrderDetailModal({
               {/* Addresses */}
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="bg-page rounded-[14px] p-4">
-                  <p className="text-[0.7rem] font-semibold text-muted uppercase tracking-wide mb-2">Pickup</p>
+                  <p className="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Pickup</p>
                   <div className="flex gap-2">
                     <span className="w-4 h-4 text-orange mt-0.5 shrink-0">{PIN_ICON}</span>
                     <div className="text-sm text-ink">
                       <p className="font-semibold">{order.pickup_address?.full_address || '—'}</p>
-                      <p className="text-muted">{order.pickup_address?.city}</p>
+                      <p className="text-muted-foreground">{order.pickup_address?.city}</p>
                       {order.pickup_address?.contact_name && (
-                        <p className="text-muted mt-1">
+                        <p className="text-muted-foreground mt-1">
                           {order.pickup_address.contact_name}
                           {order.pickup_address.contact_phone ? ` · ${order.pickup_address.contact_phone}` : ''}
                         </p>
@@ -181,14 +181,14 @@ export function OrderDetailModal({
                   </div>
                 </div>
                 <div className="bg-page rounded-[14px] p-4">
-                  <p className="text-[0.7rem] font-semibold text-muted uppercase tracking-wide mb-2">Drop-off</p>
+                  <p className="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Drop-off</p>
                   <div className="flex gap-2">
                     <span className="w-4 h-4 text-navy mt-0.5 shrink-0">{PIN_ICON}</span>
                     <div className="text-sm text-ink">
                       <p className="font-semibold">{order.dropoff_address?.full_address || '—'}</p>
-                      <p className="text-muted">{order.dropoff_address?.city}</p>
+                      <p className="text-muted-foreground">{order.dropoff_address?.city}</p>
                       {order.dropoff_address?.contact_name && (
-                        <p className="text-muted mt-1">
+                        <p className="text-muted-foreground mt-1">
                           {order.dropoff_address.contact_name}
                           {order.dropoff_address.contact_phone ? ` · ${order.dropoff_address.contact_phone}` : ''}
                         </p>
@@ -201,20 +201,20 @@ export function OrderDetailModal({
               {/* Package + payment + rider */}
               <div className="grid sm:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-[0.7rem] font-semibold text-muted uppercase tracking-wide mb-1.5">Package</p>
+                  <p className="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Package</p>
                   <p className="text-ink">{order.package_description || 'No description'}</p>
                   {order.package_weight_kg != null && (
-                    <p className="text-muted">{order.package_weight_kg} kg</p>
+                    <p className="text-muted-foreground">{order.package_weight_kg} kg</p>
                   )}
                 </div>
                 <div>
-                  <p className="text-[0.7rem] font-semibold text-muted uppercase tracking-wide mb-1.5">Payment</p>
+                  <p className="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Payment</p>
                   <p className="text-ink font-semibold">
                     {order.final_price ?? order.estimated_price ? `Rs. ${order.final_price ?? order.estimated_price}` : '—'}
                   </p>
                   {order.payment && (
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-muted capitalize">{order.payment.method.replace('_', ' ')}</span>
+                      <span className="text-muted-foreground capitalize">{order.payment.method.replace('_', ' ')}</span>
                       <span className={`px-2 py-0.5 rounded-full text-[0.68rem] font-semibold ${PAYMENT_STATUS_COLORS[order.payment.status] || 'bg-line text-ink'}`}>
                         {order.payment.status}
                       </span>
@@ -223,13 +223,13 @@ export function OrderDetailModal({
                 </div>
                 {order.rider && (
                   <div className="sm:col-span-2 border-t border-line pt-4">
-                    <p className="text-[0.7rem] font-semibold text-muted uppercase tracking-wide mb-1.5">Rider</p>
+                    <p className="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Rider</p>
                     <p className="text-ink">
                       {order.rider.full_name}
                       {order.rider.vehicle_type ? ` · ${order.rider.vehicle_type}` : ''}
                       {' · ★ ' + order.rider.rating.toFixed(1)}
                     </p>
-                    <p className="text-muted">{order.rider.phone}</p>
+                    <p className="text-muted-foreground">{order.rider.phone}</p>
                   </div>
                 )}
               </div>
@@ -237,7 +237,7 @@ export function OrderDetailModal({
               {/* Timeline */}
               <div className="border-t border-line pt-5">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-[0.7rem] font-semibold text-muted uppercase tracking-wide">Tracking history</p>
+                  <p className="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide">Tracking history</p>
                   <button
                     onClick={() => router.push(`/dashboard/shipment/${order.id}`)}
                     className="text-xs font-semibold text-orange hover:text-orange-light transition-colors"
@@ -246,7 +246,7 @@ export function OrderDetailModal({
                   </button>
                 </div>
                 {order.tracking_events.length === 0 ? (
-                  <p className="text-sm text-muted">No tracking updates yet.</p>
+                  <p className="text-sm text-muted-foreground">No tracking updates yet.</p>
                 ) : (
                   <div className="flex flex-col gap-4">
                     {order.tracking_events
@@ -260,8 +260,8 @@ export function OrderDetailModal({
                           </div>
                           <div className="pb-1">
                             <p className="text-sm font-semibold text-ink capitalize">{formatStatus(event.status)}</p>
-                            {event.note && <p className="text-sm text-muted">{event.note}</p>}
-                            <p className="text-xs text-muted mt-0.5">{formatDate(event.created_at)}</p>
+                            {event.note && <p className="text-sm text-muted-foreground">{event.note}</p>}
+                            <p className="text-xs text-muted-foreground mt-0.5">{formatDate(event.created_at)}</p>
                           </div>
                         </div>
                       ))}

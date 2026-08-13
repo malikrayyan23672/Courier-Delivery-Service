@@ -22,7 +22,7 @@ export function RoleGuard({
     }
     if (role && !allowedRoles.includes(role)) {
       // Logged in, but wrong role for this page - send them to their own panel
-      router.push(panelPathForRole(role));
+      router.push(panelPathForRole(role, null));
     }
   }, [isLoading, token, role, allowedRoles, router]);
 

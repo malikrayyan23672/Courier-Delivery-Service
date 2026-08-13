@@ -21,7 +21,7 @@ const COLOR_STYLES: Record<string, string> = {
   amber: 'bg-[#FDF1DD] text-[#B8710A] border-[#F2A93B]/35',
   red: 'bg-[#FBEAE7] text-[#D8432C] border-[#D8432C]/25',
   blue: 'bg-[#EAF1FC] text-[#2563EB] border-[#2563EB]/25',
-  gray: 'bg-page text-muted border-line',
+  gray: 'bg-page text-muted-foreground border-line',
 };
 
 function titleCase(s: string) {
@@ -43,7 +43,7 @@ export function Pill({ status, label }: { status: string; label?: string }) {
 // AVATAR CHIP — small circular initials + name, dash if empty
 // ============================================================
 export function AvatarChip({ name, sub }: { name?: string | null; sub?: string }) {
-  if (!name) return <span className="text-muted text-sm">—</span>;
+  if (!name) return <span className="text-muted-foreground text-sm">—</span>;
   const initials = name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
   return (
     <div className="flex items-center gap-2.5">
@@ -52,7 +52,7 @@ export function AvatarChip({ name, sub }: { name?: string | null; sub?: string }
       </div>
       <div>
         <div className="font-semibold text-sm text-ink leading-tight">{name}</div>
-        {sub && <div className="text-xs text-muted leading-tight">{sub}</div>}
+        {sub && <div className="text-xs text-muted-foreground leading-tight">{sub}</div>}
       </div>
     </div>
   );
@@ -71,7 +71,7 @@ export function KpiCard({
       </div>
       <div>
         <div className="text-2xl font-display font-extrabold text-ink leading-none">{num}</div>
-        <div className="text-xs text-muted font-semibold mt-1.5">{label}</div>
+        <div className="text-xs text-muted-foreground font-semibold mt-1.5">{label}</div>
       </div>
       {trend && <div className="text-[0.7rem] font-bold" style={{ color: trendColor || '#8A94A6' }}>{trend}</div>}
     </div>
@@ -87,7 +87,7 @@ export function StatStrip({ items }: { items: { num: React.ReactNode; label: str
       {items.map((it, i) => (
         <div key={i}>
           <div className="text-xl font-display font-extrabold text-ink leading-none">{it.num}</div>
-          <div className="text-xs text-muted font-semibold mt-1">{it.label}</div>
+          <div className="text-xs text-muted-foreground font-semibold mt-1">{it.label}</div>
         </div>
       ))}
     </div>
@@ -121,7 +121,7 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display font-bold text-lg text-ink">{title}</h3>
-          <button onClick={onClose} className="text-muted hover:text-ink p-1" aria-label="Close">
+          <button onClick={onClose} className="text-muted-foreground hover:text-ink p-1" aria-label="Close">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
         </div>

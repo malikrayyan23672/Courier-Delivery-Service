@@ -104,8 +104,8 @@ export default function HomePage() {
 
   useEffect(() => {
     if (isLoading) return;
-    // router.push(token ? panelPathForRole(role) : '/login');
-    router.push(token? panelPathForRole(role) : "/")
+    // router.push(token ? panelPathForRole(role, null) : '/login');
+    router.push(token? panelPathForRole(role, null) : "/")
   }, [isLoading, token, role, router]);
 
   // return null;
@@ -241,24 +241,63 @@ export default function HomePage() {
  
         <div className="hero-stats">
           <div className="hstat">
-            <div className="num">10K+</div>
-            <div className="lbl">Parcels Delivered</div>
+            <div className="num">T+1</div>
+            <div className="lbl">COD Payout Guaranteed</div>
           </div>
           <div className="hstat">
-            <div className="num">500+</div>
-            <div className="lbl">Cities Covered</div>
+            <div className="num">0%</div>
+            <div className="lbl">RTO in 617 Live Deliveries</div>
           </div>
           <div className="hstat">
-            <div className="num">5K+</div>
-            <div className="lbl">Happy Customers</div>
+            <div className="num">30–45</div>
+            <div className="lbl">Min Bus Dispatches</div>
           </div>
           <div className="hstat">
-            <div className="num">24/7</div>
-            <div className="lbl">Customer Support</div>
+            <div className="num">Zero</div>
+            <div className="lbl">Fleet — Operators Bear Fuel Risk</div>
           </div>
         </div>
       </section>
- 
+
+      {/* ============ OPERATING MODEL ============ */}
+      <section className="section" style={{ paddingTop: 40 }}>
+        <div className="section-head">
+          <div className="eyebrow">HOW THE NETWORK RUNS</div>
+          <h2>The Raftaar five-layer operating model</h2>
+          <p>
+            Every parcel rides a shared backbone — bus operators, city hubs, neighbourhood points, and
+            an AI layer above it all. No fleet of our own, no fuel risk, no empty miles.
+          </p>
+        </div>
+        <div className="model-grid">
+          <div className="model-card">
+            <div className="model-num">1</div>
+            <h3>Bus Network</h3>
+            <p>Inter-city cargo backbone via Faisal Movers, Warraich Express, Manthar Express. Manifest system, bus API integration, crate tracking.</p>
+          </div>
+          <div className="model-card">
+            <div className="model-num">2</div>
+            <h3>City Hubs</h3>
+            <p>Raftaar office near each bus terminal — parcel scan, sort, and dispatch. Hub operations portal, barcode scanner, manifest printer.</p>
+          </div>
+          <div className="model-card">
+            <div className="model-num">3</div>
+            <h3>RNP Network</h3>
+            <p>Raftaar Neighbourhood Points — local shops as drop/pick-up nodes. Seller dashboard and RNP registration system.</p>
+          </div>
+          <div className="model-card">
+            <div className="model-num">4</div>
+            <h3>Rider Network</h3>
+            <p>Last-mile pickup and delivery riders in each city zone. Offline-first rider app (coming soon).</p>
+          </div>
+          <div className="model-card">
+            <div className="model-num">5</div>
+            <h3>AI Platform</h3>
+            <p>Seller portal, COD engine, risk scoring, and a logistics command centre — the intelligence layer of the network.</p>
+          </div>
+        </div>
+      </section>
+
       {/* ============ FEATURES ============ */}
       <section className="section">
         <div className="section-head">
@@ -298,19 +337,37 @@ export default function HomePage() {
                 <path d="M3 12h18M12 3c2.5 2.6 3.8 6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-6-3.8-9s1.3-6.4 3.8-9z" />
               </svg>
             </div>
-            <h3>500+ Cities</h3>
-            <p>From major metros to smaller towns, our network reaches customers across the country.</p>
+            <h3>Rural Reach</h3>
+            <p>Bus terminals reach every Tier-2/3 city — real coverage beyond the metros, proven in 617 live deliveries.</p>
           </div>
           <div className="feature-card">
             <div className="f-icon orange-bg">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z" />
+              </svg>
+            </div>
+            <h3>T+1 COD Payout</h3>
+            <p>Cash on delivery settles the next morning — guaranteed. Wallet auto-lock and digital reconciliation keep your money safe.</p>
+          </div>
+          <div className="feature-card">
+            <div className="f-icon navy-bg">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
                 <path d="M21 19a2 2 0 0 1-2 2h-1v-6h3z" />
                 <path d="M3 19a2 2 0 0 0 2 2h1v-6H3z" />
               </svg>
             </div>
-            <h3>24/7 Support</h3>
-            <p>Real people, always reachable, whenever you have a question about a shipment.</p>
+            <h3>Zero Fleet, 30–45 Min Dispatch</h3>
+            <p>We have no fleet of our own — bus operators carry all fuel risk, so your parcel leaves on the next departure, every 30–45 minutes.</p>
+          </div>
+          <div className="feature-card">
+            <div className="f-icon orange-bg">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+              </svg>
+            </div>
+            <h3>Sign Up &amp; Save</h3>
+            <p>Sign in or sign up to unlock your discount on every shipment — offers for registered customers only.</p>
           </div>
         </div>
       </section>
@@ -1007,7 +1064,7 @@ export default function HomePage() {
  
         .feature-grid {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 22px;
         }
         @media (max-width: 900px) {
@@ -1019,6 +1076,56 @@ export default function HomePage() {
           .feature-grid {
             grid-template-columns: 1fr;
           }
+        }
+
+        /* ============ OPERATING MODEL ============ */
+        .model-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 20px;
+        }
+        @media (max-width: 900px) {
+          .model-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        @media (max-width: 560px) {
+          .model-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+        .model-card {
+          background: var(--navy);
+          color: #fff;
+          border-radius: 16px;
+          padding: 24px 22px;
+          position: relative;
+          overflow: hidden;
+        }
+        .model-card:nth-child(even) {
+          background: var(--orange);
+        }
+        .model-num {
+          font-family: "Poppins", sans-serif;
+          font-weight: 800;
+          font-size: 2rem;
+          line-height: 1;
+          opacity: 0.25;
+          position: absolute;
+          top: 14px;
+          right: 18px;
+        }
+        .model-card h3 {
+          font-family: "Poppins", sans-serif;
+          font-size: 1.05rem;
+          margin: 0 0 8px;
+          color: #fff;
+        }
+        .model-card p {
+          font-size: 0.85rem;
+          line-height: 1.6;
+          opacity: 0.92;
+          margin: 0;
         }
         .feature-card {
           background: #fff;

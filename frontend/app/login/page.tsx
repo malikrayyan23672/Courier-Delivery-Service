@@ -46,7 +46,7 @@ function PasswordField({
     <div className="mb-4 flex flex-col gap-1.5">
       <label htmlFor={id} className="text-[0.82rem] font-semibold text-ink">{label}</label>
       <div className="relative">
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted pointer-events-none">{icon}</span>
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted-foreground pointer-events-none">{icon}</span>
         <input
           id={id}
           type={visible ? 'text' : 'password'}
@@ -56,7 +56,7 @@ function PasswordField({
           className={`w-full text-[0.92rem] py-3 pl-[42px] pr-10 rounded-[10px] border-[1.5px] bg-[#FBFCFE] text-ink outline-none transition-colors
             focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,112,26,0.13)]`}
         />
-        <button type="button" onClick={() => setVisible((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted" aria-label="Toggle password visibility">
+        <button type="button" onClick={() => setVisible((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground" aria-label="Toggle password visibility">
           <Icon path={ICONS.eye} />
         </button>
       </div>
@@ -116,7 +116,7 @@ export default function LoginPage() {
               <h2 className="font-display text-xl font-bold m-0">
                 Welcome <span className="text-orange">Back</span>
               </h2>
-              <p className="text-muted text-sm mt-1 m-0">Log in to your account</p>
+              <p className="text-muted-foreground text-sm mt-1 m-0">Log in to your account</p>
             </div>
           </div>
 
@@ -156,7 +156,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center mt-6 text-sm text-muted">
+          <p className="text-center mt-6 text-sm text-muted-foreground">
             Don&apos;t have an account?{' '}
             <Link href="/register" className="text-orange font-bold no-underline">
               Sign up

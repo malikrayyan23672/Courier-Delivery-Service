@@ -101,7 +101,10 @@ export function panelPathForRole(role: string | null, designation: string | null
     case 'admin':
     case 'super_admin':
       return '/admin';
+    case 'business':
+      return '/seller';
     case 'customer':
+      return '/dashboard';
     default:
       return '/dashboard';
   }

@@ -29,7 +29,38 @@ body {
     --warn:#B9770E; --warn-tint:#FBF0DC;
     --gray-tint:#EEF0F4;
     --radius:12px;
+
+    /* shadcn/ui tokens */
+    --background: 214 22% 96%;
+    --foreground: 222 44% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 44% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 44% 16%;
+    --primary: 21 92% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 72% 95%;
+    --secondary-foreground: 218 65% 17%;
+    --muted: 220 14% 92%;
+    --muted-foreground: 220 11% 46%;
+    --accent: 24 78% 96%;
+    --accent-foreground: 22 85% 42%;
+    --destructive: 7 67% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 221 24% 92%;
+    --input: 221 24% 92%;
+    --ring: 21 92% 53%;
+    --radius: 0.75rem;
   }
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
 
 ::selection {
   background: #ff8a3d;

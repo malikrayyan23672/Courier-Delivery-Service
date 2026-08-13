@@ -158,7 +158,7 @@ export default function RegisterPage() {
                   <h2 className="font-display text-xl font-bold m-0">
                     Create <span className="text-orange">Your Account</span>
                   </h2>
-                  <p className="text-muted text-sm mt-1 m-0">Book your first shipment in minutes</p>
+                  <p className="text-muted-foreground text-sm mt-1 m-0">Book your first shipment in minutes</p>
                 </div>
               </div>
 
@@ -237,7 +237,7 @@ export default function RegisterPage() {
                 </button>
               </form>
 
-              <p className="text-center mt-6 text-sm text-muted">
+              <p className="text-center mt-6 text-sm text-muted-foreground">
                 Already have an account?{' '}
                 <Link href="/login" className="text-orange font-bold no-underline">
                   Login
@@ -256,11 +256,11 @@ export default function RegisterPage() {
                   <h2 className="font-display text-xl font-bold m-0">
                     Verify <span className="text-orange">Your Phone</span>
                   </h2>
-                  <p className="text-muted text-sm mt-1 m-0">Enter the code we just sent you</p>
+                  <p className="text-muted-foreground text-sm mt-1 m-0">Enter the code we just sent you</p>
                 </div>
               </div>
 
-              <p className="text-sm text-muted mb-5 leading-relaxed">
+              <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
                 Code sent to <b className="text-ink">{form.phone}</b>. Check your server console for the
                 stub SMS output during development.
               </p>
@@ -268,7 +268,7 @@ export default function RegisterPage() {
               <OtpBoxes value={otp} onChange={setOtp} />
               {otpError && <p className="text-[0.74rem] text-danger mb-4">{otpError}</p>}
 
-              <p className="text-sm text-muted mb-5">
+              <p className="text-sm text-muted-foreground mb-5">
                 Didn&apos;t get the code?{' '}
                 <button onClick={handleResend} className="text-orange font-bold bg-transparent p-0">
                   Resend code
@@ -290,7 +290,7 @@ export default function RegisterPage() {
                 ✓
               </div>
               <h2 className="font-display text-xl font-bold mb-2">Account created</h2>
-              <p className="text-muted max-w-[36ch] mx-auto">Taking you to the login page…</p>
+              <p className="text-muted-foreground max-w-[36ch] mx-auto">Taking you to the login page…</p>
             </div>
           )}
         </div>

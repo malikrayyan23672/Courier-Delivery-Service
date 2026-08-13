@@ -13,7 +13,7 @@ export function Field({ label, icon, error, id, ...props }: FieldProps) {
         {label}
       </label>
       <div className="relative">
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted pointer-events-none">
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted-foreground pointer-events-none">
           {icon}
         </span>
         <input

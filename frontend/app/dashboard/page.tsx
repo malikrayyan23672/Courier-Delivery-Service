@@ -60,7 +60,7 @@ const STATUS_COLORS: Record<string, string> = {
   in_transit: 'bg-[#FBF3EA] text-orange',
   delivered: 'bg-[#EAF7EF] text-success',
   failed: 'bg-[#FBEAE7] text-danger',
-  cancelled: 'bg-[#F0F0F0] text-muted',
+  cancelled: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
 const STATUS_FILTERS = ['all', 'created', 'assigned', 'picked_up', 'in_transit', 'delivered', 'failed', 'cancelled'];
@@ -221,7 +221,7 @@ function DashboardContent() {
           )}
           <button
             onClick={handleLogout}
-            className="text-sm font-semibold text-muted hover:text-navy transition-colors"
+            className="text-sm font-semibold text-muted-foreground hover:text-navy transition-colors"
           >
             Log out
           </button>
@@ -241,7 +241,7 @@ function DashboardContent() {
               key={id}
               onClick={() => setTab(id)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-[10px] text-sm font-semibold transition-colors ${
-                tab === id ? 'bg-navy text-white' : 'text-muted hover:text-ink hover:bg-page'
+                tab === id ? 'bg-navy text-white' : 'text-muted-foreground hover:text-ink hover:bg-page'
               }`}
             >
               <span className="w-4 h-4">{icon}</span>
@@ -295,7 +295,7 @@ function DashboardContent() {
 function StatCard({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div className="bg-white rounded-card shadow-card p-5">
-      <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">{label}</p>
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{label}</p>
       <p className={`font-display text-2xl font-bold ${accent || 'text-ink'}`}>{value}</p>
     </div>
   );
@@ -313,8 +313,8 @@ function OrderRow({ order, onSelect }: { order: Order; onSelect: (id: string) =>
           {order.status.replace('_', ' ')}
         </span>
       </td>
-      <td className="px-6 py-3.5 text-muted capitalize hidden sm:table-cell">{order.booking_channel}</td>
-      <td className="px-6 py-3.5 text-muted hidden md:table-cell max-w-[220px] truncate">
+      <td className="px-6 py-3.5 text-muted-foreground capitalize hidden sm:table-cell">{order.booking_channel}</td>
+      <td className="px-6 py-3.5 text-muted-foreground hidden md:table-cell max-w-[220px] truncate">
         {order.dropoff_address?.full_address || '—'}
       </td>
       <td className="px-6 py-3.5 text-ink text-right">
@@ -522,7 +522,7 @@ function OverviewTab({
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">Your Shipments</h1>
-          <p className="text-muted text-sm mt-1">Book a new pickup or check on an existing order</p>
+          <p className="text-muted-foreground text-sm mt-1">Book a new pickup or check on an existing order</p>
         </div>
         <button
           onClick={() => setShowBookingForm((s) => !s)}
@@ -555,13 +555,13 @@ function OverviewTab({
         {ordersError ? (
           <p className="p-6 text-danger text-sm">{ordersError}</p>
         ) : loadingOrders ? (
-          <p className="p-6 text-muted text-sm">Loading your orders…</p>
+          <p className="p-6 text-muted-foreground text-sm">Loading your orders…</p>
         ) : recent.length === 0 ? (
-          <p className="p-6 text-muted text-sm">No shipments yet. Book your first one above.</p>
+          <p className="p-6 text-muted-foreground text-sm">No shipments yet. Book your first one above.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line text-left text-muted">
+              <tr className="border-b border-line text-left text-muted-foreground">
                 <th className="px-6 py-3 font-semibold">Tracking #</th>
                 <th className="px-6 py-3 font-semibold">Status</th>
                 <th className="px-6 py-3 font-semibold hidden sm:table-cell">Channel</th>
@@ -608,14 +608,14 @@ function ShipmentsTab({
     <>
       <div className="mb-6">
         <h1 className="font-display text-2xl font-bold text-ink">My Shipments</h1>
-        <p className="text-muted text-sm mt-1">
+        <p className="text-muted-foreground text-sm mt-1">
           {allCount} shipment{allCount === 1 ? '' : 's'} total
         </p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
         <div className="relative flex-1">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted pointer-events-none">
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted-foreground pointer-events-none">
             {SEARCH_ICON}
           </span>
           <input
@@ -642,13 +642,13 @@ function ShipmentsTab({
         {ordersError ? (
           <p className="p-6 text-danger text-sm">{ordersError}</p>
         ) : loadingOrders ? (
-          <p className="p-6 text-muted text-sm">Loading your orders…</p>
+          <p className="p-6 text-muted-foreground text-sm">Loading your orders…</p>
         ) : orders.length === 0 ? (
-          <p className="p-6 text-muted text-sm">No shipments match your search.</p>
+          <p className="p-6 text-muted-foreground text-sm">No shipments match your search.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line text-left text-muted">
+              <tr className="border-b border-line text-left text-muted-foreground">
                 <th className="px-6 py-3 font-semibold">Tracking #</th>
                 <th className="px-6 py-3 font-semibold">Status</th>
                 <th className="px-6 py-3 font-semibold hidden sm:table-cell">Channel</th>
@@ -673,13 +673,13 @@ function ProfileTab({ profile, profileError }: { profile: MyProfile | null; prof
     <>
       <div className="mb-6">
         <h1 className="font-display text-2xl font-bold text-ink">Profile</h1>
-        <p className="text-muted text-sm mt-1">Your account details</p>
+        <p className="text-muted-foreground text-sm mt-1">Your account details</p>
       </div>
 
       {profileError && <p className="text-danger text-sm mb-4">{profileError}</p>}
 
       {!profile && !profileError ? (
-        <p className="text-muted text-sm">Loading your profile…</p>
+        <p className="text-muted-foreground text-sm">Loading your profile…</p>
       ) : profile ? (
         <div className="bg-white rounded-card shadow-card p-6 md:p-8 max-w-xl">
           <div className="flex items-center gap-4 mb-6">
@@ -700,19 +700,19 @@ function ProfileTab({ profile, profileError }: { profile: MyProfile | null; prof
 
           <dl className="flex flex-col gap-4">
             <div className="flex items-center justify-between border-b border-line pb-4">
-              <dt className="text-sm text-muted">Email</dt>
+              <dt className="text-sm text-muted-foreground">Email</dt>
               <dd className="text-sm font-semibold text-ink">{profile.email}</dd>
             </div>
             <div className="flex items-center justify-between border-b border-line pb-4">
-              <dt className="text-sm text-muted">Phone</dt>
+              <dt className="text-sm text-muted-foreground">Phone</dt>
               <dd className="text-sm font-semibold text-ink">{profile.phone}</dd>
             </div>
             <div className="flex items-center justify-between border-b border-line pb-4">
-              <dt className="text-sm text-muted">Account type</dt>
+              <dt className="text-sm text-muted-foreground">Account type</dt>
               <dd className="text-sm font-semibold text-ink capitalize">{profile.role}</dd>
             </div>
             <div className="flex items-center justify-between">
-              <dt className="text-sm text-muted">Status</dt>
+              <dt className="text-sm text-muted-foreground">Status</dt>
               <dd className="text-sm font-semibold text-ink">{profile.is_active ? 'Active' : 'Disabled'}</dd>
             </div>
           </dl>

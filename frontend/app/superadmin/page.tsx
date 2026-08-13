@@ -1,6 +1,6 @@
 'use client';
 
-import React, { act, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { RoleGuard } from '@/components/RoleGuard';
 import { useAuth } from '@/context/AuthContext';
 import { Field } from './components';
@@ -339,7 +339,7 @@ function AdminDashboardContent() {
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="font-display text-lg font-bold text-ink truncate">{PAGE_META[view].title}</h1>
-            <div className="text-xs text-muted truncate">{PAGE_META[view].sub}</div>
+            <div className="text-xs text-muted-foreground truncate">{PAGE_META[view].sub}</div>
           </div>
           <button onClick={() => switchView('alerts')} className="relative p-2 text-ink hover:bg-page rounded-lg" title="Alerts">
             <NavIcon name="alert" size={17} />
@@ -390,7 +390,7 @@ function AdminDashboardContent() {
 
           {view === 'branches' && <BranchesView branches={branches} zones={zones} />}
 
-          {view === 'zones' && <ZonesView zones={zones} branches={branches}, onDelete={handleDeleteZone} />}
+          {view === 'zones' && <ZonesView zones={zones} branches={branches} onDelete={handleDeleteZone} />}
 
           {view === 'staff' && (
             <StaffView users={filteredUsers} roleFilter={userRoleFilter} setRoleFilter={setUserRoleFilter}
@@ -419,7 +419,6 @@ function AdminDashboardContent() {
 
       {showCreateUser && (
         <CreateUserModal branches={branches} zones={zones} onClose={() => setShowCreateUser(false)} onCreate={handleCreateUser} />
-        // <div>Hello World</div>
       )}
 
       <Toasts toasts={toasts} />
@@ -466,16 +465,16 @@ function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, un
       <div className="grid lg:grid-cols-2 gap-6">
         <section className="bg-white border border-line rounded-2xl p-5">
           <h2 className="font-display font-bold text-base mb-1">Orders — Last 7 Days</h2>
-          <p className="text-xs text-muted mb-4">Network-wide order volume</p>
+          <p className="text-xs text-muted-foreground mb-4">Network-wide order volume</p>
           {week.length === 0 ? (
-            <div className="text-sm text-muted">No data yet.</div>
+            <div className="text-sm text-muted-foreground">No data yet.</div>
           ) : (
             <div className="flex items-end gap-3 h-40">
               {week.map((w) => (
                 <div key={w.date} className="flex-1 flex flex-col items-center gap-1.5">
                   <span className="text-xs font-semibold text-ink">{w.orders}</span>
                   <div className="w-full bg-orange rounded-t" style={{ height: `${(w.orders / maxOrders) * 100}%` }} />
-                  <span className="text-xs text-muted">{new Date(w.date).toLocaleDateString(undefined, { weekday: 'short' })}</span>
+                  <span className="text-xs text-muted-foreground">{new Date(w.date).toLocaleDateString(undefined, { weekday: 'short' })}</span>
                 </div>
               ))}
             </div>
@@ -484,7 +483,7 @@ function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, un
 
         <section className="bg-white border border-line rounded-2xl p-5">
           <h2 className="font-display font-bold text-base mb-1">Recent Network Activity</h2>
-          <p className="text-xs text-muted mb-4">Latest changes across the platform</p>
+          <p className="text-xs text-muted-foreground mb-4">Latest changes across the platform</p>
           <div className="flex flex-col gap-3">
             {NETWORK_ACTIVITY.map((a, i) => (
               <div key={i} className="flex items-start gap-3">
@@ -493,7 +492,7 @@ function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, un
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-ink">{a.text}</div>
-                  <div className="text-xs text-muted mt-0.5">{a.time}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{a.time}</div>
                 </div>
               </div>
             ))}
@@ -503,7 +502,7 @@ function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, un
 
       <section className="bg-white border border-line rounded-2xl p-5">
         <h2 className="font-display font-bold text-base mb-1">Quick Actions</h2>
-        <p className="text-xs text-muted mb-4">Jump to common super admin tasks</p>
+        <p className="text-xs text-muted-foreground mb-4">Jump to common super admin tasks</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5">
           {quickActions.map((q) => (
             <button key={q.label} onClick={() => switchView(q.goto)}
@@ -518,9 +517,9 @@ function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, un
       {analytics?.top_riders && analytics.top_riders.length > 0 && (
         <section className="bg-white border border-line rounded-2xl p-5">
           <h2 className="font-display font-bold text-base mb-1">Top Performing Riders</h2>
-          <p className="text-xs text-muted mb-3">By completed deliveries, network-wide</p>
+          <p className="text-xs text-muted-foreground mb-3">By completed deliveries, network-wide</p>
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-muted text-xs border-b border-line"><th className="py-2">Rider</th><th className="py-2">Deliveries</th><th className="py-2">Earnings</th></tr></thead>
+            <thead><tr className="text-left text-muted-foreground text-xs border-b border-line"><th className="py-2">Rider</th><th className="py-2">Deliveries</th><th className="py-2">Earnings</th></tr></thead>
             <tbody>
               {analytics.top_riders.map((r) => (
                 <tr key={r.full_name} className="border-b border-line last:border-0">
@@ -556,7 +555,7 @@ function OrdersView({ orders, total, search, setSearch, statusFilter, setStatusF
 
       <div className="flex flex-col sm:flex-row gap-3 my-4">
         <div className="relative flex-1">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground">
             <NavIcon name="search" size={16} color="#8A94A6" />
           </span>
           <input type="text" placeholder="Search tracking number, customer or city…" value={search} onChange={(e) => setSearch(e.target.value)}
@@ -571,7 +570,7 @@ function OrdersView({ orders, total, search, setSearch, statusFilter, setStatusF
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-line text-left text-muted text-xs">
+            <tr className="border-b border-line text-left text-muted-foreground text-xs">
               <th className="py-2.5 pr-4">Tracking #</th><th className="py-2.5 pr-4">Customer</th>
               <th className="py-2.5 pr-4">Route</th><th className="py-2.5 pr-4">Channel</th>
               <th className="py-2.5 pr-4">Price</th><th className="py-2.5 pr-4">Rider</th>
@@ -583,7 +582,7 @@ function OrdersView({ orders, total, search, setSearch, statusFilter, setStatusF
               <tr key={o.id} className="border-b border-line last:border-0">
                 <td className="py-3 pr-4 font-mono text-xs text-ink">{o.tracking_number}</td>
                 <td className="py-3 pr-4">{o.pickup_address?.contact_name || o.dropoff_address?.contact_name || 'Guest'}</td>
-                <td className="py-3 pr-4 text-xs text-muted">{o.pickup_address?.city || '—'} → {o.dropoff_address?.city || '—'}</td>
+                <td className="py-3 pr-4 text-xs text-muted-foreground">{o.pickup_address?.city || '—'} → {o.dropoff_address?.city || '—'}</td>
                 <td className="py-3 pr-4"><Pill status="gray" label={titleStatus(o.booking_channel || 'app')} /></td>
                 <td className="py-3 pr-4">{o.final_price ?? o.estimated_price ?? '—'}</td>
                 <td className="py-3 pr-4">{o.rider_accepted ? <Pill status="green" label="Assigned" /> : <Pill status="amber" label="Unassigned" />}</td>
@@ -591,12 +590,12 @@ function OrdersView({ orders, total, search, setSearch, statusFilter, setStatusF
                 <td className="py-3">
                   {!o.rider_accepted && o.status !== 'cancelled' && o.status !== 'delivered'
                     ? <button onClick={() => onAssign(o)} className="text-xs font-bold text-orange border border-orange/30 rounded-lg px-3 py-1.5 hover:bg-[#FBF3EA]">Assign Rider</button>
-                    : <span className="text-muted text-xs">—</span>}
+                    : <span className="text-muted-foreground text-xs">—</span>}
                 </td>
               </tr>
             ))}
             {orders.length === 0 && (
-              <tr><td colSpan={8} className="py-8 text-center text-sm text-muted">No orders match this filter.</td></tr>
+              <tr><td colSpan={8} className="py-8 text-center text-sm text-muted-foreground">No orders match this filter.</td></tr>
             )}
           </tbody>
         </table>
@@ -611,9 +610,9 @@ function AssignRiderModal({ order, riders, onClose, onAssign }: {
   const available = riders.filter((r) => r.is_available);
   return (
     <Modal title={`Assign rider · ${order.tracking_number}`} onClose={onClose}>
-      <p className="text-sm text-muted mb-4">Choose an available rider to send this order to. They'll get a notification to accept or decline.</p>
+      <p className="text-sm text-muted-foreground mb-4">Choose an available rider to send this order to. They'll get a notification to accept or decline.</p>
       <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
-        {available.length === 0 && <div className="text-sm text-muted">No riders are currently available.</div>}
+        {available.length === 0 && <div className="text-sm text-muted-foreground">No riders are currently available.</div>}
         {available.map((r) => (
           <button key={r.rider_id} onClick={() => onAssign(r.rider_id)}
             className="flex items-center justify-between gap-3 border border-line rounded-xl p-3 hover:border-orange hover:bg-page text-left">
@@ -642,7 +641,7 @@ function MapView({ branches, riders }: { branches: Branch[]; riders: RiderCard[]
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-display font-bold text-base">Network Live Map</h2>
-          <p className="text-xs text-muted">Every branch and active rider, at a glance</p>
+          <p className="text-xs text-muted-foreground">Every branch and active rider, at a glance</p>
         </div>
         <Pill status="blue" label={`${riders.filter((r) => r.status !== 'offline').length} riders active`} />
       </div>
@@ -650,10 +649,10 @@ function MapView({ branches, riders }: { branches: Branch[]; riders: RiderCard[]
         {branchPins.map((b) => <MapPin key={b.name} x={b.x} y={b.y} color="#0F2648" label={b.name} large />)}
         {riderPins.map((r) => <MapPin key={r.name} x={r.x} y={r.y} color={r.busy ? '#2563EB' : '#B7BEC9'} label={r.name.split(' ')[0]} />)}
         {branchPins.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-muted">No branch location data yet.</div>
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">No branch location data yet.</div>
         )}
       </div>
-      <div className="flex flex-wrap gap-4 mt-4 text-xs text-muted">
+      <div className="flex flex-wrap gap-4 mt-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-navy" />Branch</span>
         <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-[#2563EB]" />Rider (on delivery)</span>
         <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-[#B7BEC9]" />Rider (idle)</span>
@@ -687,7 +686,7 @@ function RidersView({ riders, onlineRiders, busyRiders, offlineRiders }: {
       ]} />
       <section className="bg-white border border-line rounded-2xl p-5">
         <h2 className="font-display font-bold text-base mb-1">Rider Fleet</h2>
-        <p className="text-xs text-muted mb-4">Every rider across every branch</p>
+        <p className="text-xs text-muted-foreground mb-4">Every rider across every branch</p>
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {riders.map((r) => {
             const dotColor = r.status === 'online' ? '#1E8E5A' : r.status === 'busy' ? '#F2A93B' : '#8A94A6';
@@ -700,18 +699,18 @@ function RidersView({ riders, onlineRiders, busyRiders, offlineRiders }: {
                   </div>
                   <div>
                     <div className="font-bold text-sm text-ink">{r.name}</div>
-                    <div className="text-xs text-muted">{r.vehicle}</div>
+                    <div className="text-xs text-muted-foreground">{r.vehicle}</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2.5 text-xs">
-                  <div><div className="text-muted">Status</div><div className="font-semibold text-ink">{r.status === 'online' ? 'Available' : r.status === 'busy' ? 'On Delivery' : 'Offline'}</div></div>
-                  <div><div className="text-muted">Rating</div><div className="font-semibold text-ink">{r.score.toFixed(1)} ★</div></div>
-                  <div className="col-span-2"><div className="text-muted">Notes</div><div className="font-semibold text-ink text-[0.72rem]">{r.gps}</div></div>
+                  <div><div className="text-muted-foreground">Status</div><div className="font-semibold text-ink">{r.status === 'online' ? 'Available' : r.status === 'busy' ? 'On Delivery' : 'Offline'}</div></div>
+                  <div><div className="text-muted-foreground">Rating</div><div className="font-semibold text-ink">{r.score.toFixed(1)} ★</div></div>
+                  <div className="col-span-2"><div className="text-muted-foreground">Notes</div><div className="font-semibold text-ink text-[0.72rem]">{r.gps}</div></div>
                 </div>
               </div>
             );
           })}
-          {riders.length === 0 && <div className="text-sm text-muted col-span-full">No riders found.</div>}
+          {riders.length === 0 && <div className="text-sm text-muted-foreground col-span-full">No riders found.</div>}
         </div>
       </section>
     </>
@@ -731,7 +730,7 @@ function AssignmentView({ rules, onToggle, unassignedOrders, openAssign }: {
     <>
       <section className="bg-white border border-line rounded-2xl p-5">
         <h2 className="font-display font-bold text-base mb-1">Automatic Assignment Rules</h2>
-        <p className="text-xs text-muted mb-4">Control how new orders get matched to riders across the network</p>
+        <p className="text-xs text-muted-foreground mb-4">Control how new orders get matched to riders across the network</p>
         <div className="flex flex-col gap-3">
           {rules.map((r) => (
             <div key={r.id} className="flex items-start justify-between gap-4 border border-line rounded-xl p-4">
@@ -741,7 +740,7 @@ function AssignmentView({ rules, onToggle, unassignedOrders, openAssign }: {
                   <Pill status="blue" label={typeLabel[r.type]} />
                   {r.radiusKm && <Pill status="gray" label={`${r.radiusKm}km radius`} />}
                 </div>
-                <p className="text-xs text-muted mt-1.5 max-w-xl">{r.description}</p>
+                <p className="text-xs text-muted-foreground mt-1.5 max-w-xl">{r.description}</p>
               </div>
               <button
                 onClick={() => onToggle(r.id)}
@@ -760,15 +759,15 @@ function AssignmentView({ rules, onToggle, unassignedOrders, openAssign }: {
           <h2 className="font-display font-bold text-base">Manual Assignment Queue</h2>
           <Pill status="amber" label={`${unassignedOrders.length} waiting`} />
         </div>
-        <p className="text-xs text-muted mb-4">Orders that auto-assignment couldn't match — assign a rider by hand</p>
+        <p className="text-xs text-muted-foreground mb-4">Orders that auto-assignment couldn't match — assign a rider by hand</p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-muted text-xs border-b border-line"><th className="py-2">Tracking #</th><th className="py-2">Route</th><th className="py-2">Status</th><th className="py-2">Action</th></tr></thead>
+            <thead><tr className="text-left text-muted-foreground text-xs border-b border-line"><th className="py-2">Tracking #</th><th className="py-2">Route</th><th className="py-2">Status</th><th className="py-2">Action</th></tr></thead>
             <tbody>
               {unassignedOrders.map((o) => (
                 <tr key={o.id} className="border-b border-line last:border-0">
                   <td className="py-2.5 font-mono text-xs">{o.tracking_number}</td>
-                  <td className="py-2.5 text-xs text-muted">{o.pickup_address?.city || '—'} → {o.dropoff_address?.city || '—'}</td>
+                  <td className="py-2.5 text-xs text-muted-foreground">{o.pickup_address?.city || '—'} → {o.dropoff_address?.city || '—'}</td>
                   <td className="py-2.5"><Pill status={o.status} /></td>
                   <td className="py-2.5">
                     <button onClick={() => openAssign(o)} className="text-xs font-bold text-orange border border-orange/30 rounded-lg px-3 py-1.5 hover:bg-[#FBF3EA]">Assign Manually</button>
@@ -776,7 +775,7 @@ function AssignmentView({ rules, onToggle, unassignedOrders, openAssign }: {
                 </tr>
               ))}
               {unassignedOrders.length === 0 && (
-                <tr><td colSpan={4} className="py-6 text-center text-sm text-muted">Nothing waiting — every order has a rider.</td></tr>
+                <tr><td colSpan={4} className="py-6 text-center text-sm text-muted-foreground">Nothing waiting — every order has a rider.</td></tr>
               )}
             </tbody>
           </table>
@@ -828,7 +827,7 @@ function BranchesView({ branches, zones }: { branches: Branch[]; zones: Zone[] }
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-display font-bold text-base">Branches</h2>
-          <p className="text-xs text-muted">{branches.length} branches in the network</p>
+          <p className="text-xs text-muted-foreground">{branches.length} branches in the network</p>
         </div>
         <button onClick={() => setShowCreateBranchForm((s) => !s)} className="bg-orange hover:bg-orange-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
           <NavIcon name="plus" size={13} color="#fff" /> Add Branch
@@ -836,26 +835,26 @@ function BranchesView({ branches, zones }: { branches: Branch[]; zones: Zone[] }
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead><tr className="text-left text-muted text-xs border-b border-line">
+          <thead><tr className="text-left text-muted-foreground text-xs border-b border-line">
             <th className="py-2 pr-4">Branch</th><th className="py-2 pr-4">Zone</th><th className="py-2 pr-4">Contact</th>
             <th className="py-2 pr-4">Hours</th><th className="py-2 pr-4">Status</th><th className="py-2">Location</th>
           </tr></thead>
           <tbody>
             {branches.map((b) => (
               <tr key={b.id} className="border-b border-line last:border-0">
-                <td className="py-3 pr-4"><div className="font-bold text-ink">{b.name}</div><div className="text-xs text-muted">{b.address}</div></td>
+                <td className="py-3 pr-4"><div className="font-bold text-ink">{b.name}</div><div className="text-xs text-muted-foreground">{b.address}</div></td>
                 <td className="py-3 pr-4"><Pill status="blue" label={zoneName(b.zone_id)} /></td>
-                <td className="py-3 pr-4 text-xs text-muted">{b.phone}<br />{b.email}</td>
-                <td className="py-3 pr-4 text-xs text-muted">{b.opening_time} – {b.closing_time}</td>
+                <td className="py-3 pr-4 text-xs text-muted-foreground">{b.phone}<br />{b.email}</td>
+                <td className="py-3 pr-4 text-xs text-muted-foreground">{b.opening_time} – {b.closing_time}</td>
                 <td className="py-3 pr-4"><Pill status={b.status || 'active'} /></td>
                 <td className="py-3">
                   {b.latitude && b.longitude ? (
                     <a href={`https://www.google.com/maps/search/?api=1&query=${b.latitude},${b.longitude}`} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-orange">Open map →</a>
-                  ) : <span className="text-xs text-muted">No coordinates</span>}
+                  ) : <span className="text-xs text-muted-foreground">No coordinates</span>}
                 </td>
               </tr>
             ))}
-            {branches.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-sm text-muted">No branches yet.</td></tr>}
+            {branches.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No branches yet.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -891,7 +890,7 @@ function handleBranchCreate(){
 // ============================================================
 // ZONES
 // ============================================================
-function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Branch[], onDelete => void }) {
+function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Branch[]; onDelete: (z: Zone) => void }) {
 
   interface ZoneFormState{
     zone_name: string;
@@ -906,7 +905,7 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-display font-bold text-base">Service Zones</h2>
-          <p className="text-xs text-muted">Coverage areas grouping branches together</p>
+          <p className="text-xs text-muted-foreground">Coverage areas grouping branches together</p>
         </div>
         {/* <button onClick={() => ((e) => !e)} className="bg-orange hover:bg-orange-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
           <NavIcon name="plus" size={13} color="#fff" /> Add Zone
@@ -914,7 +913,7 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
       </div>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-muted text-xs border-b border-line">
+          <tr className="text-left text-muted-foreground text-xs border-b border-line">
             <th className="py-2">Zone</th>
             <th className="py-2">Description</th>
             <th className="py-2">Branches</th>
@@ -926,7 +925,7 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
           {zones.map((z) => (
             <tr key={z.id} className="border-b border-line last:border-0">
               <td className="py-3 font-bold text-ink">{z.name}</td>
-              <td className="py-3 text-muted text-xs max-w-sm">{z.description}</td>
+              <td className="py-3 text-muted-foreground text-xs max-w-sm">{z.description}</td>
               <td className="py-3">{branchCount(z.id)}</td>
               <td className="py-3"><Pill status={z.is_active ? 'green' : 'gray'} label={z.is_active ? 'Active' : 'Inactive'} /></td>
               <td className="py-3">
@@ -939,7 +938,7 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
               </td>
             </tr>
           ))}
-          {zones.length === 0 && <tr><td colSpan={4} className="py-8 text-center text-sm text-muted">No zones yet.</td></tr>}
+          {zones.length === 0 && <tr><td colSpan={4} className="py-8 text-center text-sm text-muted-foreground">No zones yet.</td></tr>}
         </tbody>
       </table>
 
@@ -962,7 +961,7 @@ function StaffView({ users, roleFilter, setRoleFilter, onDelete }: {
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h2 className="font-display font-bold text-base">Staff & Admins</h2>
-          <p className="text-xs text-muted">{users.length} accounts{roleFilter ? ` · filtered by ${titleStatus(roleFilter)}` : ''}</p>
+          <p className="text-xs text-muted-foreground">{users.length} accounts{roleFilter ? ` · filtered by ${titleStatus(roleFilter)}` : ''}</p>
         </div>
         <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={inputCls + ' w-auto'}>
           <option value="">All roles</option>
@@ -970,7 +969,7 @@ function StaffView({ users, roleFilter, setRoleFilter, onDelete }: {
         </select>
       </div>
       <table className="w-full text-sm">
-        <thead><tr className="text-left text-muted text-xs border-b border-line">
+        <thead><tr className="text-left text-muted-foreground text-xs border-b border-line">
           <th className="py-2 pr-4">Name</th><th className="py-2 pr-4">Role</th><th className="py-2 pr-4">Contact</th>
           <th className="py-2 pr-4">Verified</th><th className="py-2 pr-4">Active</th><th className="py-2">Action</th>
         </tr></thead>
@@ -979,7 +978,7 @@ function StaffView({ users, roleFilter, setRoleFilter, onDelete }: {
             <tr key={u.id} className="border-b border-line last:border-0">
               <td className="py-3 pr-4"><AvatarChip name={u.full_name} /></td>
               <td className="py-3 pr-4"><Pill status="blue" label={titleStatus(u.role)} /></td>
-              <td className="py-3 pr-4 text-xs text-muted">{u.phone}<br />{u.email}</td>
+              <td className="py-3 pr-4 text-xs text-muted-foreground">{u.phone}<br />{u.email}</td>
               <td className="py-3 pr-4"><Pill status={u.is_verified ? 'green' : 'gray'} label={u.is_verified ? 'Verified' : 'Unverified'} /></td>
               <td className="py-3 pr-4"><Pill status={u.is_active ? 'green' : 'red'} label={u.is_active ? 'Active' : 'Suspended'} /></td>
               <td className="py-3">
@@ -989,7 +988,7 @@ function StaffView({ users, roleFilter, setRoleFilter, onDelete }: {
               </td>
             </tr>
           ))}
-          {users.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-sm text-muted">No accounts match this filter.</td></tr>}
+          {users.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No accounts match this filter.</td></tr>}
         </tbody>
       </table>
     </section>
@@ -1034,7 +1033,7 @@ function CreateZoneModel({branches, zones, onClose, onCreate}: {
             // disabled={profileLoading || togglingAvailability}
             className="flex items-center gap-3 disabled:opacity-60"
           >
-            {/* <span className={`text-sm font-semibold ${profile?.is_available ? 'text-success' : 'text-muted'}`}> */}
+            {/* <span className={`text-sm font-semibold ${profile?.is_available ? 'text-success' : 'text-muted-foreground'}`}> */}
             <span className={`text-sm font-semibold text-success`}>
               {activeToggle ? 'Active' : 'In-Active'}
               {/* Online */}
@@ -1137,22 +1136,22 @@ function BusinessView({ accounts }: { accounts: BusinessAccount[] }) {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-display font-bold text-base">Business Accounts</h2>
-          <p className="text-xs text-muted">Corporate and merchant shipping accounts</p>
+          <p className="text-xs text-muted-foreground">Corporate and merchant shipping accounts</p>
         </div>
       </div>
       <table className="w-full text-sm">
-        <thead><tr className="text-left text-muted text-xs border-b border-line">
+        <thead><tr className="text-left text-muted-foreground text-xs border-b border-line">
           <th className="py-2 pr-4">Business</th><th className="py-2 pr-4">Type</th><th className="py-2 pr-4">Monthly Shipments</th>
           <th className="py-2 pr-4">COD</th><th className="py-2 pr-4">City</th><th className="py-2">Status</th>
         </tr></thead>
         <tbody>
           {accounts.map((b) => (
             <tr key={b.id} className="border-b border-line last:border-0">
-              <td className="py-3 pr-4"><div className="font-bold text-ink">{b.name}</div><div className="text-xs text-muted">{b.contactPhone}</div></td>
+              <td className="py-3 pr-4"><div className="font-bold text-ink">{b.name}</div><div className="text-xs text-muted-foreground">{b.contactPhone}</div></td>
               <td className="py-3 pr-4"><Pill status="blue" label={b.type} /></td>
               <td className="py-3 pr-4">{b.monthlyShipments.toLocaleString()}</td>
               <td className="py-3 pr-4"><Pill status={b.codEnabled ? 'green' : 'gray'} label={b.codEnabled ? 'Enabled' : 'Disabled'} /></td>
-              <td className="py-3 pr-4 text-muted">{b.city}</td>
+              <td className="py-3 pr-4 text-muted-foreground">{b.city}</td>
               <td className="py-3"><Pill status={b.status} /></td>
             </tr>
           ))}
@@ -1169,7 +1168,7 @@ function MessagingView({ templates, onToggle }: { templates: MessageTemplate[]; 
   return (
     <section className="bg-white border border-line rounded-2xl p-5">
       <h2 className="font-display font-bold text-base mb-1">Automatic Messaging</h2>
-      <p className="text-xs text-muted mb-4">Templates sent automatically as an order moves through its lifecycle</p>
+      <p className="text-xs text-muted-foreground mb-4">Templates sent automatically as an order moves through its lifecycle</p>
       <div className="flex flex-col gap-3">
         {templates.map((t) => (
           <div key={t.id} className="flex items-start justify-between gap-4 border border-line rounded-xl p-4">
@@ -1178,7 +1177,7 @@ function MessagingView({ templates, onToggle }: { templates: MessageTemplate[]; 
                 <span className="font-bold text-sm text-ink">{t.trigger}</span>
                 <Pill status="blue" label={t.channel} />
               </div>
-              <p className="text-xs text-muted mt-1.5 max-w-xl font-mono">{t.body}</p>
+              <p className="text-xs text-muted-foreground mt-1.5 max-w-xl font-mono">{t.body}</p>
             </div>
             <button onClick={() => onToggle(t.id)} className={`flex-none w-11 h-6 rounded-full relative transition-colors ${t.active ? 'bg-orange' : 'bg-line'}`}>
               <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${t.active ? 'translate-x-5' : 'translate-x-0.5'}`} />
@@ -1204,7 +1203,7 @@ function ReportsView({ analytics, riders }: { analytics?: AdminAnalytics; riders
       <div className="grid lg:grid-cols-2 gap-6">
         <section className="bg-white border border-line rounded-2xl p-5">
           <h2 className="font-display font-bold text-base mb-1">Orders by Status</h2>
-          <p className="text-xs text-muted mb-4">Current distribution, network-wide</p>
+          <p className="text-xs text-muted-foreground mb-4">Current distribution, network-wide</p>
           <div className="flex flex-col gap-2.5">
             {statusEntries.map(([status, count]) => (
               <div key={status}>
@@ -1212,13 +1211,13 @@ function ReportsView({ analytics, riders }: { analytics?: AdminAnalytics; riders
                 <div className="h-1.5 bg-line rounded-full overflow-hidden"><div className="h-full bg-orange" style={{ width: `${(count / maxStatus) * 100}%` }} /></div>
               </div>
             ))}
-            {statusEntries.length === 0 && <div className="text-sm text-muted">No data yet.</div>}
+            {statusEntries.length === 0 && <div className="text-sm text-muted-foreground">No data yet.</div>}
           </div>
         </section>
 
         <section className="bg-white border border-line rounded-2xl p-5">
           <h2 className="font-display font-bold text-base mb-1">Orders by Booking Channel</h2>
-          <p className="text-xs text-muted mb-4">Where orders are coming from</p>
+          <p className="text-xs text-muted-foreground mb-4">Where orders are coming from</p>
           <StatStrip items={channelEntries.map(([channel, count]) => ({ num: count, label: titleStatus(channel) }))} />
         </section>
       </div>
@@ -1227,7 +1226,7 @@ function ReportsView({ analytics, riders }: { analytics?: AdminAnalytics; riders
         <section className="bg-white border border-line rounded-2xl p-5">
           <h2 className="font-display font-bold text-base mb-1">Top Riders (by rating)</h2>
           <table className="w-full text-sm mt-3">
-            <thead><tr className="text-left text-muted text-xs border-b border-line"><th className="py-2">Rider</th><th className="py-2">Rating</th><th className="py-2">Success</th></tr></thead>
+            <thead><tr className="text-left text-muted-foreground text-xs border-b border-line"><th className="py-2">Rider</th><th className="py-2">Rating</th><th className="py-2">Success</th></tr></thead>
             <tbody>
               {topRiders.map((r) => (
                 <tr key={r.name} className="border-b border-line last:border-0">
@@ -1250,7 +1249,7 @@ function ReportsView({ analytics, riders }: { analytics?: AdminAnalytics; riders
                 <div className="h-1.5 bg-line rounded-full overflow-hidden"><div className="h-full bg-[#B7BEC9]" style={{ width: `${c.lastWeek}%` }} /></div>
               </div>
             ))}
-            <div className="text-xs text-muted mt-1"><span className="text-orange font-bold">■</span> This week &nbsp; <span className="text-[#B7BEC9] font-bold">■</span> Last week</div>
+            <div className="text-xs text-muted-foreground mt-1"><span className="text-orange font-bold">■</span> This week &nbsp; <span className="text-[#B7BEC9] font-bold">■</span> Last week</div>
           </div>
         </section>
       </div>
@@ -1265,7 +1264,7 @@ function AlertsView({ alerts }: { alerts: AdminAlert[] }) {
   return (
     <section className="bg-white border border-line rounded-2xl p-5">
       <h2 className="font-display font-bold text-base mb-1">Alerts & Notifications</h2>
-      <p className="text-xs text-muted mb-4">Everything flagged for super admin review</p>
+      <p className="text-xs text-muted-foreground mb-4">Everything flagged for super admin review</p>
       <div className="flex flex-col gap-2.5">
         {alerts.map((a, i) => <AlertCard key={i} alert={a} />)}
       </div>
@@ -1282,8 +1281,8 @@ function AlertCard({ alert }: { alert: AdminAlert }) {
       </div>
       <div>
         <div className="font-bold text-sm text-ink">{alert.title}</div>
-        <div className="text-xs text-muted mt-0.5">{alert.msg}</div>
-        <div className="text-xs text-muted/70 mt-1">{alert.time}</div>
+        <div className="text-xs text-muted-foreground mt-0.5">{alert.msg}</div>
+        <div className="text-xs text-muted-foreground/70 mt-1">{alert.time}</div>
       </div>
     </div>
   );
@@ -1301,7 +1300,7 @@ function SettingsView({ toast }: { toast: (msg: string) => void }) {
   return (
     <section className="bg-white border border-line rounded-2xl p-5 max-w-2xl">
       <h2 className="font-display font-bold text-base mb-1">Network Defaults</h2>
-      <p className="text-xs text-muted mb-5">These apply to every branch unless a branch overrides them</p>
+      <p className="text-xs text-muted-foreground mb-5">These apply to every branch unless a branch overrides them</p>
       <form onSubmit={(e) => { e.preventDefault(); toast('Settings saved.'); }} className="flex flex-col gap-4">
         <Field label="Default currency">
           <select className={inputCls} value={currency} onChange={(e) => setCurrency(e.target.value)}>
@@ -1315,7 +1314,7 @@ function SettingsView({ toast }: { toast: (msg: string) => void }) {
         <div className="flex items-center justify-between border border-line rounded-xl p-4">
           <div>
             <div className="font-bold text-sm text-ink">Automatic rider assignment</div>
-            <div className="text-xs text-muted mt-0.5">When on, new orders are matched to riders automatically using the active assignment rules.</div>
+            <div className="text-xs text-muted-foreground mt-0.5">When on, new orders are matched to riders automatically using the active assignment rules.</div>
           </div>
           <button type="button" onClick={() => setAutoAssign((v) => !v)} className={`flex-none w-11 h-6 rounded-full relative transition-colors ${autoAssign ? 'bg-orange' : 'bg-line'}`}>
             <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${autoAssign ? 'translate-x-5' : 'translate-x-0.5'}`} />
