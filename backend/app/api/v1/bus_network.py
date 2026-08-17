@@ -44,7 +44,9 @@ def gen_manifest_number() -> str:
 @router.get("/operators", response_model=list[BusOperatorOut])
 def list_operators(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    # Read access for the branch console (schedule/operator pickers) too -
+    # writing operators stays admin-only.
+    current_user: User = Depends(require_roles("admin", "super_admin", "staff", "manager")),
 ):
     return [BusOperatorOut.model_validate(o) for o in db.query(BusOperator).order_by(BusOperator.name).all()]
 
@@ -103,7 +105,8 @@ def _schedule_out(s: BusSchedule) -> BusScheduleOut:
 @router.get("/schedules", response_model=list[BusScheduleOut])
 def list_schedules(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    # Branch console needs the schedule picker when creating a manifest.
+    current_user: User = Depends(require_roles("admin", "super_admin", "staff", "manager")),
 ):
     return [
         _schedule_out(s)

@@ -79,9 +79,15 @@ def branch_location(
             status_code=400,
             detail="staff profile not found"
         )
-    # manager_lookup_id = staff_profile.user_id if staff_profile else current_user.id
-
-    branch = db.query(Branch).filter(Branch.manager_id == staff_profile.user_id).first()
+    # The branch a manager/staff member belongs to is linked through their
+    # staff profile's branch_id. `Branch.manager_id` is a legacy column that
+    # seeding never populates, so prefer branch_id and fall back to the
+    # legacy manager link before giving up.
+    branch = None
+    if staff_profile.branch_id:
+        branch = db.query(Branch).filter(Branch.id == staff_profile.branch_id).first()
+    if not branch:
+        branch = db.query(Branch).filter(Branch.manager_id == staff_profile.user_id).first()
 
     if not branch:
         raise HTTPException(
