@@ -97,6 +97,15 @@ class Order(Base, TimestampMixin):
     quantity = Column(Integer, nullable=True)
     unit_price = Column(Float, nullable=True)
 
+    # System 3 - Seller Portal. The single canonical "this is one of my
+    # parcels" link for a seller, set on every order booked through the
+    # seller portal (single booking, bulk upload) *and* every marketplace
+    # order (mirrors product.business_id there) - one column every seller
+    # query (dashboard, parcel list, returns) can filter on, instead of each
+    # needing to know which of several paths created the order.
+    seller_business_id = Column(UUID_TYPE, ForeignKey("businesses.id"), nullable=True, index=True)
+    seller_business = relationship("Business", foreign_keys=[seller_business_id])
+
     proof_of_delivery_url = Column(String(500), nullable=True)
     proof_of_delivery_recipient_name = Column(String(150), nullable=True)
 

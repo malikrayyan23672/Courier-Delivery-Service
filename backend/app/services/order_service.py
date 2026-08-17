@@ -128,6 +128,7 @@ def create_order(
     product_id: str | None = None,
     quantity: int | None = None,
     unit_price: float | None = None,
+    seller_business_id: str | None = None,
 ) -> Order:
     pickup_address = Address(**pickup.model_dump())
     dropoff_address = Address(**dropoff.model_dump())
@@ -184,6 +185,7 @@ def create_order(
         product_id=product_id,
         quantity=quantity,
         unit_price=unit_price,
+        seller_business_id=seller_business_id,
     )
     db.add(order)
     db.flush()

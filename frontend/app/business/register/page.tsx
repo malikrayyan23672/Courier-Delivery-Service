@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { Field } from '@/components/Field';
 import { OtpBoxes } from '@/components/OtpBoxes';
 import next from 'next';
-import { ApiError, registerBusinessUser } from '@/lib/api';
+import { ApiError, mediaUrl, registerBusinessUser, uploadCnicPhoto } from '@/lib/api';
 
 // ============================================================
 // TYPES & CONSTANTS
@@ -19,6 +19,7 @@ interface FormState {
   password: string;
   confirmPassword: string;
   cnic: string;
+  cnicPhotoUrl: string;
   businessName: string;
   businessType: string;
   regNumber: string;
@@ -41,7 +42,7 @@ interface FormState {
 }
 
 const INITIAL_FORM: FormState = {
-  fullName: '', location: '', estimatedMonthlyShipments: '', prefferedPickupTime: '', sellerEmail: '', phone: '', password: '', confirmPassword: '', cnic: '',
+  fullName: '', location: '', estimatedMonthlyShipments: '', prefferedPickupTime: '', sellerEmail: '', phone: '', password: '', confirmPassword: '', cnic: '', cnicPhotoUrl: '',
   businessName: '', businessType: '', regNumber: '', ntn: '', monthlyShipments: '',
   businessAddress: '', pickupAddress: '', city: '', province: '', postalCode: '', country: '', pickupTiming: '',
   codRequired: false, bankName: '', accountTitle: '', accountNumber: '', acceptTerms: false,
@@ -148,6 +149,65 @@ function PasswordField({
         <button type="button" onClick={() => setVisible((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground" aria-label="Toggle password visibility">
           <Icon path={ICONS.eye} />
         </button>
+      </div>
+      {error && <span className="text-[0.74rem] text-danger">{error}</span>}
+    </div>
+  );
+}
+
+function CnicPhotoField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
+    setError('');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Please choose a JPEG, PNG, or WebP image.');
+      return;
+    }
+    const objectUrl = URL.createObjectURL(file);
+    setPreview(objectUrl);
+    setUploading(true);
+    try {
+      const { url } = await uploadCnicPhoto(file);
+      onChange(url);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not upload CNIC photo.');
+      setPreview('');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const displaySrc = preview || (value ? mediaUrl(value) : '');
+
+  return (
+    <div className="mb-4 flex flex-col gap-1.5">
+      <label className="text-[0.82rem] font-semibold text-ink">CNIC Photo (optional)</label>
+      <div className="flex items-center gap-4">
+        {displaySrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={displaySrc} alt="CNIC" className="w-24 h-16 object-cover rounded-[10px] border-[1.5px] border-line" />
+        ) : (
+          <div className="w-24 h-16 rounded-[10px] border-[1.5px] border-dashed border-line flex items-center justify-center text-muted-foreground">
+            <Icon path={ICONS.idCard} size={20} />
+          </div>
+        )}
+        <div>
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            className="text-[0.8rem] font-bold text-orange hover:underline disabled:opacity-50"
+          >
+            {uploading ? 'Uploading…' : displaySrc ? 'Change photo' : 'Upload a photo of your CNIC'}
+          </button>
+          <p className="text-[0.7rem] text-muted-foreground mt-0.5">JPEG, PNG or WebP. Speeds up account verification.</p>
+        </div>
+        <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
       </div>
       {error && <span className="text-[0.74rem] text-danger">{error}</span>}
     </div>
@@ -303,6 +363,7 @@ export default function BusinessSignupPage() {
             email: form.sellerEmail,
             phone: form.phone,
             cnic: form.cnic,
+            cnic_photo_url: form.cnicPhotoUrl || undefined,
             password: form.password,
             business_name: form.businessName,
             business_type: form.businessType,
@@ -461,6 +522,9 @@ export default function BusinessSignupPage() {
                     <div className="sm:col-span-2">
                       <Field id="cnic" label="CNIC Number *" icon={<Icon path={ICONS.idCard} />} placeholder="#####-#######-#" maxLength={15}
                         value={form.cnic} onChange={(e) => set('cnic', formatCnic(e.target.value))} error={errors.cnic} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <CnicPhotoField value={form.cnicPhotoUrl} onChange={(url) => set('cnicPhotoUrl', url)} />
                     </div>
                   </div>
                 )}

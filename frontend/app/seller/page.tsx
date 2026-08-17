@@ -23,6 +23,13 @@ import {
   mediaUrl,
   listSellerMarketplaceOrders,
   getSellerRatings,
+  bookSellerOrder,
+  listSellerParcels,
+  getSellerParcelDetail,
+  bulkUploadTemplateUrl,
+  previewBulkUpload,
+  confirmBulkUpload,
+  listSellerReturns,
   SellerMe,
   SellerSettlement,
   SellerUpload,
@@ -32,6 +39,13 @@ import {
   Product,
   SellerMarketplaceOrder,
   RatingSummary,
+  SellerParcelRow,
+  SellerParcelDetail,
+  BulkUploadPreview,
+  BulkUploadRowPreview,
+  BulkUploadRow,
+  SellerReturnRow,
+  Order,
 } from '@/lib/api';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { TrendLine } from '@/components/charts/TrendLine';
@@ -53,11 +67,11 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Activity, AlertTriangle, BarChart3, Bell, ChevronDown, ChevronRight, CircleDollarSign,
-  ImagePlus, LayoutDashboard, Loader2, LogOut, MapPin, Menu, Package, Printer, Settings, Store, Truck,
-  Upload, X,
+  ImagePlus, LayoutDashboard, Loader2, LogOut, MapPin, Menu, Package, PackagePlus, PackageSearch,
+  Printer, Settings, Store, Truck, Undo2, Upload, X,
 } from 'lucide-react';
 
-type View = 'overview' | 'analytics' | 'settlements' | 'files' | 'rnp' | 'marketplace';
+type View = 'overview' | 'analytics' | 'settlements' | 'files' | 'rnp' | 'marketplace' | 'book' | 'parcels' | 'returns';
 
 const NAV_SECTIONS: { label: string; items: { view: View; label: string; icon: React.ReactNode }[] }[] = [
   { label: 'Command', items: [
@@ -65,21 +79,29 @@ const NAV_SECTIONS: { label: string; items: { view: View; label: string; icon: R
     { view: 'marketplace', label: 'Marketplace', icon: <Store className="h-4 w-4" /> },
     { view: 'analytics', label: 'Analytics', icon: <BarChart3 className="h-4 w-4" /> },
   ]},
+  { label: 'Shipping', items: [
+    { view: 'book', label: 'Book Shipment', icon: <PackagePlus className="h-4 w-4" /> },
+    { view: 'parcels', label: 'Parcels', icon: <PackageSearch className="h-4 w-4" /> },
+    { view: 'files', label: 'Bulk Orders', icon: <Upload className="h-4 w-4" /> },
+    { view: 'returns', label: 'Returns / RTO', icon: <Undo2 className="h-4 w-4" /> },
+  ]},
   { label: 'Financials', items: [
-    { view: 'settlements', label: 'COD Payouts', icon: <CircleDollarSign className="h-4 w-4" /> },
+    { view: 'settlements', label: 'COD Ledger', icon: <CircleDollarSign className="h-4 w-4" /> },
   ]},
   { label: 'Operations', items: [
-    { view: 'files', label: 'Bulk Orders', icon: <Upload className="h-4 w-4" /> },
     { view: 'rnp', label: 'RNP Points', icon: <MapPin className="h-4 w-4" /> },
   ]},
 ];
 
 const PAGE_META: Record<View, { title: string; sub: string }> = {
-  overview: { title: 'Overview', sub: 'Your wallet, payouts and business at a glance' },
+  overview: { title: 'Overview', sub: 'Total shipments, delivered, RTO and COD pending' },
   marketplace: { title: 'Marketplace', sub: 'Products, orders and buyer ratings' },
   analytics: { title: 'Analytics', sub: 'Shipment volume and RTO rate' },
-  settlements: { title: 'COD Payouts', sub: 'Guaranteed next-morning (T+1) settlements' },
-  files: { title: 'Bulk Orders', sub: 'Upload a CSV, Excel or Word order list' },
+  book: { title: 'Book Shipment', sub: 'Single parcel - AWB generated instantly' },
+  parcels: { title: 'Parcels', sub: 'Every parcel booked through this seller account' },
+  returns: { title: 'Returns / RTO', sub: 'Failed deliveries awaiting return, with SLA countdown' },
+  settlements: { title: 'COD Ledger', sub: 'Per-parcel COD: collected, reconciled, paid + payout history' },
+  files: { title: 'Bulk Orders', sub: 'CSV template, validate, preview, confirm' },
   rnp: { title: 'RNP Points', sub: 'Your neighbourhood drop / pick-up nodes' },
 };
 
@@ -336,6 +358,9 @@ function SellerContent() {
           {view === 'overview' && <OverviewTab token={token!} onNavigate={switchView} />}
           {view === 'marketplace' && <MarketplaceTab token={token!} />}
           {view === 'analytics' && <AnalyticsTab token={token!} />}
+          {view === 'book' && <BookShipmentTab token={token!} />}
+          {view === 'parcels' && <ParcelsTab token={token!} />}
+          {view === 'returns' && <ReturnsTab token={token!} />}
           {view === 'settlements' && <SettlementsTab token={token!} />}
           {view === 'files' && <FilesTab token={token!} />}
           {view === 'rnp' && <RnpTab token={token!} />}
@@ -348,16 +373,18 @@ function SellerContent() {
 function OverviewTab({ token, onNavigate }: { token: string; onNavigate: (v: View) => void }) {
   const [me, setMe] = useState<SellerMe | null>(null);
   const [summary, setSummary] = useState<{ pending_count: number; pending_amount: number } | null>(null);
+  const [analytics, setAnalytics] = useState<SellerAnalytics | null>(null);
   const [txns, setTxns] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([getSellerMe(token), getSellerSettlementSummary(token), getSellerTransactions(token)])
-      .then(([m, s, t]) => {
+    Promise.all([getSellerMe(token), getSellerSettlementSummary(token), getSellerTransactions(token), getSellerAnalytics(token)])
+      .then(([m, s, t, a]) => {
         setMe(m);
         setSummary(s);
         setTxns(t);
+        setAnalytics(a);
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load your account.'))
       .finally(() => setLoading(false));
@@ -367,6 +394,9 @@ function OverviewTab({ token, onNavigate }: { token: string; onNavigate: (v: Vie
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!me) return null;
 
+  const delivered = analytics?.status_counts.delivered ?? 0;
+  const rto = analytics?.status_counts.rto ?? 0;
+
   return (
     <div>
       {!me.verified && (
@@ -374,6 +404,27 @@ function OverviewTab({ token, onNavigate }: { token: string; onNavigate: (v: Vie
           Your phone number is not verified yet — please verify via OTP to fully activate your seller account.
         </div>
       )}
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div className="bg-white rounded-card shadow-card px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Shipments</p>
+          <p className="text-2xl font-bold text-navy mt-1">{analytics?.total_shipments ?? 0}</p>
+        </div>
+        <div className="bg-white rounded-card shadow-card px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Delivered</p>
+          <p className="text-2xl font-bold text-success mt-1">{delivered}</p>
+        </div>
+        <div className="bg-white rounded-card shadow-card px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">RTO</p>
+          <p className="text-2xl font-bold text-danger mt-1">{rto}</p>
+          <p className="text-xs text-muted-foreground mt-1">{analytics?.rto_rate ?? 0}% RTO rate</p>
+        </div>
+        <div className="bg-white rounded-card shadow-card px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">COD Pending</p>
+          <p className="text-2xl font-bold text-orange mt-1">Rs {(summary?.pending_amount || 0).toLocaleString()}</p>
+          <p className="text-xs text-muted-foreground mt-1">{summary?.pending_count ?? 0} orders</p>
+        </div>
+      </div>
 
       <div className="grid sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-card shadow-card px-5 py-4">
@@ -530,61 +581,160 @@ function SettlementsTab({ token }: { token: string }) {
 
 function FilesTab({ token }: { token: string }) {
   const [uploads, setUploads] = useState<SellerUpload[]>([]);
-  const [selected, setSelected] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [preview, setPreview] = useState<BulkUploadPreview | null>(null);
+  const [confirmResult, setConfirmResult] = useState<{ created_count: number; failed_count: number } | null>(null);
 
   function load() {
-    listSellerUploads(token)
-      .then(setUploads)
-      .catch(() => {});
+    listSellerUploads(token).then(setUploads).catch(() => {});
   }
 
-  useEffect(() => {
-    load();
-  }, [token]);
+  useEffect(() => { load(); }, [token]);
 
-  async function handleUpload(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selected) return;
-    setUploading(true);
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
     setError('');
     setNotice('');
+    setConfirmResult(null);
+    const isCsv = file.name.toLowerCase().endsWith('.csv');
+    if (!isCsv) {
+      // Excel/Word - no structured validate/preview pipeline yet, just stored for the AI platform to parse later.
+      setBusy(true);
+      try {
+        await uploadSellerFile(file, token);
+        setNotice(`Uploaded ${file.name}. The AI platform will parse it into draft orders.`);
+        load();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Upload failed.');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    setBusy(true);
     try {
-      await uploadSellerFile(selected, token);
-      setNotice(`Uploaded ${selected.name}. The AI platform will parse it into draft orders.`);
-      setSelected(null);
+      const result = await previewBulkUpload(file, token);
+      setPreview(result);
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Upload failed.');
+      setError(err instanceof ApiError ? err.message : 'Could not validate this file.');
     } finally {
-      setUploading(false);
+      setBusy(false);
     }
+  }
+
+  async function handleConfirm() {
+    if (!preview) return;
+    setBusy(true);
+    setError('');
+    try {
+      const validRows: BulkUploadRow[] = preview.rows.filter((r) => r.errors.length === 0).map((r) => ({
+        receiver_name: r.data.receiver_name,
+        receiver_phone: r.data.receiver_phone,
+        receiver_address: r.data.receiver_address,
+        receiver_city: r.data.receiver_city,
+        weight_kg: Number(r.data.weight_kg),
+        cod_amount: Number(r.data.cod_amount),
+      }));
+      const result = await confirmBulkUpload(preview.upload_id, validRows, token);
+      setConfirmResult(result);
+      setPreview(null);
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not confirm this upload.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (preview) {
+    return (
+      <div className="bg-white rounded-card shadow-card p-6">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div>
+            <h3 className="font-bold text-ink">Preview — {preview.valid_count} valid, {preview.error_count} with errors</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Rows with errors are skipped when you confirm - fix and re-upload if you need them booked too.</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setPreview(null)} className="text-sm font-semibold px-4 py-2 rounded-[10px] text-muted-foreground hover:text-ink transition-colors">Cancel</button>
+            <button onClick={handleConfirm} disabled={busy || preview.valid_count === 0} className="text-sm font-bold px-5 py-2.5 rounded-[10px] bg-navy text-white hover:bg-navy-light disabled:opacity-50 transition-colors">
+              {busy ? 'Booking…' : `Confirm & book ${preview.valid_count}`}
+            </button>
+          </div>
+        </div>
+        {error && <p className="text-sm text-danger mb-3">{error}</p>}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-left text-xs text-muted-foreground uppercase">
+                <th className="py-2 pr-3 font-semibold">Row</th>
+                <th className="py-2 pr-3 font-semibold">Receiver</th>
+                <th className="py-2 pr-3 font-semibold">Phone</th>
+                <th className="py-2 pr-3 font-semibold">City</th>
+                <th className="py-2 pr-3 font-semibold">Weight</th>
+                <th className="py-2 pr-3 font-semibold">COD</th>
+                <th className="py-2 font-semibold">Errors</th>
+              </tr>
+            </thead>
+            <tbody>
+              {preview.rows.map((r) => (
+                <tr key={r.row_number} className={`border-b border-line last:border-0 ${r.errors.length ? 'bg-[#FBEAE7]/40' : ''}`}>
+                  <td className="py-2 pr-3 text-muted-foreground">{r.row_number}</td>
+                  <td className="py-2 pr-3 text-ink">{r.data.receiver_name}</td>
+                  <td className="py-2 pr-3 text-ink">{r.data.receiver_phone}</td>
+                  <td className="py-2 pr-3 text-ink">{r.data.receiver_city}</td>
+                  <td className="py-2 pr-3 text-ink">{r.data.weight_kg}</td>
+                  <td className="py-2 pr-3 text-ink">{r.data.cod_amount}</td>
+                  <td className="py-2 text-danger text-xs">{r.errors.join('; ')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="grid lg:grid-cols-2 gap-6">
       <div className="bg-white rounded-card shadow-card p-6">
-        <h3 className="font-bold text-ink mb-1">Upload bulk orders</h3>
-        <p className="text-xs text-muted-foreground mb-4">CSV, Excel, or Word file of your orders. Raftaar&apos;s AI platform parses them into draft shipments.</p>
-        <form onSubmit={handleUpload} className="space-y-3">
-          <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-line rounded-[14px] px-6 py-8 text-center cursor-pointer hover:border-orange transition-colors">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-muted-foreground">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-            <span className="text-sm font-semibold text-ink">{selected ? selected.name : 'Click to choose a file'}</span>
-            <span className="text-xs text-muted-foreground">.csv · .xlsx · .xls · .doc · .docx (max 25MB)</span>
-            <input type="file" accept=".csv,.xlsx,.xls,.doc,.docx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={(e) => setSelected(e.target.files?.[0] || null)} />
-          </label>
-          {error && <p className="text-sm text-danger">{error}</p>}
-          {notice && <p className="text-sm text-success">{notice}</p>}
-          <button disabled={!selected || uploading} className="w-full text-sm font-bold px-5 py-3 rounded-[10px] bg-orange text-white hover:bg-orange-light disabled:opacity-50 transition-colors">
-            {uploading ? 'Uploading…' : 'Upload file'}
-          </button>
-        </form>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="font-bold text-ink">Upload bulk orders</h3>
+          <a href={bulkUploadTemplateUrl()} className="text-xs font-bold text-orange hover:underline">Download CSV template</a>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">A .csv built from the template is validated instantly - you&apos;ll preview every row before anything is booked. Excel/Word files are stored for Raftaar&apos;s AI platform to parse later.</p>
+        <label
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files?.[0]); }}
+          className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-[14px] px-6 py-8 text-center cursor-pointer transition-colors ${dragOver ? 'border-orange bg-[#FBF3EA]' : 'border-line hover:border-orange'}`}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-muted-foreground">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          <span className="text-sm font-semibold text-ink">{busy ? 'Processing…' : 'Drag & drop, or click to choose a file'}</span>
+          <span className="text-xs text-muted-foreground">.csv · .xlsx · .xls · .doc · .docx (max 25MB)</span>
+          <input
+            type="file"
+            disabled={busy}
+            accept=".csv,.xlsx,.xls,.doc,.docx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            className="hidden"
+            onChange={(e) => handleFile(e.target.files?.[0])}
+          />
+        </label>
+        {error && <p className="text-sm text-danger mt-3">{error}</p>}
+        {notice && <p className="text-sm text-success mt-3">{notice}</p>}
+        {confirmResult && (
+          <p className="text-sm text-success mt-3">
+            Booked {confirmResult.created_count} order{confirmResult.created_count === 1 ? '' : 's'}
+            {confirmResult.failed_count > 0 ? ` · ${confirmResult.failed_count} skipped` : ''}. See the Parcels tab.
+          </p>
+        )}
       </div>
 
       <div className="bg-white rounded-card shadow-card overflow-hidden">
@@ -600,7 +750,7 @@ function FilesTab({ token }: { token: string }) {
                 <tr key={u.id} className="border-b border-line last:border-0">
                   <td className="px-6 py-3.5 font-semibold text-ink">{u.original_filename}</td>
                   <td className="px-6 py-3.5 uppercase text-muted-foreground text-xs">{u.file_type || '—'}</td>
-                  <td className="px-6 py-3.5 text-muted-foreground text-xs">{u.status}</td>
+                  <td className="px-6 py-3.5 text-muted-foreground text-xs capitalize">{u.status}{u.row_count != null ? ` · ${u.row_count} rows` : ''}</td>
                   <td className="px-6 py-3.5 text-muted-foreground text-xs">
                     {u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
                   </td>
@@ -987,6 +1137,259 @@ function SellerRatingsSection({ token }: { token: string }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================== BOOK SHIPMENT ==============================
+
+function BookShipmentTab({ token }: { token: string }) {
+  const [form, setForm] = useState({ receiver_name: '', receiver_phone: '', receiver_address: '', receiver_city: '', weight_kg: '1', cod_amount: '' });
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [booked, setBooked] = useState<Order | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      const order = await bookSellerOrder({
+        receiver_name: form.receiver_name,
+        receiver_phone: form.receiver_phone,
+        receiver_address: form.receiver_address,
+        receiver_city: form.receiver_city,
+        weight_kg: Number(form.weight_kg),
+        cod_amount: Number(form.cod_amount),
+      }, token);
+      setBooked(order);
+      setForm({ receiver_name: '', receiver_phone: '', receiver_address: '', receiver_city: '', weight_kg: '1', cod_amount: '' });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not book this shipment.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="grid lg:grid-cols-2 gap-6">
+      <div className="bg-white rounded-card shadow-card p-6">
+        <h3 className="font-bold text-ink mb-1">Receiver details</h3>
+        <p className="text-xs text-muted-foreground mb-4">Rider collects from your pickup address on file and delivers to the receiver below.</p>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <input value={form.receiver_name} onChange={(e) => setForm({ ...form, receiver_name: e.target.value })} required placeholder="Receiver name" className={`${mpInputCls} w-full`} />
+          <input value={form.receiver_phone} onChange={(e) => setForm({ ...form, receiver_phone: e.target.value })} required placeholder="Receiver phone (03xxxxxxxxx)" className={`${mpInputCls} w-full`} />
+          <input value={form.receiver_address} onChange={(e) => setForm({ ...form, receiver_address: e.target.value })} required minLength={5} placeholder="Receiver address" className={`${mpInputCls} w-full`} />
+          <div className="grid grid-cols-3 gap-3">
+            <input value={form.receiver_city} onChange={(e) => setForm({ ...form, receiver_city: e.target.value })} required placeholder="City" className={mpInputCls} />
+            <input value={form.weight_kg} onChange={(e) => setForm({ ...form, weight_kg: e.target.value })} required type="number" min="0.1" step="0.1" placeholder="Weight (kg)" className={mpInputCls} />
+            <input value={form.cod_amount} onChange={(e) => setForm({ ...form, cod_amount: e.target.value })} required type="number" min="0" step="1" placeholder="COD amount (Rs)" className={mpInputCls} />
+          </div>
+          {error && <p className="text-sm text-danger">{error}</p>}
+          <button disabled={submitting} className="w-full text-sm font-bold px-5 py-3 rounded-[10px] bg-orange text-white hover:bg-orange-light disabled:opacity-50 transition-colors">
+            {submitting ? 'Booking…' : 'Book shipment'}
+          </button>
+        </form>
+      </div>
+
+      <div className="bg-white rounded-card shadow-card p-6 flex flex-col items-center justify-center text-center">
+        {booked ? (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wide text-success mb-3">AWB generated</p>
+            <Barcode value={booked.tracking_number} />
+            <p className="font-mono font-bold text-ink mt-2">{booked.tracking_number}</p>
+            <p className="text-sm text-muted-foreground mt-3">Rs {(booked.final_price ?? 0).toLocaleString()} total · COD Rs {(booked.unit_price ?? 0).toLocaleString()}</p>
+          </>
+        ) : (
+          <>
+            <PackagePlus className="w-10 h-10 text-line mb-3" />
+            <p className="text-sm text-muted-foreground">Your AWB and barcode will appear here the moment you book.</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================== PARCELS ==============================
+
+const PARCEL_STATUSES = ['created', 'assigned', 'picked_up', 'in_hub', 'in_transit', 'dest_hub', 'out_for_delivery', 'delivered', 'failed', 'rto', 'cancelled'];
+
+function ParcelsTab({ token }: { token: string }) {
+  const [parcels, setParcels] = useState<SellerParcelRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState('');
+  const [q, setQ] = useState('');
+  const [selected, setSelected] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    const handle = setTimeout(() => {
+      listSellerParcels(token, { status: status || undefined, q: q || undefined })
+        .then(setParcels)
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [token, status, q]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search tracking #, receiver name or phone…" className={`${mpInputCls} flex-1`} />
+        <select value={status} onChange={(e) => setStatus(e.target.value)} className={mpInputCls}>
+          <option value="">All statuses</option>
+          {PARCEL_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+        </select>
+      </div>
+
+      <div className="bg-white rounded-card shadow-card overflow-hidden">
+        {loading ? (
+          <p className="p-6 text-sm text-muted-foreground">Loading…</p>
+        ) : parcels.length === 0 ? (
+          <p className="p-6 text-sm text-muted-foreground">No parcels match this filter.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-left text-xs text-muted-foreground uppercase">
+                <th className="px-6 py-3 font-semibold">Tracking</th>
+                <th className="px-4 py-3 font-semibold">Receiver</th>
+                <th className="px-4 py-3 font-semibold">City</th>
+                <th className="px-4 py-3 font-semibold">Source</th>
+                <th className="px-4 py-3 font-semibold">COD</th>
+                <th className="px-6 py-3 font-semibold">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {parcels.map((p) => (
+                <tr key={p.id} onClick={() => setSelected(p.tracking_number)} className="border-b border-line last:border-0 cursor-pointer hover:bg-page transition-colors">
+                  <td className="px-6 py-3.5 font-mono text-xs text-ink">{p.tracking_number}</td>
+                  <td className="px-4 py-3.5 text-ink">{p.receiver_name || '—'}<span className="block text-xs text-muted-foreground">{p.receiver_phone}</span></td>
+                  <td className="px-4 py-3.5 text-muted-foreground">{p.dropoff_city || '—'}</td>
+                  <td className="px-4 py-3.5 text-muted-foreground capitalize">{p.source}</td>
+                  <td className="px-4 py-3.5 text-ink">{p.cod_amount != null ? `Rs ${p.cod_amount.toLocaleString()}` : '—'}</td>
+                  <td className="px-6 py-3.5">
+                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-[#FBF3EA] text-orange capitalize">{p.status.replace(/_/g, ' ')}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {selected && <ParcelDetailDialog trackingNumber={selected} token={token} onClose={() => setSelected(null)} />}
+    </div>
+  );
+}
+
+function ParcelDetailDialog({ trackingNumber, token, onClose }: { trackingNumber: string; token: string; onClose: () => void }) {
+  const [detail, setDetail] = useState<SellerParcelDetail | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    getSellerParcelDetail(trackingNumber, token).then(setDetail).catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load this parcel.'));
+  }, [trackingNumber, token]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-start md:items-center justify-center p-3 md:p-6 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-card shadow-card max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-ink font-mono">{trackingNumber}</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-ink"><X className="w-5 h-5" /></button>
+        </div>
+        {error ? (
+          <p className="text-sm text-danger">{error}</p>
+        ) : !detail ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-xs text-muted-foreground">Receiver</p><p className="text-ink font-semibold">{detail.receiver_name}</p><p className="text-xs text-muted-foreground">{detail.receiver_phone}</p></div>
+              <div><p className="text-xs text-muted-foreground">Status</p><p className="text-ink font-semibold capitalize">{detail.status.replace(/_/g, ' ')}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground">Deliver to</p><p className="text-ink">{detail.dropoff_full_address}</p></div>
+              <div><p className="text-xs text-muted-foreground">COD amount</p><p className="text-ink font-semibold">{detail.cod_amount != null ? `Rs ${detail.cod_amount.toLocaleString()}` : '—'}</p></div>
+              <div><p className="text-xs text-muted-foreground">Weight</p><p className="text-ink">{detail.package_weight_kg ?? '—'} kg</p></div>
+            </div>
+
+            {detail.last_lat != null && detail.last_lng != null && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Last scan location</p>
+                <iframe
+                  className="w-full h-48 rounded-[10px] border border-line"
+                  loading="lazy"
+                  src={`https://maps.google.com/maps?q=${detail.last_lat},${detail.last_lng}&z=14&output=embed`}
+                />
+              </div>
+            )}
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Timeline</p>
+              {detail.timeline.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No scans recorded yet.</p>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {detail.timeline.slice().reverse().map((e, i) => (
+                    <div key={i} className="flex items-start gap-2.5">
+                      <span className="w-2 h-2 rounded-full bg-orange mt-1.5 flex-none" />
+                      <div>
+                        <p className="text-sm font-semibold text-ink capitalize">{e.status.replace(/_/g, ' ')}</p>
+                        {e.note && <p className="text-xs text-muted-foreground">{e.note}</p>}
+                        <p className="text-xs text-muted-foreground">{e.created_at ? new Date(e.created_at).toLocaleString() : ''}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================== RETURNS / RTO ==============================
+
+function ReturnsTab({ token }: { token: string }) {
+  const [rows, setRows] = useState<SellerReturnRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    listSellerReturns(token).then(setRows).catch(() => {}).finally(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (rows.length === 0) return <div className="bg-white rounded-card shadow-card p-6 text-sm text-muted-foreground">No parcels awaiting return right now.</div>;
+
+  return (
+    <div className="bg-white rounded-card shadow-card overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-line text-left text-xs text-muted-foreground uppercase">
+            <th className="px-6 py-3 font-semibold">Tracking</th>
+            <th className="px-4 py-3 font-semibold">Receiver</th>
+            <th className="px-4 py-3 font-semibold">COD</th>
+            <th className="px-4 py-3 font-semibold">Batch</th>
+            <th className="px-6 py-3 font-semibold text-right">SLA</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} className="border-b border-line last:border-0">
+              <td className="px-6 py-3.5 font-mono text-xs text-ink">{r.tracking_number}</td>
+              <td className="px-4 py-3.5 text-ink">{r.receiver_name || '—'}<span className="block text-xs text-muted-foreground">{r.dropoff_city}</span></td>
+              <td className="px-4 py-3.5 text-ink">{r.cod_amount != null ? `Rs ${r.cod_amount.toLocaleString()}` : '—'}</td>
+              <td className="px-4 py-3.5 font-mono text-xs text-muted-foreground">{r.batch_id || 'Not yet batched'}</td>
+              <td className="px-6 py-3.5 text-right">
+                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${r.sla_breached ? 'bg-[#FBEAE7] text-danger' : r.sla_hours_left < 12 ? 'bg-[#FBF0DC] text-[#B9770E]' : 'bg-[#EAF7EF] text-success'}`}>
+                  {r.sla_breached ? 'SLA breached' : `${r.sla_hours_left}h left`}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

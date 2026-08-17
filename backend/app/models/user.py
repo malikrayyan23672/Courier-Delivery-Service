@@ -18,6 +18,7 @@ class User(Base, TimestampMixin):
     email = Column(String(150), unique=True, nullable=False, index=True)
     phone = Column(String(20), unique=True, nullable=False, index=True)
     cnic = Column(String(15), unique=True, default=None, nullable=True, index=True)
+    cnic_photo_url = Column(String(500), default=None, nullable=True)
     hashed_password = Column(String(255), nullable=False)
     avatar = Column(String(255), default=None, nullable=True)
 

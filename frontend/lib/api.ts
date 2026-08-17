@@ -128,6 +128,7 @@ export interface RegisterBusinessPayload{
   email: string;
   phone: string;
   cnic: string;
+  cnic_photo_url?: string;
   password: string;
   business_name: string;
   business_type: string;
@@ -154,6 +155,12 @@ export function registerBusinessUser(payload: RegisterBusinessPayload){
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export async function uploadCnicPhoto(file: File) {
+  const form = new FormData();
+  form.append('image', file);
+  return request<{ url: string }>('/auth/upload-cnic', { method: 'POST', body: form });
 }
 
 export function registerUser(payload: RegisterPayload) {
@@ -1202,6 +1209,133 @@ export function getSellerMarketplaceOrder(orderId: string, token: string) {
 
 export function getSellerRatings(token: string) {
   return request<RatingSummary>('/seller/ratings', { method: 'GET' }, token);
+}
+
+// ---- Seller: book / parcels / bulk upload / returns ----
+
+export interface SellerOrderCreatePayload {
+  receiver_name: string;
+  receiver_phone: string;
+  receiver_address: string;
+  receiver_city: string;
+  weight_kg: number;
+  cod_amount: number;
+}
+
+export function bookSellerOrder(payload: SellerOrderCreatePayload, token: string) {
+  return request<Order>('/seller/orders', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export interface SellerParcelRow {
+  id: string;
+  tracking_number: string;
+  status: string;
+  source: 'marketplace' | 'store';
+  receiver_name: string | null;
+  receiver_phone: string | null;
+  dropoff_city: string | null;
+  cod_amount: number | null;
+  created_at: string | null;
+}
+
+export function listSellerParcels(token: string, params?: { status?: string; q?: string }) {
+  const usp = new URLSearchParams();
+  if (params?.status) usp.set('status', params.status);
+  if (params?.q) usp.set('q', params.q);
+  const qs = usp.toString();
+  return request<SellerParcelRow[]>(`/seller/parcels${qs ? `?${qs}` : ''}`, { method: 'GET' }, token);
+}
+
+export interface SellerParcelTimelineEvent {
+  status: string;
+  note: string | null;
+  lat: number | null;
+  lng: number | null;
+  created_at: string | null;
+}
+
+export interface SellerParcelDetail {
+  id: string;
+  tracking_number: string;
+  status: string;
+  receiver_name: string | null;
+  receiver_phone: string | null;
+  dropoff_full_address: string | null;
+  pickup_full_address: string | null;
+  package_weight_kg: number | null;
+  cod_amount: number | null;
+  final_price: number | null;
+  created_at: string | null;
+  timeline: SellerParcelTimelineEvent[];
+  last_lat: number | null;
+  last_lng: number | null;
+}
+
+export function getSellerParcelDetail(trackingNumber: string, token: string) {
+  return request<SellerParcelDetail>(`/seller/parcels/${trackingNumber}`, { method: 'GET' }, token);
+}
+
+export function bulkUploadTemplateUrl() {
+  return `${API_ORIGIN}/api/v1/seller/bulk-upload/template`;
+}
+
+export interface BulkUploadRow {
+  receiver_name: string;
+  receiver_phone: string;
+  receiver_address: string;
+  receiver_city: string;
+  weight_kg: number;
+  cod_amount: number;
+}
+
+export interface BulkUploadRowPreview {
+  row_number: number;
+  data: Record<string, string>;
+  errors: string[];
+}
+
+export interface BulkUploadPreview {
+  upload_id: string;
+  valid_count: number;
+  error_count: number;
+  rows: BulkUploadRowPreview[];
+}
+
+export async function previewBulkUpload(file: File, token: string) {
+  const form = new FormData();
+  form.append('file', file);
+  return request<BulkUploadPreview>('/seller/bulk-upload/preview', { method: 'POST', body: form }, token);
+}
+
+export interface BulkUploadConfirmResult {
+  created_count: number;
+  failed_count: number;
+  tracking_numbers: string[];
+  failures: { row: number; error: string }[];
+}
+
+export function confirmBulkUpload(uploadId: string, rows: BulkUploadRow[], token: string) {
+  return request<BulkUploadConfirmResult>(
+    '/seller/bulk-upload/confirm',
+    { method: 'POST', body: JSON.stringify({ upload_id: uploadId, rows }) },
+    token
+  );
+}
+
+export interface SellerReturnRow {
+  id: string;
+  tracking_number: string;
+  receiver_name: string | null;
+  dropoff_city: string | null;
+  cod_amount: number | null;
+  rto_at: string | null;
+  sla_hours_left: number;
+  sla_breached: boolean;
+  batch_id: string | null;
+}
+
+export function listSellerReturns(token: string) {
+  return request<SellerReturnRow[]>('/seller/returns', { method: 'GET' }, token);
 }
 
 // ---- Hub Operations ----

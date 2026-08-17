@@ -12,6 +12,7 @@ class BusinessRegisterRequest(BaseModel):
     email: EmailStr
     phone: Optional[str] = Field(..., min_length=7, max_length=20)
     cnic: str = Field(..., min_length=13, max_length=20)
+    cnic_photo_url: Optional[str] = Field(None, max_length=500)
     password: str = Field(..., min_length=8, max_length=72)
     business_name: str = Field(..., min_length=2, max_length=150)
     business_type: str = Field(..., min_length=2, max_length=150)

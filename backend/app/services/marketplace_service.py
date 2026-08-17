@@ -64,6 +64,7 @@ def create_marketplace_order(
         product_id=str(product.id),
         quantity=quantity,
         unit_price=product.price,
+        seller_business_id=str(product.business_id),
     )
 
     # Simple check-then-decrement (matches this codebase's existing level of

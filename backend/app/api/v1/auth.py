@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
@@ -23,8 +23,21 @@ from app.core.security import (
     decode_token,
 )
 from app.services.otp_service import send_otp, verify_otp
+from app.utils.uploads import save_cnic_photo
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+
+@router.post("/upload-cnic")
+def upload_cnic_photo(image: UploadFile = File(...)):
+    """
+    Public (pre-account) upload for the CNIC photo step of seller onboarding -
+    there's no user id yet to scope it to. Returns the URL to include in the
+    /business/register payload as cnic_photo_url.
+    """
+    url_path = save_cnic_photo(image)
+    return {"url": url_path}
+
 
 @router.post("/business/register", status_code=status.HTTP_201_CREATED)
 def register_business(payload: BusinessRegisterRequest, db: Session = Depends(get_db)):
@@ -42,6 +55,7 @@ def register_business(payload: BusinessRegisterRequest, db: Session = Depends(ge
         email=payload.email,
         phone=payload.phone,
         cnic=payload.cnic,
+        cnic_photo_url=payload.cnic_photo_url,
         hashed_password=hash_password(payload.password),
         role_id=business_role.id,
         is_verified=False,
