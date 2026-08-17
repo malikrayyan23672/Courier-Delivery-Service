@@ -24,6 +24,8 @@ const STATUS_TO_COLOR: Record<string, string> = {
   cancelled: 'gray',
   // Manifest statuses (bus network)
   in_preparation: 'gray', arrived: 'green',
+  // Bus operator statuses
+  active: 'green', inactive: 'gray',
   // Dispute statuses (finance)
   open: 'amber', resolved: 'green', rejected: 'red',
 };

@@ -16,6 +16,10 @@ class BusOperatorOut(BusOperatorIn):
     id: str
 
 
+class BusOperatorStatusIn(BaseModel):
+    status: str  # active / inactive
+
+
 class BusScheduleIn(BaseModel):
     operator_id: str
     origin_city: str

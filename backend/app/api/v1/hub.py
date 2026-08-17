@@ -262,10 +262,59 @@ def hub_analytics(
     out_counts = {str(d): c for d, c in out_rows}
     all_days = sorted(set(in_counts) | set(out_counts))
 
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    parcels_in_today = (
+        db.query(func.count(TrackingEvent.id))
+        .join(Order, TrackingEvent.order_id == Order.id)
+        .filter(
+            Order.branch_id == bid,
+            TrackingEvent.status == OrderStatus.in_hub.value,
+            TrackingEvent.created_at >= today_start,
+        )
+        .scalar()
+        or 0
+    )
+    parcels_out_today = (
+        db.query(func.count(TrackingEvent.id))
+        .join(Order, TrackingEvent.order_id == Order.id)
+        .filter(
+            Order.branch_id == bid,
+            TrackingEvent.status == OrderStatus.in_transit.value,
+            TrackingEvent.created_at >= today_start,
+        )
+        .scalar()
+        or 0
+    )
+    on_bus = (
+        db.query(func.count(Order.id))
+        .filter(Order.branch_id == bid, Order.status == OrderStatus.in_transit)
+        .scalar()
+        or 0
+    )
+    pending = (
+        db.query(func.count(Order.id))
+        .filter(Order.branch_id == bid, Order.status == OrderStatus.picked_up)
+        .scalar()
+        or 0
+    )
+    rto = (
+        db.query(func.count(Order.id))
+        .filter(Order.branch_id == bid, Order.status == OrderStatus.rto)
+        .scalar()
+        or 0
+    )
+
     return {
         "daily": [
             {"date": d, "parcels_in": in_counts.get(d, 0), "parcels_out": out_counts.get(d, 0)}
             for d in all_days
         ],
         "vendor_scores": _vendor_scores(db, bid),
+        "snapshot": {
+            "parcels_in_today": parcels_in_today,
+            "parcels_out_today": parcels_out_today,
+            "on_bus": on_bus,
+            "pending": pending,
+            "rto": rto,
+        },
     }

@@ -33,12 +33,17 @@ import {
   createBusManifest,
   addManifestItem,
   updateManifestStatus,
+  listBusOperators,
+  createBusOperator,
+  deactivateBusOperator,
   HubOrderSummary,
   HubAgingOrder,
   HubManifestSummary,
   HubManifestItem,
   HubAnalytics,
+  HubSnapshot,
   BusSchedule,
+  BusOperator,
   VendorScore,
 } from '@/lib/api';
 import { ChartCard } from '@/components/charts/ChartCard';
@@ -345,11 +350,15 @@ export function BranchConsole() {
   }
 
   // ---- Manifests (outbound dispatch + inbound arrivals) ----
-  async function handleCreateManifest(scheduleId: string, coachNumber: string): Promise<string | undefined> {
+  async function handleCreateManifest(scheduleId: string, coachNumber: string, departureAt?: string): Promise<string | undefined> {
     if (!token) return undefined;
     setManifestBusy(true);
     try {
-      const created = await createBusManifest({ schedule_id: scheduleId || undefined, coach_number: coachNumber || undefined }, token);
+      const created = await createBusManifest({
+        schedule_id: scheduleId || undefined,
+        coach_number: coachNumber || undefined,
+        departure_at: departureAt ? new Date(departureAt).toISOString() : undefined,
+      }, token);
       toast('Manifest created.');
       loadHubData();
       return created.id;
@@ -669,7 +678,8 @@ export function BranchConsole() {
           {view === 'overview' && (
             <OverviewView managerProfile={managerProfile} branchDetails={branchDetails} pendingPickups={pendingPickups} pickedUpCount={pickedUpCount}
               outForDelivery={outForDelivery} deliveredCount={deliveredCount} failedDeliveries={failedDeliveries}
-              onlineRiders={onlineRiders} busyRiders={busyRiders} switchView={switchView} toast={toast} />
+              onlineRiders={onlineRiders} busyRiders={busyRiders} switchView={switchView} toast={toast}
+              hubAnalytics={hubAnalytics} inboundQueue={inboundQueue} rtoQueue={rtoQueue} hubLoading={hubLoading} />
           )}
 
           {view === 'pickups' && (
@@ -716,7 +726,12 @@ export function BranchConsole() {
             />
           )}
 
-          {view === 'vendors' && <VendorsView vendorScores={hubAnalytics?.vendor_scores ?? []} hubLoading={hubLoading} />}
+          {view === 'vendors' && (
+            <VendorsView
+              vendorScores={hubAnalytics?.vendor_scores ?? []} hubLoading={hubLoading}
+              token={token} canManage={role === 'admin' || role === 'super_admin'} onChanged={loadHubData}
+            />
+          )}
 
           {view === 'warehouse' && <WarehouseView shelfCells={shelfCells} agingParcels={agingParcels} hubLoading={hubLoading} />}
 
@@ -742,7 +757,7 @@ export function BranchConsole() {
 // ============================================================
 // VIEW: OVERVIEW
 // ============================================================
-function OverviewView({ managerProfile, branchDetails, pendingPickups, pickedUpCount, outForDelivery, deliveredCount, failedDeliveries, onlineRiders, busyRiders, switchView, toast }: any) {
+function OverviewView({ managerProfile, branchDetails, pendingPickups, pickedUpCount, outForDelivery, deliveredCount, failedDeliveries, onlineRiders, busyRiders, switchView, toast, hubAnalytics, inboundQueue, rtoQueue, hubLoading }: any) {
   const kpis = [
     { icon: <Package className="w-4.5 h-4.5" />, bg: '#2563EB', label: 'Total Shipments Today', num: 412, trend: '+8% vs yesterday', trendColor: '#1E8E5A' },
     { icon: <Clock className="w-4.5 h-4.5" />, bg: '#F2A93B', label: 'Pending Pickups', num: pendingPickups, trend: 'Needs assignment', trendColor: '#B8710A' },
@@ -810,6 +825,20 @@ function OverviewView({ managerProfile, branchDetails, pendingPickups, pickedUpC
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
         {kpis.map(({ icon, ...k }) => <KpiCard key={k.label} icon={icon} {...k} />)}
       </div>
+
+      <Card className="p-5">
+        <CardHeader className="p-0 mb-4">
+          <CardTitle className="text-base">Hub Snapshot</CardTitle>
+          <CardDescription>Parcels moving through this hub's network right now</CardDescription>
+        </CardHeader>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+          <KpiCard icon={<Package className="w-4.5 h-4.5" />} bg="#2563EB" label="Parcels In Today" num={hubLoading ? '—' : hubAnalytics?.snapshot?.parcels_in_today ?? 0} trend="received at hub" trendColor="#2563EB" />
+          <KpiCard icon={<Truck className="w-4.5 h-4.5" />} bg="#F2650D" label="Parcels Out Today" num={hubLoading ? '—' : hubAnalytics?.snapshot?.parcels_out_today ?? 0} trend="loaded & departed" trendColor="#C1550C" />
+          <KpiCard icon={<Bus className="w-4.5 h-4.5" />} bg="#1D3C8F" label="On Bus" num={hubLoading ? '—' : hubAnalytics?.snapshot?.on_bus ?? 0} trend="in transit right now" trendColor="#1D3C8F" />
+          <KpiCard icon={<Clock className="w-4.5 h-4.5" />} bg="#F2A93B" label="Pending" num={hubLoading ? '—' : hubAnalytics?.snapshot?.pending ?? 0} trend="awaiting hub scan" trendColor="#B8710A" />
+          <KpiCard icon={<Undo2 className="w-4.5 h-4.5" />} bg="#E6350F" label="RTOs" num={hubLoading ? '—' : hubAnalytics?.snapshot?.rto ?? 0} trend="awaiting return dispatch" trendColor="#E6350F" />
+        </div>
+      </Card>
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Card className="p-5">
@@ -1135,7 +1164,7 @@ function ManifestsView({
 }: {
   branchId?: string; manifestHistory: HubManifestSummary[]; schedules: BusSchedule[]; dispatchQueue: HubOrderSummary[];
   hubLoading: boolean; hubError: string; busy: boolean;
-  onCreateManifest: (scheduleId: string, coachNumber: string) => Promise<string | undefined>;
+  onCreateManifest: (scheduleId: string, coachNumber: string, departureAt?: string) => Promise<string | undefined>;
   onLoadCrate: (manifestId: string, trackingNumber: string, source: HubOrderSummary[], crateLabelPrefix?: string) => void;
   onDepart: (manifestId: string) => void;
   onArrive: (manifestId: string, scannedItemIds: string[]) => void;
@@ -1143,6 +1172,7 @@ function ManifestsView({
   const [showForm, setShowForm] = useState(false);
   const [scheduleId, setScheduleId] = useState('');
   const [coachNumber, setCoachNumber] = useState('');
+  const [departureAt, setDepartureAt] = useState('');
   const [crateInputs, setCrateInputs] = useState<Record<string, string>>({});
   const [checkedItems, setCheckedItems] = useState<Record<string, Set<string>>>({});
 
@@ -1181,9 +1211,10 @@ function ManifestsView({
                 <option key={s.id} value={s.id}>{s.origin_city} → {s.destination_city} · {s.operator_name || 'no operator'}</option>
               ))}
             </select>
-            <Input value={coachNumber} onChange={(e) => setCoachNumber(e.target.value)} placeholder="Coach / bus number" />
+            <Input type="datetime-local" value={departureAt} onChange={(e) => setDepartureAt(e.target.value)} placeholder="Departure time" />
+            <Input value={coachNumber} onChange={(e) => setCoachNumber(e.target.value)} placeholder="Coach / bus number" className="md:col-span-2" />
             <div className="flex gap-2 md:col-span-3">
-              <Button size="sm" disabled={busy} onClick={() => { onCreateManifest(scheduleId, coachNumber); setShowForm(false); setScheduleId(''); setCoachNumber(''); }}>Create</Button>
+              <Button size="sm" disabled={busy} onClick={() => { onCreateManifest(scheduleId, coachNumber, departureAt || undefined); setShowForm(false); setScheduleId(''); setCoachNumber(''); setDepartureAt(''); }}>Create</Button>
               <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
             </div>
             {outboundSchedules.length === 0 && (
@@ -1331,7 +1362,7 @@ function ReturnsView({
   rtoQueue, manifestHistory, hubLoading, busy, onCreateManifest, onLoadCrate, onDepart,
 }: {
   rtoQueue: HubOrderSummary[]; manifestHistory: HubManifestSummary[]; hubLoading: boolean; busy: boolean;
-  onCreateManifest: (scheduleId: string, coachNumber: string) => Promise<string | undefined>;
+  onCreateManifest: (scheduleId: string, coachNumber: string, departureAt?: string) => Promise<string | undefined>;
   onLoadCrate: (manifestId: string, trackingNumber: string, source: HubOrderSummary[], crateLabelPrefix?: string) => void;
   onDepart: (manifestId: string) => void;
 }) {
@@ -1434,32 +1465,140 @@ function ReturnsView({
 // ============================================================
 // VIEW: BUS VENDORS
 // ============================================================
-function VendorsView({ vendorScores, hubLoading }: { vendorScores: VendorScore[]; hubLoading: boolean }) {
+function VendorsView({
+  vendorScores, hubLoading, token, canManage, onChanged,
+}: {
+  vendorScores: VendorScore[]; hubLoading: boolean;
+  token: string | null; canManage: boolean; onChanged: () => void;
+}) {
+  const [operators, setOperators] = useState<BusOperator[]>([]);
+  const [form, setForm] = useState({ name: '', city: '', phone: '' });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  function loadOperators() {
+    if (!token) return;
+    listBusOperators(token).then(setOperators).catch(() => {});
+  }
+
+  useEffect(() => { loadOperators(); }, [token]);
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token) return;
+    setError('');
+    setNotice('');
+    setBusy(true);
+    try {
+      await createBusOperator({ name: form.name, city: form.city || null, contact_phone: form.phone || null, status: 'active' }, token);
+      setForm({ name: '', city: '', phone: '' });
+      setNotice('Operator added.');
+      loadOperators();
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not add operator.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemove(o: BusOperator) {
+    if (!token) return;
+    setError('');
+    setNotice('');
+    setBusy(true);
+    try {
+      await deactivateBusOperator(o.id, token);
+      setNotice(`${o.name} deactivated.`);
+      loadOperators();
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not deactivate operator.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <Card className="p-5">
-      <CardHeader className="p-0 mb-3">
-        <CardTitle className="text-base">Bus Operator On-Time Scores</CardTitle>
-        <CardDescription>Departures within 15 minutes of schedule, through this hub</CardDescription>
-      </CardHeader>
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/30"><TableHead>Operator</TableHead><TableHead>Manifests</TableHead><TableHead>On-Time</TableHead><TableHead>Score</TableHead></TableRow>
-        </TableHeader>
-        <TableBody>
-          {vendorScores.map((v) => (
-            <TableRow key={v.operator_id}>
-              <TableCell className="font-semibold text-ink">{v.operator_name}</TableCell>
-              <TableCell>{v.total}</TableCell>
-              <TableCell>{v.on_time}</TableCell>
-              <TableCell><Badge variant={v.on_time_pct >= 90 ? 'success' : v.on_time_pct >= 70 ? 'warning' : 'danger'}>{v.on_time_pct}%</Badge></TableCell>
-            </TableRow>
-          ))}
-          {!hubLoading && vendorScores.length === 0 && (
-            <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No dispatched manifests yet.</TableCell></TableRow>
-          )}
-        </TableBody>
-      </Table>
-    </Card>
+    <div className="flex flex-col gap-5">
+      {canManage && (
+        <div className="grid lg:grid-cols-2 gap-5">
+          <Card className="p-5">
+            <CardHeader className="p-0 mb-3">
+              <CardTitle className="text-base">Add bus operator</CardTitle>
+              <CardDescription>Register an inter-city bus vendor for this hub's corridors</CardDescription>
+            </CardHeader>
+            <form onSubmit={handleAdd} className="flex flex-col gap-2.5">
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="Operator name (e.g. Faisal Movers)" />
+              <div className="grid sm:grid-cols-2 gap-2.5">
+                <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="City" />
+                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Contact phone" />
+              </div>
+              {error && <p className="text-sm text-danger">{error}</p>}
+              {notice && <p className="text-sm text-success">{notice}</p>}
+              <div>
+                <Button type="submit" variant="navy" disabled={busy}>{busy ? 'Saving…' : 'Add operator'}</Button>
+              </div>
+            </form>
+          </Card>
+
+          <Card className="p-5">
+            <CardHeader className="p-0 mb-3">
+              <CardTitle className="text-base">Operators</CardTitle>
+              <CardDescription>Deactivate an operator to stop it appearing on new manifests</CardDescription>
+            </CardHeader>
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30"><TableHead>Name</TableHead><TableHead>City</TableHead><TableHead>Status</TableHead><TableHead className="text-right"></TableHead></TableRow>
+              </TableHeader>
+              <TableBody>
+                {operators.map((o) => (
+                  <TableRow key={o.id}>
+                    <TableCell className="font-semibold text-ink">{o.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{o.city || '—'}</TableCell>
+                    <TableCell><Pill status={o.status} /></TableCell>
+                    <TableCell className="text-right">
+                      {o.status !== 'inactive' && (
+                        <Button size="sm" variant="outline" className="text-danger" disabled={busy} onClick={() => handleRemove(o)}>Deactivate</Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {operators.length === 0 && (
+                  <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No operators yet.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        </div>
+      )}
+
+      <Card className="p-5">
+        <CardHeader className="p-0 mb-3">
+          <CardTitle className="text-base">Bus Operator On-Time Scores</CardTitle>
+          <CardDescription>Departures within 15 minutes of schedule, through this hub</CardDescription>
+        </CardHeader>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/30"><TableHead>Operator</TableHead><TableHead>Manifests</TableHead><TableHead>On-Time</TableHead><TableHead>Score</TableHead></TableRow>
+          </TableHeader>
+          <TableBody>
+            {vendorScores.map((v) => (
+              <TableRow key={v.operator_id}>
+                <TableCell className="font-semibold text-ink">{v.operator_name}</TableCell>
+                <TableCell>{v.total}</TableCell>
+                <TableCell>{v.on_time}</TableCell>
+                <TableCell><Badge variant={v.on_time_pct >= 90 ? 'success' : v.on_time_pct >= 70 ? 'warning' : 'danger'}>{v.on_time_pct}%</Badge></TableCell>
+              </TableRow>
+            ))}
+            {!hubLoading && vendorScores.length === 0 && (
+              <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No dispatched manifests yet.</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+    </div>
   );
 }
 

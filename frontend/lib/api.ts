@@ -805,6 +805,10 @@ export function createBusOperator(payload: BusOperatorCreate, token: string) {
   return request<BusOperator>('/admin/bus/operators', { method: 'POST', body: JSON.stringify(payload) }, token);
 }
 
+export function deactivateBusOperator(operatorId: string, token: string) {
+  return request<BusOperator>(`/admin/bus/operators/${operatorId}`, { method: 'PATCH', body: JSON.stringify({ status: 'inactive' }) }, token);
+}
+
 export function listBusSchedules(token: string) {
   return request<BusSchedule[]>('/admin/bus/schedules', { method: 'GET' }, token);
 }
@@ -1384,9 +1388,18 @@ export interface VendorScore {
   on_time_pct: number;
 }
 
+export interface HubSnapshot {
+  parcels_in_today: number;
+  parcels_out_today: number;
+  on_bus: number;
+  pending: number;
+  rto: number;
+}
+
 export interface HubAnalytics {
   daily: { date: string; parcels_in: number; parcels_out: number }[];
   vendor_scores: VendorScore[];
+  snapshot: HubSnapshot;
 }
 
 function branchQuery(branchId?: string) {
