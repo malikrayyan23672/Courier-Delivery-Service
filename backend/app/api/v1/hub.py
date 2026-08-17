@@ -14,6 +14,9 @@ from app.services.order_service import transition
 
 router = APIRouter(prefix="/hub", tags=["Hub Operations"])
 
+# Branch console access: branch staff, branch managers, and admin oversight.
+HUB_ROLES = ("staff", "admin", "super_admin", "manager")
+
 
 def _resolve_branch_id(current_user: User, branch_id: str | None) -> str:
     """Staff are always scoped to their own branch. Admin/super_admin can pass
@@ -71,7 +74,7 @@ def _vendor_scores(db: Session, branch_id: str) -> list[dict]:
 def inbound_queue(
     branch_id: str | None = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     """Parcels picked up and routed through this branch, not yet scanned in at the hub."""
     bid = _resolve_branch_id(current_user, branch_id)
@@ -90,7 +93,7 @@ def inbound_scan(
     tracking_number: str,
     branch_id: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     """The hub receiving scan: PICKED -> IN_HUB."""
     bid = _resolve_branch_id(current_user, branch_id)
@@ -104,11 +107,49 @@ def inbound_scan(
     return _order_summary(order)
 
 
+# Each action is what the scanner physically observed, and maps to exactly one
+# legal edge of the state machine. `transition()` rejects a scan that doesn't
+# match the parcel's current status, so a hub can't accidentally double-scan.
+_SCAN_ACTIONS = {
+    # action -> (target status, tracking note)
+    "in": (OrderStatus.in_hub, "received at this hub (picked -> in_hub)"),
+    "out": (OrderStatus.in_transit, "departed this branch on the bus network (in_hub -> in_transit)"),
+    "arrive": (OrderStatus.dest_hub, "arrived at destination hub (in_transit -> dest_hub)"),
+}
+
+
+@router.post("/scan")
+def hub_scan(
+    tracking_number: str,
+    action: str = Query("in", pattern="^(in|out|arrive)$"),
+    branch_id: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
+):
+    """
+    The hub scanner. One endpoint drives a parcel through the bus network:
+      - in     -> IN_HUB       (received at this hub)
+      - out    -> IN_TRANSIT   (out of this branch, on the bus)
+      - arrive -> DEST_HUB     (arrived at the destination hub)
+    Returns the parcel with its new status so the console can show the result.
+    """
+    bid = _resolve_branch_id(current_user, branch_id)
+    order = db.query(Order).filter(Order.tracking_number == tracking_number.strip().upper()).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="No parcel found with that tracking number")
+
+    target, note = _SCAN_ACTIONS[action]
+    transition(db, order, target, actor=current_user, note=f"Scanned {action} - {note} (branch {bid})")
+    db.commit()
+    db.refresh(order)
+    return {**_order_summary(order), "scan_action": action, "note": f"Scanned {action} - {note} (branch {bid})"}
+
+
 @router.get("/dispatch-queue")
 def dispatch_queue(
     branch_id: str | None = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     """Parcels scanned in at this branch, ready to be loaded onto an outbound manifest."""
     bid = _resolve_branch_id(current_user, branch_id)
@@ -126,7 +167,7 @@ def dispatch_queue(
 def manifest_history(
     branch_id: str | None = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     bid = _resolve_branch_id(current_user, branch_id)
     manifests = (
@@ -175,7 +216,7 @@ def manifest_history(
 def rto_queue(
     branch_id: str | None = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     """Parcels at this branch that exhausted delivery attempts and are awaiting a return dispatch."""
     bid = _resolve_branch_id(current_user, branch_id)
@@ -194,7 +235,7 @@ def aging_parcels(
     branch_id: str | None = Query(None),
     hours: float = Query(4.0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     bid = _resolve_branch_id(current_user, branch_id)
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
@@ -220,7 +261,7 @@ def aging_parcels(
 def vendor_scores(
     branch_id: str | None = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     bid = _resolve_branch_id(current_user, branch_id)
     return _vendor_scores(db, bid)
@@ -231,7 +272,7 @@ def hub_analytics(
     branch_id: str | None = Query(None),
     days: int = Query(14),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     bid = _resolve_branch_id(current_user, branch_id)
     since = datetime.now(timezone.utc) - timedelta(days=days)

@@ -115,6 +115,7 @@ USERS = [
     ("Bilal Customer", "bilal.customer@example.com", "03000000008", "6110100000008", "customer"),
     ("North Star Traders", "seller@raftaarexpress.com", "03000000009", "6110100000009", "business"),
     ("Finance Officer", "finance@raftaarexpress.com", "03000000010", "6110100000010", "finance"),
+    ("Branch Manager", "manager@raftaarexpress.com", "03000000011", "6110100000011", "manager"),
 ]
 
 ADDRESSES = [
@@ -241,6 +242,7 @@ def seed_profiles(db: Session, users, branches):
     profile_map = [
         ("rwp.staff@raftaarexpress.com", "STF-RWP-001", branches["Rawalpindi HQ"]),
         ("lhr.staff@raftaarexpress.com", "STF-LHR-001", branches["Lahore Central"]),
+        ("manager@raftaarexpress.com", "MGR-LHR-001", branches["Lahore Central"]),
     ]
     for email, code, branch in profile_map:
         get_or_create(

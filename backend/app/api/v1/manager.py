@@ -33,7 +33,7 @@ class BranchLocationOut(BaseModel):
 def my_profile(
     db: Session = Depends(get_db),
     # widened to match every role your branch console actually loads for
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
 ):
     # current_user.manager_profile never existed - the real relationship on
     # User is staff_profile. Admins have no staff_profile at all, so fall
@@ -47,7 +47,7 @@ def my_profile(
     )
 
 # @router.get('/branch/location', response_model=BranchLocationOut)
-# def branch_location(db: Session = Depends(get_db), current_user: User = Depends(require_roles("staff", "admin", "super_admin"))):
+# def branch_location(db: Session = Depends(get_db), current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager"))):
 
 #     branch = db.query(Branch).filter(Branch.manager_id == current_user.id).first()
 
@@ -69,7 +69,7 @@ def my_profile(
 @router.get('/branch/location', response_model=BranchLocationOut)
 def branch_location(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
 ):
     staff_profile = current_user.staff_profile
     # staff_profile = db.query(StaffProfile).filter(StaffProfile.id == staff_profile.id)

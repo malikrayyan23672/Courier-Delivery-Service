@@ -16,7 +16,7 @@ router = APIRouter(prefix="/staff", tags=["Staff Panel"])
 def book_walk_in_order(
     payload: StaffOrderCreateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
 ):
     """
     Staff books a courier on behalf of a walk-in customer.
@@ -66,7 +66,7 @@ from app.models.branch import Branch
 @router.get("/orders", response_model=list[OrderOut])
 def list_branch_orders(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
 ):
     staff_profile = current_user.staff_profile
     if not staff_profile or not staff_profile.branch_id:
@@ -78,7 +78,7 @@ def list_branch_orders(
 @router.get("/riders")
 def list_branch_zone_riders(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
 ):
     staff_profile = current_user.staff_profile
     if not staff_profile or not staff_profile.branch_id or not staff_profile.branch:
@@ -113,7 +113,7 @@ def staff_assign_rider(
     order_id: str,
     rider_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
 ):
     staff_profile = current_user.staff_profile
     if not staff_profile or not staff_profile.branch_id or not staff_profile.branch:

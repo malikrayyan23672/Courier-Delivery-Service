@@ -1438,6 +1438,27 @@ export function scanHubInbound(trackingNumber: string, token: string, branchId?:
   return request<HubOrderSummary>(`/hub/inbound/scan?${params.toString()}`, { method: 'POST' }, token);
 }
 
+export interface HubScanResult extends HubOrderSummary {
+  scan_action: string;
+  note: string;
+}
+
+export type HubScanAction = 'in' | 'out' | 'arrive';
+
+export function hubScan(
+  trackingNumber: string,
+  action: HubScanAction,
+  token: string,
+  branchId?: string
+) {
+  const params = new URLSearchParams({
+    tracking_number: trackingNumber,
+    action,
+    ...(branchId ? { branch_id: branchId } : {}),
+  });
+  return request<HubScanResult>(`/hub/scan?${params.toString()}`, { method: 'POST' }, token);
+}
+
 export function getHubDispatchQueue(token: string, branchId?: string) {
   return request<HubOrderSummary[]>(`/hub/dispatch-queue${branchQuery(branchId)}`, { method: 'GET' }, token);
 }
