@@ -11,6 +11,7 @@ import {
   getMarketplaceProduct,
   getMyProfile,
   checkoutMarketplaceOrder,
+  mediaUrl,
   ProductPublic,
   MyProfile,
 } from '@/lib/api';
@@ -99,7 +100,7 @@ export default function ProductDetailPage() {
               <div className="bg-white rounded-card shadow-card overflow-hidden h-72 md:h-96 flex items-center justify-center">
                 {product.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                  <img src={mediaUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-muted-foreground text-sm">No image</span>
                 )}

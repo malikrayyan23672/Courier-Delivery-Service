@@ -55,6 +55,40 @@ def save_seller_upload(business_id: str, file: UploadFile) -> tuple[str, str, st
     return f"/uploads/seller/{business_id}/{stored_filename}", stored_filename, ext
 
 
+def save_product_image(business_id: str, image: UploadFile) -> str:
+    """Validate and persist a marketplace product photo for a seller.
+
+    Returns the public URL path (served via the /uploads static mount) to
+    store on the product's image_url. Raises HTTPException on invalid input.
+    """
+    if image.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Product photo must be a JPEG, PNG, or WebP image.",
+        )
+
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    contents = image.file.read(max_bytes + 1)
+    if len(contents) > max_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Photo is too large - max {settings.MAX_UPLOAD_SIZE_MB}MB.",
+        )
+    if not contents:
+        raise HTTPException(status_code=400, detail="Uploaded photo is empty.")
+
+    ext = ALLOWED_IMAGE_TYPES[image.content_type]
+    folder = os.path.join(settings.UPLOAD_DIR, "products", str(business_id))
+    os.makedirs(folder, exist_ok=True)
+
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(folder, filename)
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    return f"/uploads/products/{business_id}/{filename}"
+
+
 def save_pod_photo(order_id: str, photo: UploadFile) -> str:
     """Validate and persist a proof-of-delivery photo for an order.
 

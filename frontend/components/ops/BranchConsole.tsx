@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   LayoutGrid, Package, Truck, Box, Warehouse, Bike, Users, MapPin, Map, BarChart3,
   Bell, Search, Menu, LogOut, Plus, Building2, AlertTriangle, CheckCircle2, Clock,
-  ArrowUpRight, Activity, PackageCheck, RefreshCw, ChevronRight, Bus, Undo2, Star,
+  ArrowUpRight, Activity, PackageCheck, RefreshCw, ChevronRight, Bus, Undo2, Star, Printer,
 } from 'lucide-react';
 
 import { useAuth } from '@/context/AuthContext';
@@ -49,6 +49,7 @@ import {
   Pickup, Delivery,
 } from './branch-data';
 import { Pill, AvatarChip, KpiCard, StatStrip, Toasts } from './branch-ui';
+import { CameraScanButton } from '@/components/CameraScanner';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -1029,6 +1030,7 @@ function ParcelOpsView({
         </CardHeader>
         <div className="flex flex-col sm:flex-row gap-2.5">
           <Input type="text" placeholder="Enter or scan tracking number…" value={scanInput} onChange={(e) => setScanInput(e.target.value)} className="flex-1" />
+          <CameraScanButton onScan={setScanInput} />
           <Button onClick={onScan} variant="navy" disabled={scanning}>{scanning ? 'Scanning…' : 'Scan Incoming'}</Button>
           <Button onClick={() => switchView('manifests')} variant="outline">Load onto manifest →</Button>
         </div>
@@ -1206,6 +1208,9 @@ function ManifestsView({
                 </div>
                 <div className="flex items-center gap-2">
                   <Pill status={m.status} />
+                  <Button size="sm" variant="outline" onClick={() => window.open(`/branch/print/manifest/${m.id}`, '_blank')}>
+                    <Printer className="w-3.5 h-3.5 mr-1.5" /> Print
+                  </Button>
                   <Button size="sm" disabled={busy || m.items.length === 0} onClick={() => onDepart(m.id)}>Depart ({m.items.length})</Button>
                 </div>
               </div>
@@ -1216,6 +1221,7 @@ function ManifestsView({
                   placeholder="Scan or enter tracking number to load…"
                   className="flex-1"
                 />
+                <CameraScanButton label="Scan" onScan={(v) => onLoadCrate(m.id, v, dispatchQueue)} />
                 <Button
                   type="button" variant="navy" disabled={busy}
                   onClick={() => { onLoadCrate(m.id, crateInputs[m.id] || '', dispatchQueue); setCrateInputs({ ...crateInputs, [m.id]: '' }); }}
@@ -1274,7 +1280,7 @@ function ManifestsView({
           </CardHeader>
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/30"><TableHead>Manifest</TableHead><TableHead>Route</TableHead><TableHead>Items</TableHead><TableHead>Status</TableHead></TableRow>
+              <TableRow className="bg-muted/30"><TableHead>Manifest</TableHead><TableHead>Route</TableHead><TableHead>Items</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow>
             </TableHeader>
             <TableBody>
               {departed.map((m) => (
@@ -1283,6 +1289,11 @@ function ManifestsView({
                   <TableCell className="text-muted-foreground">{m.origin_city} → {m.destination_city}</TableCell>
                   <TableCell>{m.item_count}</TableCell>
                   <TableCell><Pill status={m.status} /></TableCell>
+                  <TableCell className="text-right">
+                    <button onClick={() => window.open(`/branch/print/manifest/${m.id}`, '_blank')} title="Print manifest" className="p-1.5 rounded-md border border-line text-muted-foreground hover:text-navy hover:border-navy transition-colors">
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -1392,6 +1403,7 @@ function ReturnsView({
         </div>
         <div className="flex flex-col sm:flex-row gap-2.5">
           <Input value={scanInput} onChange={(e) => setScanInput(e.target.value)} placeholder="Scan or enter RTO tracking number…" className="flex-1" />
+          <CameraScanButton label="Scan" onScan={(v) => selectedManifest && onLoadCrate(selectedManifest, v, rtoQueue, 'RTO-')} />
           <Button
             variant="navy" disabled={busy || !selectedManifest}
             onClick={() => { onLoadCrate(selectedManifest, scanInput, rtoQueue, 'RTO-'); setScanInput(''); }}

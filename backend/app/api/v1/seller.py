@@ -15,7 +15,7 @@ from app.models.rnp import RNPPartner
 from app.models.seller_upload import SellerUpload
 from app.models.wallet import WalletTransaction
 from app.models.settlement import Settlement
-from app.utils.uploads import save_seller_upload
+from app.utils.uploads import save_seller_upload, save_product_image
 from app.schemas.seller import SellerMeOut, SellerUploadOut
 from app.schemas.rnp import RNPCreateIn, RNPOut
 from app.schemas.wallet import WalletTransactionOut
@@ -244,6 +244,18 @@ def seller_products(
         .all()
     )
     return [ProductOut.model_validate(p) for p in rows]
+
+
+@router.post("/products/upload-image")
+def upload_product_image(
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("business")),
+):
+    """Uploads a product photo and returns its URL - call before create/update so the URL can be included in that payload."""
+    business = _require_business(db, current_user)
+    url_path = save_product_image(str(business.id), image)
+    return {"url": url_path}
 
 
 @router.post("/products", response_model=ProductOut, status_code=201)

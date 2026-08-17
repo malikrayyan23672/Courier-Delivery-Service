@@ -38,6 +38,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Printer } from 'lucide-react';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'secondary'> = {
   pending: 'warning',
@@ -507,6 +508,9 @@ function ManifestsSection({ token }: { token: string }) {
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={m.status} />
+                  <Button size="sm" variant="outline" onClick={() => window.open(`/branch/print/manifest/${m.id}`, '_blank')}>
+                    <Printer className="w-3.5 h-3.5 mr-1.5" /> Print
+                  </Button>
                   {m.status !== 'arrived' && (
                     <Button size="sm" onClick={() => handleScan(m.id, m.status === 'in_preparation' ? 'in_transit' : 'arrived', m.status === 'in_preparation' ? 'in_transit' : 'arrived')}>
                       {m.status === 'in_preparation' ? 'Depart' : 'Arrive'}

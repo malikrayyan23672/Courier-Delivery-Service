@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RoleGuard } from '@/components/RoleGuard';
@@ -19,6 +19,8 @@ import {
   listSellerProducts,
   createSellerProduct,
   updateSellerProduct,
+  uploadSellerProductImage,
+  mediaUrl,
   listSellerMarketplaceOrders,
   getSellerRatings,
   SellerMe,
@@ -37,6 +39,7 @@ import { StatusDonut } from '@/components/charts/StatusDonut';
 import { STATUS as STATUS_COLORS } from '@/components/charts/palette';
 import { Barcode } from '@/components/Barcode';
 import { StarDisplay } from '@/components/StarRating';
+import { ProductImageUpload } from '@/components/ImageUpload';
 
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -50,7 +53,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Activity, AlertTriangle, BarChart3, Bell, ChevronDown, ChevronRight, CircleDollarSign,
-  LayoutDashboard, LogOut, MapPin, Menu, Package, Printer, Settings, Store, Truck,
+  ImagePlus, LayoutDashboard, Loader2, LogOut, MapPin, Menu, Package, Printer, Settings, Store, Truck,
   Upload, X,
 } from 'lucide-react';
 
@@ -795,9 +798,12 @@ function ProductsSection({ token }: { token: string }) {
         <div className="bg-white rounded-card shadow-card p-6">
           <h3 className="font-bold text-ink mb-4">List a new product</h3>
           <form onSubmit={handleCreate} className="grid gap-3 md:grid-cols-2">
+            <div className="md:col-span-2 flex items-start gap-4">
+              <ProductImageUpload value={form.image_url} onChange={(url) => setForm({ ...form, image_url: url })} token={token} />
+              <p className="text-xs text-muted-foreground pt-1">JPEG, PNG or WebP, up to 8MB. This is what buyers see first on the marketplace.</p>
+            </div>
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="Product name" className={`${mpInputCls} md:col-span-2`} />
             <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Category" className={mpInputCls} />
-            <input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="Image URL (optional)" className={mpInputCls} />
             <input value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required type="number" min="1" step="0.01" placeholder="Price (PKR)" className={mpInputCls} />
             <input value={form.stock_quantity} onChange={(e) => setForm({ ...form, stock_quantity: e.target.value })} type="number" min="0" placeholder="Stock quantity" className={mpInputCls} />
             <input value={form.unit_weight_kg} onChange={(e) => setForm({ ...form, unit_weight_kg: e.target.value })} type="number" min="0.1" step="0.1" placeholder="Weight per unit (kg)" className={mpInputCls} />
@@ -820,7 +826,8 @@ function ProductsSection({ token }: { token: string }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs text-muted-foreground uppercase">
-                <th className="px-6 py-3 font-semibold">Product</th>
+                <th className="px-6 py-3 font-semibold"></th>
+                <th className="px-4 py-3 font-semibold">Product</th>
                 <th className="px-4 py-3 font-semibold">Price</th>
                 <th className="px-4 py-3 font-semibold">Stock</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
@@ -830,7 +837,10 @@ function ProductsSection({ token }: { token: string }) {
             <tbody>
               {products.map((p) => (
                 <tr key={p.id} className="border-b border-line last:border-0">
-                  <td className="px-6 py-3.5 font-semibold text-ink">{p.name}{p.category && <span className="block text-xs font-normal text-muted-foreground">{p.category}</span>}</td>
+                  <td className="pl-6 py-3">
+                    <ProductThumbnailCell product={p} token={token} onUpdated={load} />
+                  </td>
+                  <td className="px-4 py-3.5 font-semibold text-ink">{p.name}{p.category && <span className="block text-xs font-normal text-muted-foreground">{p.category}</span>}</td>
                   <td className="px-4 py-3.5 text-ink">Rs {p.price.toLocaleString()}</td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-1.5">
@@ -855,6 +865,44 @@ function ProductsSection({ token }: { token: string }) {
           </table>
         )}
       </div>
+    </div>
+  );
+}
+
+function ProductThumbnailCell({ product, token, onUpdated }: { product: Product; token: string; onUpdated: () => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const { url } = await uploadSellerProductImage(file, token);
+      await updateSellerProduct(product.id, { image_url: url }, token);
+      onUpdated();
+    } catch { /* keep the existing thumbnail on failure */ } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="relative w-11 h-11 rounded-lg overflow-hidden border border-line flex-none group bg-page">
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
+      {product.image_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={mediaUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-muted-foreground"><ImagePlus className="w-4 h-4" /></div>
+      )}
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        title="Change photo"
+        className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        {uploading ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" /> : <ImagePlus className="w-3.5 h-3.5 text-white" />}
+      </button>
     </div>
   );
 }

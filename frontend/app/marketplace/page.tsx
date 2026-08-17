@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { Logo } from '@/components/Logo';
 import { StarDisplay } from '@/components/StarRating';
-import { ApiError, listMarketplaceProducts, listMarketplaceCategories, ProductPublic } from '@/lib/api';
+import { ApiError, listMarketplaceProducts, listMarketplaceCategories, mediaUrl, ProductPublic } from '@/lib/api';
 import { Search } from 'lucide-react';
 
 export default function MarketplacePage() {
@@ -103,7 +103,7 @@ export default function MarketplacePage() {
                 <div className="h-40 bg-page flex items-center justify-center overflow-hidden">
                   {p.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                    <img src={mediaUrl(p.image_url)} alt={p.name} className="w-full h-full object-cover" />
                   ) : (
                     <span className="text-muted-foreground text-xs">No image</span>
                   )}

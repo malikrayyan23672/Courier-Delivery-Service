@@ -1,6 +1,14 @@
 import { json } from "stream/consumers";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+
+/** Resolves an uploaded file's path (e.g. product photos, POD photos) against the API origin - they're served by the backend, not the frontend, and aren't under /api/v1. Absolute URLs (a seller-pasted image link) pass through untouched. */
+export function mediaUrl(path: string | null | undefined): string {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_ORIGIN}${path.startsWith('/') ? '' : '/'}${path}`;
+}
 
 const ACCESS_TOKEN_KEY = 'raftaarexpress_access_token';
 const REFRESH_TOKEN_KEY = 'raftaarexpress_refresh_token';
@@ -829,6 +837,10 @@ export function addManifestItem(manifestId: string, orderId: string | undefined,
   );
 }
 
+export function getPublicManifest(manifestId: string) {
+  return request<BusManifest>(`/bus/manifests/${manifestId}`, { method: 'GET' });
+}
+
 export function updateManifestStatus(
   manifestId: string,
   status: string,
@@ -1125,6 +1137,12 @@ export function getCustomerRatingSummaryByPhone(phone: string) {
 
 export function listSellerProducts(token: string) {
   return request<Product[]>('/seller/products', { method: 'GET' }, token);
+}
+
+export async function uploadSellerProductImage(file: File, token: string) {
+  const form = new FormData();
+  form.append('image', file);
+  return request<{ url: string }>('/seller/products/upload-image', { method: 'POST', body: form }, token);
 }
 
 export function createSellerProduct(payload: ProductCreate, token: string) {

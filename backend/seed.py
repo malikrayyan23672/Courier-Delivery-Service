@@ -580,6 +580,15 @@ def seed_bus_network(db: Session, users, branches):
         )
         operators[name] = op
 
+    # City -> branch, so hub staff at each branch see the right corridors when
+    # creating an outbound manifest (BusSchedule.origin_branch_id) and the
+    # right arrivals to expect (destination_branch_id).
+    branch_by_city = {
+        "Rawalpindi": branches["Rawalpindi HQ"],
+        "Lahore": branches["Lahore Central"],
+        "Karachi": branches["Karachi Main"],
+    }
+
     schedules = {}
     for operator, origin, dest, time, interval in [
         ("Faisal Movers", "Rawalpindi", "Karachi", "06:30", 30),
@@ -597,8 +606,17 @@ def seed_bus_network(db: Session, users, branches):
                 "departure_interval_min": interval,
                 "fare": 3500,
                 "status": "active",
+                "origin_branch_id": branch_by_city[origin].id,
+                "destination_branch_id": branch_by_city[dest].id,
             },
         )
+        # get_or_create only applies defaults on insert - backfill on an
+        # already-seeded row too, so re-running seed.py against an older DB
+        # fixes it rather than leaving orphaned schedules.
+        if not sched.origin_branch_id:
+            sched.origin_branch_id = branch_by_city[origin].id
+        if not sched.destination_branch_id:
+            sched.destination_branch_id = branch_by_city[dest].id
         schedules[(operator, origin, dest)] = sched
 
     manifest, _ = get_or_create(
