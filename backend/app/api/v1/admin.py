@@ -23,7 +23,7 @@ from app.schemas.user import UserOut
 from app.schemas.zone import ZoneOut
 from app.schemas.zone import ZoneCreateRequest
 from app.services.order_service import transition
-from app.services.settlement_service import pending_cod_amount
+from app.services.settlement_service import pending_cod_amount, rider_wallet_limit, rider_wallet_warning_at
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -78,6 +78,10 @@ def list_riders(
             "vehicle_type": r.vehicle_type,
             "is_available": r.is_available,
             "rating": r.rating,
+            "cod_cash_held": round(r.cod_cash_held or 0.0, 2),
+            "cod_wallet_locked": r.cod_wallet_locked or False,
+            "wallet_limit": rider_wallet_limit(r),
+            "wallet_warning_at": rider_wallet_warning_at(r),
         }
         for r in riders
     ]

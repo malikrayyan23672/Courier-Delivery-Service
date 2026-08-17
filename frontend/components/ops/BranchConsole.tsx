@@ -15,6 +15,7 @@ import {
   listRiders,
   listStaffOrders,
   listStaffRiders,
+  updateRiderWallet,
   Order as ApiOrder,
   StaffRider,
   RiderCard,
@@ -249,6 +250,8 @@ export function BranchConsole() {
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
 
   const [riders, setRiders] = useState<RiderCard[]>([]);
+  const [staffRiders, setStaffRiders] = useState<StaffRider[]>([]);
+  const [ridersReload, setRidersReload] = useState(0);
   const [managerProfile, setManagerProfile] = useState<ManagerProfile>();
   const [branchDetails, setBranchDetails] = useState<BranchDetails>();
 
@@ -304,12 +307,13 @@ export function BranchConsole() {
         setPickups(mapOrdersToPickups(ordersData));
         setDeliveries(mapOrdersToDeliveries(ordersData));
         setRiders(mapApiRiders(ridersData));
+        setStaffRiders(ridersData);
       })
       .catch((err) => {
         setSyncError(err instanceof ApiError ? err.message : 'Could not sync branch data with backend.');
       })
       .finally(() => setSyncing(false));
-  }, [token, role]);
+  }, [token, role, ridersReload]);
 
   useEffect(() => {
     if (!token) return;
@@ -510,6 +514,50 @@ export function BranchConsole() {
       })
       .catch((err) => toast(err instanceof ApiError ? err.message : 'Scan failed.'))
       .finally(() => setScanning(false));
+  }
+
+  // ---- Rider COD wallet controls (branch manager + admin oversight) ----
+  async function handleWalletLock(riderId: string) {
+    if (!token) return;
+    const note = window.prompt('Audit note for locking this wallet (e.g. "Over limit, holds cash overnight"):') || '';
+    try {
+      await updateRiderWallet(riderId, 'lock', token, { note });
+      toast('Rider wallet locked.');
+      setRidersReload((r) => r + 1);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not lock wallet.');
+    }
+  }
+
+  async function handleWalletUnlock(riderId: string) {
+    if (!token) return;
+    const note = window.prompt('Audit note for unlocking (e.g. "Cash deposited at hub"):') || '';
+    try {
+      await updateRiderWallet(riderId, 'unlock', token, { note });
+      toast('Rider wallet unlocked, cash cleared.');
+      setRidersReload((r) => r + 1);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not unlock wallet.');
+    }
+  }
+
+  async function handleWalletSetLimit(riderId: string, current: number) {
+    if (!token) return;
+    const raw = window.prompt('New COD holding limit (PKR):', String(current));
+    if (!raw) return;
+    const limit = parseFloat(raw);
+    if (isNaN(limit) || limit < 0) {
+      toast('Enter a valid positive limit.');
+      return;
+    }
+    const note = window.prompt('Audit note (optional):') || undefined;
+    try {
+      await updateRiderWallet(riderId, 'set_limit', token, { note, wallet_limit: limit });
+      toast(`Wallet limit updated to PKR ${limit.toLocaleString()}.`);
+      setRidersReload((r) => r + 1);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update wallet limit.');
+    }
   }
 
   const meta = PAGE_META[view];
@@ -741,7 +789,13 @@ export function BranchConsole() {
 
           {view === 'warehouse' && <WarehouseView shelfCells={shelfCells} agingParcels={agingParcels} hubLoading={hubLoading} />}
 
-          {view === 'riders' && <RidersView riders={riders} onlineRiders={onlineRiders} busyRiders={busyRiders} offlineRiders={offlineRiders} toast={toast} />}
+          {view === 'riders' && (
+            <RidersView
+              riders={riders} onlineRiders={onlineRiders} busyRiders={busyRiders} offlineRiders={offlineRiders}
+              staffRiders={staffRiders} canManageWallet={role === 'manager' || role === 'admin' || role === 'super_admin'}
+              onLock={handleWalletLock} onUnlock={handleWalletUnlock} onSetLimit={handleWalletSetLimit} toast={toast}
+            />
+          )}
 
           {view === 'staff' && <StaffView />}
 
@@ -1726,7 +1780,8 @@ function WarehouseView({ shelfCells, agingParcels, hubLoading }: { shelfCells: (
 // ============================================================
 // VIEW: RIDERS
 // ============================================================
-function RidersView({ riders, onlineRiders, busyRiders, offlineRiders, toast }: any) {
+function RidersView({ riders, onlineRiders, busyRiders, offlineRiders, staffRiders, canManageWallet, onLock, onUnlock, onSetLimit, toast }: any) {
+  const walletRows = staffRiders || [];
   return (
     <>
       <StatStrip items={[
@@ -1735,6 +1790,78 @@ function RidersView({ riders, onlineRiders, busyRiders, offlineRiders, toast }: 
         { num: busyRiders, label: 'On Delivery' },
         { num: offlineRiders, label: 'Offline' },
       ]} />
+
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div>
+            <CardHeader className="p-0 mb-1">
+              <CardTitle className="text-base">COD Wallet Controls</CardTitle>
+              <CardDescription>Cash-in-hand per rider - lock holds their wallet, unlock clears the cash, and the limit sets the auto-lock ceiling</CardDescription>
+            </CardHeader>
+          </div>
+          {!canManageWallet && <Badge variant="secondary">Managers & admins can manage wallets</Badge>}
+        </div>
+        {walletRows.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4">No riders yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line">
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rider</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cash in hand</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Limit</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {walletRows.map((r: StaffRider) => {
+                  const pct = r.wallet_limit ? Math.min(100, (r.cod_cash_held / r.wallet_limit) * 100) : 0;
+                  return (
+                    <tr key={r.rider_id} className="border-b border-line last:border-0">
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-ink">{r.full_name}</div>
+                        <div className="text-xs text-muted-foreground">{r.phone}</div>
+                      </td>
+                      <td className="px-4 py-3 w-56">
+                        <div className="text-xs font-semibold text-ink mb-1">Rs {r.cod_cash_held.toLocaleString()} / {r.wallet_limit.toLocaleString()}</div>
+                        <div className="h-1.5 rounded-full bg-line overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: r.cod_wallet_locked ? '#E6350F' : pct >= 70 ? '#F2A93B' : '#1E8E5A' }} />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {canManageWallet ? (
+                          <Button size="sm" variant="outline" onClick={() => onSetLimit(r.rider_id, r.wallet_limit)}>
+                            Rs {r.wallet_limit.toLocaleString()} · Edit
+                          </Button>
+                        ) : (
+                          `Rs ${r.wallet_limit.toLocaleString()}`
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.cod_wallet_locked ? <Badge variant="danger">Locked</Badge> : pct >= 70 ? <Badge variant="warning">Near limit</Badge> : <Badge variant="success">OK</Badge>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {canManageWallet && (
+                          <div className="flex gap-2 justify-end">
+                            {r.cod_wallet_locked ? (
+                              <Button size="sm" variant="outline" className="text-success" onClick={() => onUnlock(r.rider_id)}>Unlock (cash deposited)</Button>
+                            ) : (
+                              <Button size="sm" variant="outline" className="text-danger" onClick={() => onLock(r.rider_id)}>Lock</Button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
       <Card className="p-5">
         <CardHeader className="p-0 mb-4">
           <CardTitle className="text-base">Rider Roster</CardTitle>

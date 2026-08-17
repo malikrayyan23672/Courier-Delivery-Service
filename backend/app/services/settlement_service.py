@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
+from fastapi import HTTPException
 from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session
 
@@ -13,10 +14,20 @@ from app.models.dispute import Dispute, DisputeStatus
 from app.services import log_service
 
 # Rider cash-in-hand COD wallet (TRD Layer 4). A rider can't accept new COD
-# once their held cash reaches the lock threshold - only a finance "unlock"
-# (cash deposited at hub) clears it.
+# once their held cash reaches the lock threshold - only a finance/branch
+# "unlock" (cash deposited at hub) clears it. Each rider can carry a personal
+# override (RiderProfile.cod_wallet_limit / cod_wallet_warning_at); when set,
+# it replaces these defaults.
 WALLET_LOCK_THRESHOLD = 30000.0
 WALLET_WARNING_THRESHOLD = 25000.0
+
+
+def rider_wallet_limit(rider) -> float:
+    return rider.cod_wallet_limit if getattr(rider, "cod_wallet_limit", None) else WALLET_LOCK_THRESHOLD
+
+
+def rider_wallet_warning_at(rider) -> float:
+    return rider.cod_wallet_warning_at if getattr(rider, "cod_wallet_warning_at", None) else WALLET_WARNING_THRESHOLD
 
 
 def create_cod_settlement(db: Session, order: Order, delivered_by: User | None = None) -> Settlement | None:
@@ -54,7 +65,7 @@ def create_cod_settlement(db: Session, order: Order, delivered_by: User | None =
 
     if order.rider:
         order.rider.cod_cash_held = (order.rider.cod_cash_held or 0.0) + amount
-        if order.rider.cod_cash_held >= WALLET_LOCK_THRESHOLD:
+        if order.rider.cod_cash_held >= rider_wallet_limit(order.rider):
             order.rider.cod_wallet_locked = True
 
     db.flush()
@@ -73,6 +84,40 @@ def unlock_rider_wallet(db: Session, rider, unlocked_by: User, note: str) -> Non
         entity_type="RiderProfile",
         entity_id=str(rider.id),
         details=f"Cleared PKR {previous_amount:.2f} cash-in-hand. Note: {note}",
+    )
+
+
+def lock_rider_wallet(db: Session, rider, locked_by: User, note: str) -> None:
+    """Freeze a rider's COD wallet (over the limit, dispute, hold). Always audited."""
+    if rider.cod_wallet_locked:
+        raise HTTPException(status_code=400, detail="This rider's wallet is already locked")
+    rider.cod_wallet_locked = True
+    log_service.create_log(
+        db,
+        action="rider_wallet_locked",
+        user_id=str(locked_by.id),
+        entity_type="RiderProfile",
+        entity_id=str(rider.id),
+        details=note or "Locked from branch console",
+    )
+
+
+def set_rider_wallet_limit(db: Session, rider, new_limit: float | None, updated_by: User, note: str | None = None) -> None:
+    """Tune a rider's COD holding limit. Tightening it below the cash currently
+    held auto-locks the wallet. Always audited."""
+    if new_limit is None or new_limit < 0:
+        raise HTTPException(status_code=400, detail="Wallet limit must be a positive number")
+    previous = rider_wallet_limit(rider)
+    rider.cod_wallet_limit = float(new_limit)
+    if rider.cod_cash_held and rider.cod_cash_held >= float(new_limit):
+        rider.cod_wallet_locked = True
+    log_service.create_log(
+        db,
+        action="rider_wallet_limit_updated",
+        user_id=str(updated_by.id),
+        entity_type="RiderProfile",
+        entity_id=str(rider.id),
+        details=f"Limit PKR {previous:.2f} -> {new_limit:.2f}" + (f" - {note}" if note else ""),
     )
 
 

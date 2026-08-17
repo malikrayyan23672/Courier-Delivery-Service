@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -8,9 +10,17 @@ from app.database import get_db
 from app.core.permissions import require_roles
 from app.models.user import User
 from app.models.order import Order, OrderStatus
+from app.models.rider import RiderProfile
 from app.models.tracking_event import TrackingEvent
 from app.models.bus_network import BusManifest, BusSchedule, ManifestItem, ManifestStatus
 from app.services.order_service import transition
+from app.services.settlement_service import (
+    rider_wallet_limit,
+    rider_wallet_warning_at,
+    lock_rider_wallet,
+    unlock_rider_wallet,
+    set_rider_wallet_limit,
+)
 
 router = APIRouter(prefix="/hub", tags=["Hub Operations"])
 
@@ -41,6 +51,24 @@ def _order_summary(order: Order) -> dict:
         "dropoff_city": order.dropoff_address.city if order.dropoff_address else None,
         "updated_at": order.updated_at,
     }
+
+
+def _rider_wallet_out(rider: RiderProfile) -> dict:
+    return {
+        "rider_id": str(rider.id),
+        "full_name": rider.user.full_name if rider.user else "Unknown",
+        "phone": rider.user.phone if rider.user else None,
+        "cod_cash_held": round(rider.cod_cash_held or 0.0, 2),
+        "cod_wallet_locked": rider.cod_wallet_locked or False,
+        "wallet_limit": rider_wallet_limit(rider),
+        "wallet_warning_at": rider_wallet_warning_at(rider),
+    }
+
+
+class RiderWalletUpdateIn(BaseModel):
+    action: Literal["lock", "unlock", "set_limit"]
+    note: Optional[str] = None
+    wallet_limit: Optional[float] = None
 
 
 def _vendor_scores(db: Session, branch_id: str) -> list[dict]:
@@ -359,3 +387,39 @@ def hub_analytics(
             "rto": rto,
         },
     }
+
+
+@router.patch("/riders/{rider_id}/wallet")
+def rider_wallet_update(
+    rider_id: str,
+    payload: RiderWalletUpdateIn,
+    db: Session = Depends(get_db),
+    # Financial control - branch managers and admin oversight only, not staff.
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+):
+    """Branch manager controls a rider's COD wallet:
+      - lock      freeze the wallet (over limit / hold) with an audit note
+      - unlock    cash deposited at hub - clears the hold and cash-in-hand
+      - set_limit adjust the rider's holding limit (tightening auto-locks)
+    Every action is written to the audit log.
+    """
+    rider = db.query(RiderProfile).options(joinedload(RiderProfile.user)).filter(RiderProfile.id == rider_id).first()
+    if not rider:
+        raise HTTPException(status_code=404, detail="Rider not found")
+
+    bid = _resolve_branch_id(current_user, None)
+    if rider.branch_id and str(rider.branch_id) != bid:
+        raise HTTPException(status_code=403, detail="This rider does not belong to your branch")
+
+    if payload.action == "lock":
+        lock_rider_wallet(db, rider, locked_by=current_user, note=payload.note or "")
+    elif payload.action == "unlock":
+        if not rider.cod_wallet_locked and not rider.cod_cash_held:
+            raise HTTPException(status_code=400, detail="This rider's wallet isn't locked or holding any cash")
+        unlock_rider_wallet(db, rider, unlocked_by=current_user, note=payload.note or "Cash deposited at hub")
+    else:  # set_limit
+        set_rider_wallet_limit(db, rider, payload.wallet_limit, updated_by=current_user, note=payload.note)
+
+    db.commit()
+    db.refresh(rider)
+    return _rider_wallet_out(rider)

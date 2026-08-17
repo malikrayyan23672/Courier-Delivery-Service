@@ -61,6 +61,7 @@ from app.models.rider import RiderProfile, RiderStatus
 from app.models.order import Order, OrderStatus
 from app.models.tracking_event import TrackingEvent
 from app.models.branch import Branch
+from app.services.settlement_service import rider_wallet_limit, rider_wallet_warning_at
 
 
 @router.get("/orders", response_model=list[OrderOut])
@@ -97,12 +98,16 @@ def list_branch_zone_riders(
 
     return [
         {
-            "rider_id": r.id,
+            "rider_id": str(r.id),
             "full_name": r.user.full_name,
             "phone": r.user.phone,
             "vehicle_type": r.vehicle_type,
             "is_available": r.is_available,
             "rating": r.rating,
+            "cod_cash_held": round(r.cod_cash_held or 0.0, 2),
+            "cod_wallet_locked": r.cod_wallet_locked or False,
+            "wallet_limit": rider_wallet_limit(r),
+            "wallet_warning_at": rider_wallet_warning_at(r),
         }
         for r in riders
     ]

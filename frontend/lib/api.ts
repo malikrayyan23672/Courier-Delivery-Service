@@ -351,6 +351,40 @@ export interface StaffRider {
   vehicle_type: string | null;
   is_available: boolean;
   rating: number;
+  cod_cash_held: number;
+  cod_wallet_locked: boolean;
+  wallet_limit: number;
+  wallet_warning_at: number;
+}
+
+export interface RiderWalletStatus {
+  rider_id: string;
+  full_name: string;
+  phone: string | null;
+  cod_cash_held: number;
+  cod_wallet_locked: boolean;
+  wallet_limit: number;
+  wallet_warning_at: number;
+}
+
+export function updateRiderWallet(
+  riderId: string,
+  action: 'lock' | 'unlock' | 'set_limit',
+  token: string,
+  payload?: { note?: string; wallet_limit?: number }
+) {
+  return request<RiderWalletStatus>(
+    `/hub/riders/${riderId}/wallet`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        action,
+        note: payload?.note,
+        wallet_limit: payload?.wallet_limit,
+      }),
+    },
+    token
+  );
 }
 
 export function listStaffRiders(token: string) {
@@ -485,6 +519,10 @@ export interface AdminRider {
   vehicle_type: string | null;
   is_available: boolean;
   rating: number;
+  cod_cash_held: number;
+  cod_wallet_locked: boolean;
+  wallet_limit: number;
+  wallet_warning_at: number;
 }
 
 export interface RiderCard{

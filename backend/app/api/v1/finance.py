@@ -22,8 +22,8 @@ from app.services.settlement_service import (
     cod_trend,
     sla_compliance,
     unlock_rider_wallet,
-    WALLET_LOCK_THRESHOLD,
-    WALLET_WARNING_THRESHOLD,
+    rider_wallet_limit,
+    rider_wallet_warning_at,
 )
 
 router = APIRouter(prefix="/finance", tags=["Finance & COD Engine"])
@@ -268,8 +268,8 @@ def list_rider_wallets(
             phone=r.user.phone if r.user else None,
             cod_cash_held=r.cod_cash_held or 0.0,
             cod_wallet_locked=r.cod_wallet_locked or False,
-            wallet_limit=WALLET_LOCK_THRESHOLD,
-            wallet_warning_at=WALLET_WARNING_THRESHOLD,
+            wallet_limit=rider_wallet_limit(r),
+            wallet_warning_at=rider_wallet_warning_at(r),
         )
         for r in riders
     ]
@@ -297,6 +297,6 @@ def unlock_rider_wallet_endpoint(
         phone=rider.user.phone if rider.user else None,
         cod_cash_held=rider.cod_cash_held or 0.0,
         cod_wallet_locked=rider.cod_wallet_locked or False,
-        wallet_limit=WALLET_LOCK_THRESHOLD,
-        wallet_warning_at=WALLET_WARNING_THRESHOLD,
+        wallet_limit=rider_wallet_limit(rider),
+        wallet_warning_at=rider_wallet_warning_at(rider),
     )
