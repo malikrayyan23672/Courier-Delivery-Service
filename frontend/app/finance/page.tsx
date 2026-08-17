@@ -12,6 +12,7 @@ import {
   getFinanceReconciliation,
   listDisputes,
   resolveDispute,
+  uploadDisputeEvidence,
   listRiderWallets,
   unlockRiderWallet,
   FinanceDashboard,
@@ -19,6 +20,7 @@ import {
   ReconciliationReport,
   Dispute,
   RiderWallet,
+  mediaUrl,
 } from '@/lib/api';
 import { CodSettlementsTab } from '@/app/admin/components';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -351,6 +353,7 @@ function DisputesTab({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   function load() {
     setLoading(true);
@@ -375,6 +378,19 @@ function DisputesTab({ token }: { token: string }) {
     }
   }
 
+  async function handleUploadEvidence(d: Dispute, file: File | null) {
+    if (!file) return;
+    setUploadingId(d.id);
+    try {
+      await uploadDisputeEvidence(d.id, file, token);
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not upload evidence.');
+    } finally {
+      setUploadingId(null);
+    }
+  }
+
   if (loading) return <Skeleton className="h-72 rounded-xl" />;
 
   const open = disputes.filter((d) => d.status === 'open');
@@ -391,14 +407,31 @@ function DisputesTab({ token }: { token: string }) {
             <p className="text-sm text-muted-foreground py-4">No open disputes.</p>
           ) : (
             open.map((d) => (
-              <div key={d.id} className="border border-line rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <div className="font-mono text-sm font-bold text-ink">{d.tracking_number || d.order_id}</div>
-                  <div className="text-xs text-muted-foreground">{d.company_name || 'Retail'} · {d.reason}</div>
+              <div key={d.id} className="border border-line rounded-lg p-4 flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="font-mono text-sm font-bold text-ink">{d.tracking_number || d.order_id}</div>
+                    <div className="text-xs text-muted-foreground">{d.company_name || 'Retail'} · {d.reason}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" disabled={resolvingId === d.id} onClick={() => handleResolve(d.id, false)}>Reject</Button>
+                    <Button size="sm" disabled={resolvingId === d.id} onClick={() => handleResolve(d.id, true)}>Resolve (release hold)</Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" disabled={resolvingId === d.id} onClick={() => handleResolve(d.id, false)}>Reject</Button>
-                  <Button size="sm" disabled={resolvingId === d.id} onClick={() => handleResolve(d.id, true)}>Resolve (release hold)</Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {d.evidence_urls.map((url) => (
+                    <a key={url} href={mediaUrl(url)} target="_blank" rel="noreferrer">
+                      <img src={mediaUrl(url)} alt="Dispute evidence" className="w-16 h-16 object-cover rounded-lg border border-line hover:opacity-80" />
+                    </a>
+                  ))}
+                  {uploadingId === d.id ? (
+                    <span className="text-xs text-muted-foreground">Uploading…</span>
+                  ) : (
+                    <label className="text-xs font-semibold text-primary cursor-pointer border border-dashed border-line rounded-lg px-3 py-2 hover:bg-muted/30">
+                      + Add evidence
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadEvidence(d, e.target.files?.[0] || null)} />
+                    </label>
+                  )}
                 </div>
               </div>
             ))
@@ -419,6 +452,7 @@ function DisputesTab({ token }: { token: string }) {
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tracking</th>
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Seller</th>
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Evidence</th>
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Note</th>
                   </tr>
                 </thead>
@@ -428,6 +462,15 @@ function DisputesTab({ token }: { token: string }) {
                       <td className="px-5 py-3 font-mono">{d.tracking_number || d.order_id}</td>
                       <td className="px-5 py-3 text-muted-foreground">{d.company_name || 'Retail'}</td>
                       <td className="px-5 py-3"><Badge variant={d.status === 'resolved' ? 'success' : 'secondary'} className="capitalize">{d.status}</Badge></td>
+                      <td className="px-5 py-3">
+                        {d.evidence_urls.length > 0 ? (
+                          <a href={mediaUrl(d.evidence_urls[0])} target="_blank" rel="noreferrer" className="text-xs font-semibold text-primary underline">
+                            {d.evidence_urls.length} file{d.evidence_urls.length > 1 ? 's' : ''}
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
                       <td className="px-5 py-3 text-muted-foreground">{d.resolution_note || '—'}</td>
                     </tr>
                   ))}

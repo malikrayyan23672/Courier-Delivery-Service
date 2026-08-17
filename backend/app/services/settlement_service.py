@@ -80,6 +80,7 @@ def settle_due_settlements(
     db: Session,
     settled_by: User,
     remark: str | None = None,
+    payout_method: str | None = None,
 ) -> tuple[list[Settlement], list[Settlement]]:
     """
     Manual T+1 settle: pays out every pending COD settlement that became due
@@ -129,6 +130,7 @@ def settle_due_settlements(
         settlement.settled_at = Settlement.due_now()
         settlement.settled_by_id = settled_by.id
         settlement.remark = remark
+        settlement.payout_method = payout_method
 
         if settlement.business:
             _credit_business_wallet(db, settlement, settled_by)

@@ -7,6 +7,7 @@ import {
   getSettlementSummary,
   settleT1,
   settleOne,
+  uploadSettlementReceipt,
   Settlement,
   listWallets,
   setWalletLock,
@@ -106,10 +107,20 @@ function CardLoader({ rows = 3 }: { rows?: number }) {
 
 // ============================== COD SETTLEMENTS ==============================
 
+const PAYOUT_METHODS = [
+  { value: 'bank_transfer', label: 'Bank transfer' },
+  { value: 'wallet', label: 'Seller wallet' },
+  { value: 'cheque', label: 'Cheque' },
+  { value: 'cash', label: 'Cash' },
+];
+
 export function CodSettlementsTab({ token }: { token: string }) {
   const [reload, setReload] = useState(0);
   const [statusFilter, setStatusFilter] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [methods, setMethods] = useState<Record<string, string>>({});
+  const [bulkMethod, setBulkMethod] = useState('');
   const [summary, setSummary] = useState<{ pending_count: number; pending_amount: number } | null>(null);
   const [result, setResult] = useState('');
   const [error, setError] = useState('');
@@ -135,9 +146,9 @@ export function CodSettlementsTab({ token }: { token: string }) {
     setError('');
     setResult('');
     try {
-      const res = await settleT1(token, 'T+1 manual settlement');
+      const res = await settleT1(token, { remark: 'T+1 manual settlement', payout_method: bulkMethod || undefined });
       setResult(
-        `Settled ${res.settled.length} payout(s). ${res.blocked.length ? `${res.blocked.length} held back (wallet locked).` : ''}`
+        `Settled ${res.settled.length} payout(s). ${res.blocked.length ? `${res.blocked.length} held back (wallet locked / dispute).` : ''}`
       );
       setReload((r) => r + 1);
     } catch (err) {
@@ -147,12 +158,28 @@ export function CodSettlementsTab({ token }: { token: string }) {
     }
   }
 
-  async function handleSettleOne(id: string) {
+  async function handleSettleOne(s: Settlement) {
     try {
-      await settleOne(id, token);
+      await settleOne(s.id, token, {
+        payout_method: methods[s.id] || undefined,
+        receipt_url: s.receipt_url || undefined,
+      });
       setReload((r) => r + 1);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not settle payout.');
+    }
+  }
+
+  async function handleUploadReceipt(s: Settlement, file: File | null) {
+    if (!file) return;
+    setUploadingId(s.id);
+    try {
+      await uploadSettlementReceipt(s.id, file, token);
+      setReload((r) => r + 1);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not upload receipt.');
+    } finally {
+      setUploadingId(null);
     }
   }
 
@@ -169,11 +196,17 @@ export function CodSettlementsTab({ token }: { token: string }) {
             <span className="text-sm font-semibold text-muted-foreground"> PKR · {summary?.pending_count ?? 0} orders</span>
           </p>
         </Card>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls}>
             <option value="">All statuses</option>
             <option value="pending">Pending</option>
             <option value="paid">Paid</option>
+          </select>
+          <select value={bulkMethod} onChange={(e) => setBulkMethod(e.target.value)} className={selectCls} aria-label="Batch payout method">
+            <option value="">Method (batch)</option>
+            {PAYOUT_METHODS.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
           </select>
           <Button onClick={handleSettleT1} disabled={busy || !summary?.pending_count}>
             {busy ? 'Settling…' : 'Settle T+1 (due now)'}
@@ -195,6 +228,8 @@ export function CodSettlementsTab({ token }: { token: string }) {
                   <th className={thCls}>Seller</th>
                   <th className={thCls}>Amount</th>
                   <th className={thCls}>Due (T+1)</th>
+                  <th className={thCls}>Payout method</th>
+                  <th className={thCls}>Receipt</th>
                   <th className={thCls}>Status</th>
                   <th className={thCls}>Action</th>
                 </tr>
@@ -208,10 +243,47 @@ export function CodSettlementsTab({ token }: { token: string }) {
                     <td className={`${tdCls} text-muted-foreground`}>
                       {s.settle_due_on ? new Date(s.settle_due_on).toDateString() : '—'}
                     </td>
+                    <td className={tdCls}>
+                      {s.status === 'pending' ? (
+                        <select
+                          value={methods[s.id] || ''}
+                          onChange={(e) => setMethods((m) => ({ ...m, [s.id]: e.target.value }))}
+                          className={selectCls}
+                          aria-label="Payout method"
+                        >
+                          <option value="">Method…</option>
+                          {PAYOUT_METHODS.map((m) => (
+                            <option key={m.value} value={m.value}>{m.label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-muted-foreground capitalize">{s.payout_method?.replace(/_/g, ' ') || '—'}</span>
+                      )}
+                    </td>
+                    <td className={tdCls}>
+                      {s.status === 'pending' ? (
+                        uploadingId === s.id ? (
+                          <span className="text-xs text-muted-foreground">Uploading…</span>
+                        ) : s.receipt_url ? (
+                          <a href={s.receipt_url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-primary underline">
+                            Receipt ✓
+                          </a>
+                        ) : (
+                          <label className="text-xs font-semibold text-primary cursor-pointer">
+                            Upload receipt
+                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadReceipt(s, e.target.files?.[0] || null)} />
+                          </label>
+                        )
+                      ) : s.receipt_url ? (
+                        <a href={s.receipt_url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-primary underline">Receipt ✓</a>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className={tdCls}><StatusBadge status={s.status} /></td>
                     <td className={tdCls}>
                       {s.status === 'pending' ? (
-                        <Button variant="outline" size="sm" className="text-primary" onClick={() => handleSettleOne(s.id)}>
+                        <Button variant="outline" size="sm" className="text-primary" onClick={() => handleSettleOne(s)}>
                           Settle now
                         </Button>
                       ) : (

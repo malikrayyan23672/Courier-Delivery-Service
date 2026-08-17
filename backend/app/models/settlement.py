@@ -46,6 +46,12 @@ class Settlement(Base, TimestampMixin):
     settled_by = relationship("User", foreign_keys=[settled_by_id])
     remark = Column(String(255), nullable=True)
 
+    # Payout method chosen per settlement (bank_transfer / wallet / cheque / cash)
+    # and an uploaded receipt proving the money left. Both are recorded by the
+    # finance role when a payout is marked paid - the audit log entry carries them.
+    payout_method = Column(String(50), nullable=True)
+    receipt_url = Column(String(300), nullable=True)
+
     order = relationship("Order", back_populates="settlement")
     payment = relationship("Payment", back_populates="settlement")
 

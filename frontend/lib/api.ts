@@ -642,6 +642,8 @@ export interface Settlement {
   status: string;
   settled_at: string | null;
   remark: string | null;
+  payout_method: string | null;
+  receipt_url: string | null;
   created_at: string | null;
 }
 
@@ -661,16 +663,37 @@ export function getSettlementSummary(token: string) {
   );
 }
 
-export function settleT1(token: string, remark?: string) {
+export function settleT1(
+  token: string,
+  payload?: { remark?: string; payout_method?: string }
+) {
   return request<{ settled: Settlement[]; blocked: Settlement[] }>(
-    `/admin/settlements/settle-t1${remark ? `?remark=${encodeURIComponent(remark)}` : ''}`,
-    { method: 'POST' },
+    '/admin/settlements/settle-t1',
+    { method: 'POST', body: JSON.stringify(payload ?? {}) },
     token
   );
 }
 
-export function settleOne(settlementId: string, token: string) {
-  return request<Settlement>(`/admin/settlements/${settlementId}/settle`, { method: 'POST' }, token);
+export function settleOne(
+  settlementId: string,
+  token: string,
+  payload?: { payout_method?: string; receipt_url?: string }
+) {
+  return request<Settlement>(
+    `/admin/settlements/${settlementId}/settle`,
+    { method: 'POST', body: JSON.stringify(payload ?? {}) },
+    token
+  );
+}
+
+export async function uploadSettlementReceipt(settlementId: string, file: File, token: string) {
+  const form = new FormData();
+  form.append('file', file);
+  return request<Settlement>(
+    `/admin/settlements/${settlementId}/receipt`,
+    { method: 'POST', body: form },
+    token
+  );
 }
 
 // ---- Seller Wallets (Layer 6: auto-lock + reconciliation) ----
@@ -1483,6 +1506,7 @@ export interface Dispute {
   raised_by_id: string;
   reason: string;
   status: string;
+  evidence_urls: string[];
   resolution_note: string | null;
   resolved_at: string | null;
   created_at: string | null;
@@ -1530,6 +1554,16 @@ export function resolveDispute(disputeId: string, accepted: boolean, note: strin
   return request<Dispute>(
     `/finance/disputes/${disputeId}/resolve`,
     { method: 'PATCH', body: JSON.stringify({ accepted, note }) },
+    token
+  );
+}
+
+export async function uploadDisputeEvidence(disputeId: string, file: File, token: string) {
+  const form = new FormData();
+  form.append('file', file);
+  return request<Dispute>(
+    `/finance/disputes/${disputeId}/evidence`,
+    { method: 'POST', body: form },
     token
   );
 }

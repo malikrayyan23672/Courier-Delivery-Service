@@ -123,6 +123,74 @@ def save_cnic_photo(image: UploadFile) -> str:
     return f"/uploads/cnic/{filename}"
 
 
+def save_dispute_evidence(dispute_id: str, file: UploadFile) -> str:
+    """Validate and persist an evidence image attached to a COD dispute.
+
+    Returns the public URL path to append to the dispute's evidence list.
+    Raises HTTPException on invalid input.
+    """
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Dispute evidence must be a JPEG, PNG, or WebP image.",
+        )
+
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    contents = file.file.read(max_bytes + 1)
+    if len(contents) > max_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Photo is too large - max {settings.MAX_UPLOAD_SIZE_MB}MB.",
+        )
+    if not contents:
+        raise HTTPException(status_code=400, detail="Uploaded photo is empty.")
+
+    ext = ALLOWED_IMAGE_TYPES[file.content_type]
+    folder = os.path.join(settings.UPLOAD_DIR, "disputes", str(dispute_id))
+    os.makedirs(folder, exist_ok=True)
+
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(folder, filename)
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    return f"/uploads/disputes/{dispute_id}/{filename}"
+
+
+def save_settlement_receipt(settlement_id: str, file: UploadFile) -> str:
+    """Validate and persist a payout receipt proving a COD settlement was paid out.
+
+    Returns the public URL path to store on the settlement's receipt_url.
+    Raises HTTPException on invalid input.
+    """
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Payout receipt must be a JPEG, PNG, or WebP image.",
+        )
+
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    contents = file.file.read(max_bytes + 1)
+    if len(contents) > max_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Photo is too large - max {settings.MAX_UPLOAD_SIZE_MB}MB.",
+        )
+    if not contents:
+        raise HTTPException(status_code=400, detail="Uploaded photo is empty.")
+
+    ext = ALLOWED_IMAGE_TYPES[file.content_type]
+    folder = os.path.join(settings.UPLOAD_DIR, "receipts", str(settlement_id))
+    os.makedirs(folder, exist_ok=True)
+
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(folder, filename)
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    return f"/uploads/receipts/{settlement_id}/{filename}"
+
+
 def save_pod_photo(order_id: str, photo: UploadFile) -> str:
     """Validate and persist a proof-of-delivery photo for an order.
 

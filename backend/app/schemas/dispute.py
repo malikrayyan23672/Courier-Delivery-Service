@@ -24,6 +24,7 @@ class DisputeOut(BaseModel):
     raised_by_id: str
     reason: str
     status: str
+    evidence_urls: list[str] = []
     resolution_note: Optional[str] = None
     resolved_at: Optional[datetime] = None
     created_at: Optional[datetime] = None

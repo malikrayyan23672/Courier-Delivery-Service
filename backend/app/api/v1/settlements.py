@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -6,9 +6,10 @@ from app.core.permissions import require_roles
 from app.models.user import User
 from app.models.settlement import Settlement, SettlementStatus
 from app.models.dispute import Dispute, DisputeStatus
-from app.schemas.settlement import SettlementOut, SettleResultOut
+from app.schemas.settlement import SettlementOut, SettleResultOut, SettleOneIn, SettleT1In
 from app.services import log_service
 from app.services.settlement_service import settle_due_settlements, pending_cod_amount
+from app.utils.uploads import save_settlement_receipt
 
 router = APIRouter(prefix="/admin/settlements", tags=["Admin - COD Settlements"])
 
@@ -25,6 +26,8 @@ def _to_out(s: Settlement) -> SettlementOut:
         status=s.status.value if hasattr(s.status, "value") else s.status,
         settled_at=s.settled_at,
         remark=s.remark,
+        payout_method=s.payout_method,
+        receipt_url=s.receipt_url,
         created_at=s.created_at,
     )
 
@@ -60,19 +63,22 @@ def settlement_summary(
 
 @router.post("/settle-t1", response_model=SettleResultOut)
 def settle_t1(
-    remark: str | None = None,
+    payload: SettleT1In | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin", "finance")),
 ):
     """
     Manual T+1 settlement. Pays out every pending COD order delivered on or
     before yesterday (settle_due_on <= today). Settlements whose seller wallet
-    is auto-locked are held back, not paid.
+    is auto-locked are held back, not paid. Optionally records the payout
+    method used for the whole batch and a remark.
     """
+    payload = payload or SettleT1In()
     paid, blocked = settle_due_settlements(
         db,
         settled_by=current_user,
-        remark=remark or "T+1 manual settlement",
+        remark=payload.remark or "T+1 manual settlement",
+        payout_method=payload.payout_method,
     )
     return SettleResultOut(
         settled=[_to_out(s) for s in paid],
@@ -83,6 +89,7 @@ def settle_t1(
 @router.post("/{settlement_id}/settle", response_model=SettlementOut)
 def settle_one(
     settlement_id: str,
+    payload: SettleOneIn | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin", "finance")),
 ):
@@ -114,6 +121,9 @@ def settle_one(
     settlement.settled_at = Settlement.due_now()
     settlement.settled_by_id = current_user.id
     settlement.remark = "Settled individually"
+    payload = payload or SettleOneIn()
+    settlement.payout_method = payload.payout_method
+    settlement.receipt_url = payload.receipt_url
 
     if settlement.business:
         settlement.business.wallet_balance = (settlement.business.wallet_balance or 0) + int(
@@ -135,7 +145,35 @@ def settle_one(
     log_service.create_log(
         db, action="settlement_paid", user_id=str(current_user.id),
         entity_type="Settlement", entity_id=str(settlement.id),
-        details=f"Paid PKR {settlement.amount:.2f} (individual settle)",
+        details=(
+            f"Paid PKR {settlement.amount:.2f} (individual settle, "
+            f"method={settlement.payout_method or 'default'}, "
+            f"receipt={settlement.receipt_url or 'none'})"
+        ),
+    )
+    db.refresh(settlement)
+    return _to_out(settlement)
+
+
+@router.post("/{settlement_id}/receipt", response_model=SettlementOut)
+def attach_settlement_receipt(
+    settlement_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin", "finance")),
+):
+    """Upload the payout receipt (bank slip / transfer proof) for a settlement."""
+    settlement = db.query(Settlement).filter(Settlement.id == settlement_id).first()
+    if not settlement:
+        raise HTTPException(status_code=404, detail="Settlement not found")
+    if settlement.status != SettlementStatus.pending:
+        raise HTTPException(status_code=400, detail="Receipts can only be attached to a pending payout")
+
+    settlement.receipt_url = save_settlement_receipt(str(settlement.id), file)
+    db.commit()
+    log_service.create_log(
+        db, action="settlement_receipt_uploaded", user_id=str(current_user.id),
+        entity_type="Settlement", entity_id=str(settlement.id), details=settlement.receipt_url,
     )
     db.refresh(settlement)
     return _to_out(settlement)

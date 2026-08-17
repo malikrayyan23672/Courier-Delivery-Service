@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, String, DateTime, ForeignKey, Enum, JSON
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -33,6 +33,10 @@ class Dispute(Base, TimestampMixin):
 
     raised_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=False)
     reason = Column(String(500), nullable=False)
+
+    # Evidence attached while a dispute is under review (receipts, parcel
+    # photos, delivery POV captures). URLs into the /uploads static mount.
+    evidence_urls = Column(JSON, default=list, nullable=True)
 
     status = Column(Enum(DisputeStatus, native_enum=False, length=20), default=DisputeStatus.open, index=True)
 

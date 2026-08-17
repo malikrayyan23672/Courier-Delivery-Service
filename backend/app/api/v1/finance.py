@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -16,6 +16,7 @@ from app.models.dispute import Dispute, DisputeStatus
 from app.schemas.dispute import DisputeOut, DisputeCreateIn, DisputeResolveIn
 from app.schemas.finance import RiderWalletOut, RiderWalletUnlockIn, FinanceDashboardOut
 from app.services import log_service
+from app.utils.uploads import save_dispute_evidence
 from app.services.settlement_service import (
     pending_cod_amount,
     cod_trend,
@@ -146,6 +147,7 @@ def _dispute_out(d: Dispute) -> DisputeOut:
         raised_by_id=str(d.raised_by_id),
         reason=d.reason,
         status=d.status.value if hasattr(d.status, "value") else d.status,
+        evidence_urls=list(d.evidence_urls or []),
         resolution_note=d.resolution_note,
         resolved_at=d.resolved_at,
         created_at=d.created_at,
@@ -220,6 +222,31 @@ def resolve_dispute(
         entity_type="Dispute",
         entity_id=str(dispute.id),
         details=payload.note,
+    )
+    db.refresh(dispute)
+    return _dispute_out(dispute)
+
+
+@router.post("/disputes/{dispute_id}/evidence", response_model=DisputeOut)
+def add_dispute_evidence(
+    dispute_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*FINANCE_ROLES)),
+):
+    """Attach an evidence photo (receipt, parcel photo, delivery capture) to a dispute under review."""
+    dispute = db.query(Dispute).filter(Dispute.id == dispute_id).first()
+    if not dispute:
+        raise HTTPException(status_code=404, detail="Dispute not found")
+    if dispute.status != DisputeStatus.open:
+        raise HTTPException(status_code=400, detail="Evidence can only be added to an open dispute")
+
+    evidence_url = save_dispute_evidence(str(dispute.id), file)
+    dispute.evidence_urls = list(dispute.evidence_urls or []) + [evidence_url]
+    db.commit()
+    log_service.create_log(
+        db, action="dispute_evidence_added", user_id=str(current_user.id),
+        entity_type="Dispute", entity_id=str(dispute.id), details=evidence_url,
     )
     db.refresh(dispute)
     return _dispute_out(dispute)

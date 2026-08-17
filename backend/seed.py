@@ -52,6 +52,7 @@ ROLES = [
     ("manager", "Manages branch operations"),
     ("business", "Seller/enterprise account with access to the seller portal"),
     ("super_admin", "Full system access including pricing and config"),
+    ("finance", "Manages COD settlements, payouts, rider wallets, and disputes"),
 ]
 
 STATUSES = [
@@ -113,6 +114,7 @@ USERS = [
     ("Ayesha Customer", "ayesha.customer@example.com", "03000000007", "6110100000007", "customer"),
     ("Bilal Customer", "bilal.customer@example.com", "03000000008", "6110100000008", "customer"),
     ("North Star Traders", "seller@raftaarexpress.com", "03000000009", "6110100000009", "business"),
+    ("Finance Officer", "finance@raftaarexpress.com", "03000000010", "6110100000010", "finance"),
 ]
 
 ADDRESSES = [

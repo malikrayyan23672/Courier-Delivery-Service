@@ -16,7 +16,19 @@ class SettlementOut(BaseModel):
     status: str
     settled_at: Optional[datetime] = None
     remark: Optional[str] = None
+    payout_method: Optional[str] = None
+    receipt_url: Optional[str] = None
     created_at: Optional[datetime] = None
+
+
+class SettleOneIn(BaseModel):
+    payout_method: Optional[str] = None  # bank_transfer / wallet / cheque / cash
+    receipt_url: Optional[str] = None    # uploaded proof of the payout
+
+
+class SettleT1In(BaseModel):
+    remark: Optional[str] = None
+    payout_method: Optional[str] = None  # applied to every payout in the batch
 
 
 class SettleResultOut(BaseModel):
