@@ -60,7 +60,7 @@ function PasswordField({
           <Icon path={ICONS.eye} />
         </button>
       </div>
-      {/* {error && <span className="text-[0.74rem] text-danger">{error}</span>} */}
+      {/* {error && <span className="text-[0.74rem] text-[#db2203]">{error}</span>} */}
     </div>
   );
 }
@@ -114,7 +114,7 @@ export default function LoginPage() {
             </div>
             <div>
               <h2 className="font-display text-xl font-bold m-0">
-                Welcome <span className="text-orange">Back</span>
+                Welcome <span className="text-[#db2203]">Back</span>
               </h2>
               <p className="text-muted-foreground text-sm mt-1 m-0">Log in to your account</p>
             </div>
@@ -140,12 +140,12 @@ export default function LoginPage() {
                 <input type="checkbox" className="w-4 h-4 accent-orange" />
                 Remember me
               </label>
-              <Link href="#" className="text-orange font-semibold no-underline">
+              <Link href="#" className="text-[#db2203] font-semibold no-underline">
                 Forgot password?
               </Link>
             </div>
 
-            {error && <p className="text-sm text-danger mb-4">{error}</p>}
+            {error && <p className="text-sm text-[#db2203] mb-4">{error}</p>}
 
             <button
               type="submit"
@@ -158,13 +158,13 @@ export default function LoginPage() {
 
           <p className="text-center mt-6 text-sm text-muted-foreground">
             Don&apos;t have an account?{' '}
-            <Link href="/register" className="text-orange font-bold no-underline">
+            <Link href="/register" className="text-[#db2203] font-bold no-underline">
               Sign up
             </Link>
           </p>
           <p className="text-center mt-2 text-sm text-muted-foreground">
             Want to sell with us?{' '}
-            <Link href="/business/register" className="text-orange font-bold no-underline">
+            <Link href="/business/register" className="text-[#db2203] font-bold no-underline">
               Register as a seller
             </Link>
           </p>

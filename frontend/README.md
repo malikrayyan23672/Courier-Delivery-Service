@@ -85,4 +85,4 @@ frontend/
 | Display font | Poppins (600/700/800) |
 | Body font | Inter (400–700) |
 
-Use these Tailwind classes directly — e.g. `bg-navy`, `text-orange`, `font-display`, `rounded-card`, `shadow-card` — rather than hardcoding hex values, so the whole app stays consistent as you build out more panels.
+Use these Tailwind classes directly — e.g. `bg-navy`, `text-[#db2203]`, `font-display`, `rounded-card`, `shadow-card` — rather than hardcoding hex values, so the whole app stays consistent as you build out more panels.

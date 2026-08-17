@@ -11,7 +11,7 @@ export function StarDisplay({ value, size = 16 }: { value: number | null; size?:
         <Star
           key={n}
           size={size}
-          className={n <= Math.round(value) ? 'fill-orange text-orange' : 'text-line'}
+          className={n <= Math.round(value) ? 'fill-orange text-[#db2203]' : 'text-line'}
         />
       ))}
       <span className="text-xs font-semibold text-ink ml-1">{value.toFixed(1)}</span>
@@ -35,7 +35,7 @@ export function StarPicker({ value, onChange, size = 26 }: { value: number; onCh
         >
           <Star
             size={size}
-            className={n <= (hover || value) ? 'fill-orange text-orange' : 'text-line'}
+            className={n <= (hover || value) ? 'fill-orange text-[#db2203]' : 'text-line'}
           />
         </button>
       ))}

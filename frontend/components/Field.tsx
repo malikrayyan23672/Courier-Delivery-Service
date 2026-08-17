@@ -24,7 +24,7 @@ export function Field({ label, icon, error, id, ...props }: FieldProps) {
             ${error ? 'border-danger shadow-[0_0_0_3px_rgba(230,53,15,0.12)]' : 'border-line'}`}
         />
       </div>
-      {error && <span className="text-[0.74rem] text-danger">{error}</span>}
+      {error && <span className="text-[0.74rem] text-[#db2203]">{error}</span>}
     </div>
   );
 }

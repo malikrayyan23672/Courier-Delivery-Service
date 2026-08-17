@@ -47,7 +47,7 @@ export default function TrackLandingPage() {
               className="h-14 w-full rounded-[14px] border-[1.5px] border-line bg-white pl-12 pr-4 text-base font-semibold uppercase tracking-wide text-ink outline-none focus:border-orange focus:shadow-[0_0_0_3px_rgba(242,101,13,0.13)]"
             />
           </div>
-          {error && <p className="mt-2 text-left text-sm text-danger">{error}</p>}
+          {error && <p className="mt-2 text-left text-sm text-[#db2203]">{error}</p>}
           <button
             type="submit"
             className="mt-4 h-12 w-full rounded-[12px] bg-navy text-sm font-bold text-white transition-colors hover:bg-navy-light"
@@ -58,7 +58,7 @@ export default function TrackLandingPage() {
 
         <div className="mt-14 grid w-full grid-cols-1 gap-4 text-left sm:grid-cols-2">
           <div className="rounded-card border border-line bg-white p-5 shadow-card">
-            <MapPin className="mb-2 h-5 w-5 text-orange" />
+            <MapPin className="mb-2 h-5 w-5 text-[#db2203]" />
             <div className="text-sm font-bold text-ink">Live rider location</div>
             <p className="mt-1 text-xs text-muted-foreground">See your rider on the map once your parcel is out for delivery.</p>
           </div>

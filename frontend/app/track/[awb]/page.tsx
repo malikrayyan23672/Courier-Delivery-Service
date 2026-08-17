@@ -80,7 +80,7 @@ export default function TrackAwbPage() {
           </div>
         ) : !info ? (
           <div className="rounded-card border border-danger/30 bg-[#FBE9E5] p-8 text-center shadow-card">
-            <p className="text-sm font-semibold text-danger">{error || 'Tracking number not found.'}</p>
+            <p className="text-sm font-semibold text-[#db2203]">{error || 'Tracking number not found.'}</p>
             <p className="mt-2 text-xs text-muted-foreground">Double-check the AWB and try again — it's case-insensitive.</p>
           </div>
         ) : (
@@ -92,7 +92,7 @@ export default function TrackAwbPage() {
                   <h1 className="mt-1 font-display text-xl font-extrabold text-navy">{titleCase(info.status)}</h1>
                 </div>
                 <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FBF3EA]">
-                  <Truck className="h-5 w-5 text-orange" />
+                  <Truck className="h-5 w-5 text-[#db2203]" />
                 </span>
               </div>
               {(info.pickup_city || info.dropoff_city) && (
@@ -105,7 +105,7 @@ export default function TrackAwbPage() {
             {isOutForDelivery && info.rider && (
               <div className="mt-5 rounded-card border border-line bg-white p-5 shadow-card">
                 <div className="mb-3 flex items-center gap-2">
-                  <Bike className="h-4 w-4 text-orange" />
+                  <Bike className="h-4 w-4 text-[#db2203]" />
                   <h2 className="text-sm font-bold text-ink">Your rider is on the way</h2>
                 </div>
                 <div className="mb-4 flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">

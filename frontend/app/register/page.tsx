@@ -156,7 +156,7 @@ export default function RegisterPage() {
                 </div>
                 <div>
                   <h2 className="font-display text-xl font-bold m-0">
-                    Create <span className="text-orange">Your Account</span>
+                    Create <span className="text-[#db2203]">Your Account</span>
                   </h2>
                   <p className="text-muted-foreground text-sm mt-1 m-0">Book your first shipment in minutes</p>
                 </div>
@@ -226,7 +226,7 @@ export default function RegisterPage() {
                   onChange={(e) => updateField('confirm', e.target.value)}
                 />
 
-                {errors.form && <p className="text-sm text-danger mb-4">{errors.form}</p>}
+                {errors.form && <p className="text-sm text-[#db2203] mb-4">{errors.form}</p>}
 
                 <button
                   type="submit"
@@ -239,7 +239,7 @@ export default function RegisterPage() {
 
               <p className="text-center mt-6 text-sm text-muted-foreground">
                 Already have an account?{' '}
-                <Link href="/login" className="text-orange font-bold no-underline">
+                <Link href="/login" className="text-[#db2203] font-bold no-underline">
                   Login
                 </Link>
               </p>
@@ -254,7 +254,7 @@ export default function RegisterPage() {
                 </div>
                 <div>
                   <h2 className="font-display text-xl font-bold m-0">
-                    Verify <span className="text-orange">Your Phone</span>
+                    Verify <span className="text-[#db2203]">Your Phone</span>
                   </h2>
                   <p className="text-muted-foreground text-sm mt-1 m-0">Enter the code we just sent you</p>
                 </div>
@@ -266,11 +266,11 @@ export default function RegisterPage() {
               </p>
 
               <OtpBoxes value={otp} onChange={setOtp} />
-              {otpError && <p className="text-[0.74rem] text-danger mb-4">{otpError}</p>}
+              {otpError && <p className="text-[0.74rem] text-[#db2203] mb-4">{otpError}</p>}
 
               <p className="text-sm text-muted-foreground mb-5">
                 Didn&apos;t get the code?{' '}
-                <button onClick={handleResend} className="text-orange font-bold bg-transparent p-0">
+                <button onClick={handleResend} className="text-[#db2203] font-bold bg-transparent p-0">
                   Resend code
                 </button>
               </p>

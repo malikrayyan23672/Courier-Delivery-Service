@@ -701,7 +701,7 @@ export function WalletsTab({ token }: { token: string }) {
                   <p className="text-sm font-semibold text-ink">{w.company_name}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {w.wallet_balance.toLocaleString()} PKR
-                    {w.wallet_locked && <span className="font-semibold text-danger"> · locked{w.wallet_lock_reason ? `: ${w.wallet_lock_reason}` : ''}</span>}
+                    {w.wallet_locked && <span className="font-semibold text-[#db2203]"> · locked{w.wallet_lock_reason ? `: ${w.wallet_lock_reason}` : ''}</span>}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

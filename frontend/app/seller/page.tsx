@@ -151,9 +151,9 @@ function SellerContent() {
 
   const alerts = useMemo(() => {
     const list: { id: string; icon: React.ReactNode; tone: string; text: string }[] = [];
-    if (stats.pendingOrders > 0) list.push({ id: 'pending', icon: <Package className="h-3.5 w-3.5" />, tone: 'text-orange bg-[#FBF3EA]', text: `${stats.pendingOrders} order(s) awaiting packing` });
-    if (stats.outOfStock > 0) list.push({ id: 'stock', icon: <AlertTriangle className="h-3.5 w-3.5" />, tone: 'text-danger bg-[#FBE9E5]', text: `${stats.outOfStock} product(s) out of stock` });
-    if (me && !me.verified) list.push({ id: 'verify', icon: <AlertTriangle className="h-3.5 w-3.5" />, tone: 'text-orange bg-[#FBF3EA]', text: 'Phone number not verified yet' });
+    if (stats.pendingOrders > 0) list.push({ id: 'pending', icon: <Package className="h-3.5 w-3.5" />, tone: 'text-[#db2203] bg-[#FBF3EA]', text: `${stats.pendingOrders} order(s) awaiting packing` });
+    if (stats.outOfStock > 0) list.push({ id: 'stock', icon: <AlertTriangle className="h-3.5 w-3.5" />, tone: 'text-[#db2203] bg-[#FBE9E5]', text: `${stats.outOfStock} product(s) out of stock` });
+    if (me && !me.verified) list.push({ id: 'verify', icon: <AlertTriangle className="h-3.5 w-3.5" />, tone: 'text-[#db2203] bg-[#FBF3EA]', text: 'Phone number not verified yet' });
     return list;
   }, [stats, me]);
 
@@ -391,7 +391,7 @@ function OverviewTab({ token, onNavigate }: { token: string; onNavigate: (v: Vie
   }, [token]);
 
   if (loading) return <p className="text-muted-foreground text-sm">Loading your portal…</p>;
-  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (error) return <p className="text-sm text-[#db2203]">{error}</p>;
   if (!me) return null;
 
   const delivered = analytics?.status_counts.delivered ?? 0;
@@ -400,7 +400,7 @@ function OverviewTab({ token, onNavigate }: { token: string; onNavigate: (v: Vie
   return (
     <div>
       {!me.verified && (
-        <div className="mb-6 bg-[#FBF3EA] border border-orange/20 rounded-card px-5 py-3 text-sm text-orange font-semibold">
+        <div className="mb-6 bg-[#FBF3EA] border border-orange/20 rounded-card px-5 py-3 text-sm text-[#db2203] font-semibold">
           Your phone number is not verified yet — please verify via OTP to fully activate your seller account.
         </div>
       )}
@@ -416,12 +416,12 @@ function OverviewTab({ token, onNavigate }: { token: string; onNavigate: (v: Vie
         </div>
         <div className="bg-white rounded-card shadow-card px-5 py-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">RTO</p>
-          <p className="text-2xl font-bold text-danger mt-1">{rto}</p>
+          <p className="text-2xl font-bold text-[#db2203] mt-1">{rto}</p>
           <p className="text-xs text-muted-foreground mt-1">{analytics?.rto_rate ?? 0}% RTO rate</p>
         </div>
         <div className="bg-white rounded-card shadow-card px-5 py-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">COD Pending</p>
-          <p className="text-2xl font-bold text-orange mt-1">Rs {(summary?.pending_amount || 0).toLocaleString()}</p>
+          <p className="text-2xl font-bold text-[#db2203] mt-1">Rs {(summary?.pending_amount || 0).toLocaleString()}</p>
           <p className="text-xs text-muted-foreground mt-1">{summary?.pending_count ?? 0} orders</p>
         </div>
       </div>
@@ -431,7 +431,7 @@ function OverviewTab({ token, onNavigate }: { token: string; onNavigate: (v: Vie
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Wallet balance</p>
           <p className="text-2xl font-bold text-ink mt-1">{(me.wallet_balance || 0).toLocaleString()} PKR</p>
           {me.wallet_locked && (
-            <p className="text-xs text-danger font-semibold mt-1">
+            <p className="text-xs text-[#db2203] font-semibold mt-1">
               Wallet locked{me.wallet_lock_reason ? ` · ${me.wallet_lock_reason}` : ''}
             </p>
           )}
@@ -451,7 +451,7 @@ function OverviewTab({ token, onNavigate }: { token: string; onNavigate: (v: Vie
       <div className="bg-white rounded-card shadow-card overflow-hidden">
         <div className="px-6 py-4 border-b border-line flex items-center justify-between">
           <h3 className="font-bold text-ink">Recent wallet activity</h3>
-          <button onClick={() => onNavigate('settlements')} className="text-sm font-semibold text-orange hover:text-orange-light">
+          <button onClick={() => onNavigate('settlements')} className="text-sm font-semibold text-[#db2203] hover:text-[#db2203]-light">
             View payouts
           </button>
         </div>
@@ -464,7 +464,7 @@ function OverviewTab({ token, onNavigate }: { token: string; onNavigate: (v: Vie
                 <tr key={t.id} className="border-b border-line last:border-0">
                   <td className="px-6 py-3.5 text-muted-foreground capitalize">{t.transaction_type?.replace(/_/g, ' ')}</td>
                   <td className="px-6 py-3.5 font-semibold text-ink">
-                    <span className={t.amount >= 0 ? 'text-success' : 'text-danger'}>
+                    <span className={t.amount >= 0 ? 'text-success' : 'text-[#db2203]'}>
                       {t.amount >= 0 ? '+' : ''}{t.amount}
                     </span>
                   </td>
@@ -495,7 +495,7 @@ function AnalyticsTab({ token }: { token: string }) {
   }, [token]);
 
   if (loading) return <p className="text-muted-foreground text-sm">Loading analytics…</p>;
-  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (error) return <p className="text-sm text-[#db2203]">{error}</p>;
   if (!data) return null;
 
   const statusData = Object.entries(data.status_counts).map(([status, value]) => ({ label: status.replace(/_/g, ' '), value }));
@@ -565,7 +565,7 @@ function SettlementsTab({ token }: { token: string }) {
                 </td>
                 <td className="px-6 py-3.5">
                   <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                    s.status === 'paid' ? 'bg-[#EAF7EF] text-success' : 'bg-[#FBF3EA] text-orange'
+                    s.status === 'paid' ? 'bg-[#EAF7EF] text-success' : 'bg-[#FBF3EA] text-[#db2203]'
                   }`}>
                     {s.status}
                   </span>
@@ -665,7 +665,7 @@ function FilesTab({ token }: { token: string }) {
             </button>
           </div>
         </div>
-        {error && <p className="text-sm text-danger mb-3">{error}</p>}
+        {error && <p className="text-sm text-[#db2203] mb-3">{error}</p>}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -688,7 +688,7 @@ function FilesTab({ token }: { token: string }) {
                   <td className="py-2 pr-3 text-ink">{r.data.receiver_city}</td>
                   <td className="py-2 pr-3 text-ink">{r.data.weight_kg}</td>
                   <td className="py-2 pr-3 text-ink">{r.data.cod_amount}</td>
-                  <td className="py-2 text-danger text-xs">{r.errors.join('; ')}</td>
+                  <td className="py-2 text-[#db2203] text-xs">{r.errors.join('; ')}</td>
                 </tr>
               ))}
             </tbody>
@@ -703,7 +703,7 @@ function FilesTab({ token }: { token: string }) {
       <div className="bg-white rounded-card shadow-card p-6">
         <div className="flex items-center justify-between mb-1">
           <h3 className="font-bold text-ink">Upload bulk orders</h3>
-          <a href={bulkUploadTemplateUrl()} className="text-xs font-bold text-orange hover:underline">Download CSV template</a>
+          <a href={bulkUploadTemplateUrl()} className="text-xs font-bold text-[#db2203] hover:underline">Download CSV template</a>
         </div>
         <p className="text-xs text-muted-foreground mb-4">A .csv built from the template is validated instantly - you&apos;ll preview every row before anything is booked. Excel/Word files are stored for Raftaar&apos;s AI platform to parse later.</p>
         <label
@@ -727,7 +727,7 @@ function FilesTab({ token }: { token: string }) {
             onChange={(e) => handleFile(e.target.files?.[0])}
           />
         </label>
-        {error && <p className="text-sm text-danger mt-3">{error}</p>}
+        {error && <p className="text-sm text-[#db2203] mt-3">{error}</p>}
         {notice && <p className="text-sm text-success mt-3">{notice}</p>}
         {confirmResult && (
           <p className="text-sm text-success mt-3">
@@ -809,7 +809,7 @@ function RnpTab({ token }: { token: string }) {
           </div>
           <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="City" className="w-full text-sm py-2.5 px-3 rounded-[10px] border border-line bg-[#FBFCFE]" />
           <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Address" className="w-full text-sm py-2.5 px-3 rounded-[10px] border border-line bg-[#FBFCFE]" />
-          {error && <p className="text-sm text-danger">{error}</p>}
+          {error && <p className="text-sm text-[#db2203]">{error}</p>}
           {notice && <p className="text-sm text-success">{notice}</p>}
           <button disabled={submitting} className="w-full text-sm font-bold px-5 py-3 rounded-[10px] bg-navy text-white hover:bg-navy-light disabled:opacity-50 transition-colors">
             {submitting ? 'Registering…' : 'Register RNP'}
@@ -832,7 +832,7 @@ function RnpTab({ token }: { token: string }) {
                   <td className="px-6 py-3.5 text-muted-foreground">{p.city || '—'}</td>
                   <td className="px-6 py-3.5">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                      p.status === 'approved' ? 'bg-[#EAF7EF] text-success' : p.status === 'suspended' ? 'bg-[#FBEAE7] text-danger' : 'bg-[#FBF3EA] text-orange'
+                      p.status === 'approved' ? 'bg-[#EAF7EF] text-success' : p.status === 'suspended' ? 'bg-[#FBEAE7] text-[#db2203]' : 'bg-[#FBF3EA] text-[#db2203]'
                     }`}>
                       {p.status}
                     </span>
@@ -941,7 +941,7 @@ function ProductsSection({ token }: { token: string }) {
   return (
     <div className="flex flex-col gap-5">
       {!showForm ? (
-        <button onClick={() => setShowForm(true)} className="self-start text-sm font-bold px-4 py-2.5 rounded-[10px] bg-orange text-white hover:bg-orange-light transition-colors">
+        <button onClick={() => setShowForm(true)} className="self-start text-sm font-bold px-4 py-2.5 rounded-[10px] bg-[#db2203] text-white hover:bg-[#db2203]-light transition-colors">
           + List a product
         </button>
       ) : (
@@ -958,7 +958,7 @@ function ProductsSection({ token }: { token: string }) {
             <input value={form.stock_quantity} onChange={(e) => setForm({ ...form, stock_quantity: e.target.value })} type="number" min="0" placeholder="Stock quantity" className={mpInputCls} />
             <input value={form.unit_weight_kg} onChange={(e) => setForm({ ...form, unit_weight_kg: e.target.value })} type="number" min="0.1" step="0.1" placeholder="Weight per unit (kg)" className={mpInputCls} />
             <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Description" rows={3} className={`${mpInputCls} md:col-span-2`} />
-            {error && <p className="text-sm text-danger md:col-span-2">{error}</p>}
+            {error && <p className="text-sm text-[#db2203] md:col-span-2">{error}</p>}
             <div className="flex gap-3 md:col-span-2">
               <button type="submit" className="text-sm font-bold px-5 py-2.5 rounded-[10px] bg-navy text-white hover:bg-navy-light transition-colors">List product</button>
               <button type="button" onClick={() => setShowForm(false)} className="text-sm font-semibold px-5 py-2.5 rounded-[10px] text-muted-foreground hover:text-ink transition-colors">Cancel</button>
@@ -1000,7 +1000,7 @@ function ProductsSection({ token }: { token: string }) {
                     </div>
                   </td>
                   <td className="px-4 py-3.5">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${p.is_active ? 'bg-[#EAF7EF] text-success' : 'bg-[#FBEAE7] text-danger'}`}>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${p.is_active ? 'bg-[#EAF7EF] text-success' : 'bg-[#FBEAE7] text-[#db2203]'}`}>
                       {p.is_active ? 'Active' : 'Hidden'}
                     </span>
                   </td>
@@ -1080,7 +1080,7 @@ function MarketplaceOrdersSection({ token }: { token: string }) {
             </button>
             <div className="flex items-center gap-3 flex-none">
               <span className="text-sm font-bold text-navy">Rs {o.final_price.toLocaleString()}</span>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#FBF3EA] text-orange">{o.status.replace(/_/g, ' ')}</span>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#FBF3EA] text-[#db2203]">{o.status.replace(/_/g, ' ')}</span>
               <button
                 onClick={() => window.open(`/seller/print/order/${o.id}`, '_blank')}
                 title="Print packing slip"
@@ -1185,8 +1185,8 @@ function BookShipmentTab({ token }: { token: string }) {
             <input value={form.weight_kg} onChange={(e) => setForm({ ...form, weight_kg: e.target.value })} required type="number" min="0.1" step="0.1" placeholder="Weight (kg)" className={mpInputCls} />
             <input value={form.cod_amount} onChange={(e) => setForm({ ...form, cod_amount: e.target.value })} required type="number" min="0" step="1" placeholder="COD amount (Rs)" className={mpInputCls} />
           </div>
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <button disabled={submitting} className="w-full text-sm font-bold px-5 py-3 rounded-[10px] bg-orange text-white hover:bg-orange-light disabled:opacity-50 transition-colors">
+          {error && <p className="text-sm text-[#db2203]">{error}</p>}
+          <button disabled={submitting} className="w-full text-sm font-bold px-5 py-3 rounded-[10px] bg-[#db2203] text-white hover:bg-[#db2203]-light disabled:opacity-50 transition-colors">
             {submitting ? 'Booking…' : 'Book shipment'}
           </button>
         </form>
@@ -1269,7 +1269,7 @@ function ParcelsTab({ token }: { token: string }) {
                   <td className="px-4 py-3.5 text-muted-foreground capitalize">{p.source}</td>
                   <td className="px-4 py-3.5 text-ink">{p.cod_amount != null ? `Rs ${p.cod_amount.toLocaleString()}` : '—'}</td>
                   <td className="px-6 py-3.5">
-                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-[#FBF3EA] text-orange capitalize">{p.status.replace(/_/g, ' ')}</span>
+                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-[#FBF3EA] text-[#db2203] capitalize">{p.status.replace(/_/g, ' ')}</span>
                   </td>
                 </tr>
               ))}
@@ -1299,7 +1299,7 @@ function ParcelDetailDialog({ trackingNumber, token, onClose }: { trackingNumber
           <button onClick={onClose} className="text-muted-foreground hover:text-ink"><X className="w-5 h-5" /></button>
         </div>
         {error ? (
-          <p className="text-sm text-danger">{error}</p>
+          <p className="text-sm text-[#db2203]">{error}</p>
         ) : !detail ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
@@ -1331,7 +1331,7 @@ function ParcelDetailDialog({ trackingNumber, token, onClose }: { trackingNumber
                 <div className="flex flex-col gap-2.5">
                   {detail.timeline.slice().reverse().map((e, i) => (
                     <div key={i} className="flex items-start gap-2.5">
-                      <span className="w-2 h-2 rounded-full bg-orange mt-1.5 flex-none" />
+                      <span className="w-2 h-2 rounded-full bg-[#db2203] mt-1.5 flex-none" />
                       <div>
                         <p className="text-sm font-semibold text-ink capitalize">{e.status.replace(/_/g, ' ')}</p>
                         {e.note && <p className="text-xs text-muted-foreground">{e.note}</p>}
@@ -1382,7 +1382,7 @@ function ReturnsTab({ token }: { token: string }) {
               <td className="px-4 py-3.5 text-ink">{r.cod_amount != null ? `Rs ${r.cod_amount.toLocaleString()}` : '—'}</td>
               <td className="px-4 py-3.5 font-mono text-xs text-muted-foreground">{r.batch_id || 'Not yet batched'}</td>
               <td className="px-6 py-3.5 text-right">
-                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${r.sla_breached ? 'bg-[#FBEAE7] text-danger' : r.sla_hours_left < 12 ? 'bg-[#FBF0DC] text-[#B9770E]' : 'bg-[#EAF7EF] text-success'}`}>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${r.sla_breached ? 'bg-[#FBEAE7] text-[#db2203]' : r.sla_hours_left < 12 ? 'bg-[#FBF0DC] text-[#B9770E]' : 'bg-[#EAF7EF] text-success'}`}>
                   {r.sla_breached ? 'SLA breached' : `${r.sla_hours_left}h left`}
                 </span>
               </td>

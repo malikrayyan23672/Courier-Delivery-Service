@@ -183,7 +183,7 @@ function StaffContent() {
           <button
             onClick={() => setTab('book')}
             className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-              tab === 'book' ? 'border-orange text-orange' : 'border-transparent text-muted-foreground hover:text-ink'
+              tab === 'book' ? 'border-orange text-[#db2203]' : 'border-transparent text-muted-foreground hover:text-ink'
             }`}
           >
             Book Walk-in Shipment
@@ -191,7 +191,7 @@ function StaffContent() {
           <button
             onClick={() => setTab('orders')}
             className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-              tab === 'orders' ? 'border-orange text-orange' : 'border-transparent text-muted-foreground hover:text-ink'
+              tab === 'orders' ? 'border-orange text-[#db2203]' : 'border-transparent text-muted-foreground hover:text-ink'
             }`}
           >
             Branch Orders
@@ -281,7 +281,7 @@ function StaffContent() {
                     </select>
                   </div>
 
-                  {error && <p className="text-sm text-danger">{error}</p>}
+                  {error && <p className="text-sm text-[#db2203]">{error}</p>}
 
                   <Button type="submit" disabled={submitting} variant="navy">
                     {submitting ? 'Booking…' : 'Confirm Booking'}
@@ -298,7 +298,7 @@ function StaffContent() {
             </p>
 
             {ordersError && (
-              <div className="bg-[#FBEAE7] text-danger text-sm rounded-[10px] px-4 py-3 mb-6">
+              <div className="bg-[#FBEAE7] text-[#db2203] text-sm rounded-[10px] px-4 py-3 mb-6">
                 {ordersError}
               </div>
             )}

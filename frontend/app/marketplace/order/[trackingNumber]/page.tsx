@@ -68,7 +68,7 @@ export default function MarketplaceOrderPage() {
         {loading ? (
           <p className="text-muted-foreground text-sm">Loading…</p>
         ) : !order ? (
-          <div className="bg-white rounded-card shadow-card p-8 text-center text-danger text-sm">{error || 'Order not found.'}</div>
+          <div className="bg-white rounded-card shadow-card p-8 text-center text-[#db2203] text-sm">{error || 'Order not found.'}</div>
         ) : (
           <>
             <div className="bg-white rounded-card shadow-card p-6 mb-6 text-center">
@@ -98,7 +98,7 @@ export default function MarketplaceOrderPage() {
               <h2 className="font-bold text-ink text-sm mb-3">Tracking</h2>
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-orange" />
+                  <span className="w-2 h-2 rounded-full bg-[#db2203]" />
                   <span className="text-sm font-semibold text-ink">{titleCase(order.status)}</span>
                 </div>
                 {(tracking?.history ?? []).slice().reverse().map((h, i) => (
@@ -119,7 +119,7 @@ export default function MarketplaceOrderPage() {
                     <StarPicker value={score} onChange={setScore} />
                     <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Leave a comment (optional)" className="w-full text-sm py-2.5 px-3 rounded-[10px] border border-line bg-[#FBFCFE] outline-none focus:border-orange" />
                     <input value={ratePhone} onChange={(e) => setRatePhone(e.target.value)} placeholder="Phone this order was placed under (if you weren't logged in)" className="w-full text-sm py-2.5 px-3 rounded-[10px] border border-line bg-[#FBFCFE] outline-none focus:border-orange" />
-                    {rateError && <p className="text-sm text-danger">{rateError}</p>}
+                    {rateError && <p className="text-sm text-[#db2203]">{rateError}</p>}
                     <button disabled={rateBusy || score === 0} className="text-sm font-bold px-5 py-2.5 rounded-[10px] bg-navy text-white hover:bg-navy-light disabled:opacity-50 transition-colors">
                       {rateBusy ? 'Submitting…' : 'Submit rating'}
                     </button>

@@ -297,7 +297,7 @@ function AdminDashboardContent() {
             <path d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20" fill="none" stroke="#F2650D" strokeWidth="3.4" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
           <div>
-            <div className="font-display text-lg font-extrabold leading-none">RAFTAAR<span className="text-orange">EXPRESS</span></div>
+            <div className="font-display text-lg font-extrabold leading-none">RAFTAAR<span className="text-[#db2203]">EXPRESS</span></div>
             <div className="text-[0.6rem] tracking-[0.2em] text-white/50 font-semibold mt-0.5">SUPER ADMIN</div>
           </div>
         </div>
@@ -348,12 +348,12 @@ function AdminDashboardContent() {
             )}
           </button>
           {view === 'zones' && (
-            <button onClick={() => setShowAddNewZone(true)} className="hidden sm:flex items-center gap-1.5 bg-orange hover:bg-orange-light text-white font-bold text-sm px-4 py-2.5 rounded-[10px] transition-colors whitespace-nowrap">
+            <button onClick={() => setShowAddNewZone(true)} className="hidden sm:flex items-center gap-1.5 bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-sm px-4 py-2.5 rounded-[10px] transition-colors whitespace-nowrap">
               <NavIcon name="plus" size={14} color="#fff" /> Add new Zone
             </button>
           )}
           {view === 'staff' && (
-            <button onClick={() => setShowCreateUser(true)} className="hidden sm:flex items-center gap-1.5 bg-orange hover:bg-orange-light text-white font-bold text-sm px-4 py-2.5 rounded-[10px] transition-colors whitespace-nowrap">
+            <button onClick={() => setShowCreateUser(true)} className="hidden sm:flex items-center gap-1.5 bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-sm px-4 py-2.5 rounded-[10px] transition-colors whitespace-nowrap">
               <NavIcon name="plus" size={14} color="#fff" /> New Account
             </button>
           )}
@@ -361,7 +361,7 @@ function AdminDashboardContent() {
 
         <div className="p-5 md:p-8 flex flex-col gap-6">
           {(syncing || syncError) && (
-            <div className={`rounded-xl border px-4 py-3 text-sm ${syncError ? 'bg-[#FBEAE7] border-danger/30 text-danger' : 'bg-[#EAF1FC] border-[#2563EB]/20 text-navy'}`}>
+            <div className={`rounded-xl border px-4 py-3 text-sm ${syncError ? 'bg-[#FBEAE7] border-danger/30 text-[#db2203]' : 'bg-[#EAF1FC] border-[#2563EB]/20 text-navy'}`}>
               {syncError || 'Syncing network data with backend...'}
             </div>
           )}
@@ -473,7 +473,7 @@ function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, un
               {week.map((w) => (
                 <div key={w.date} className="flex-1 flex flex-col items-center gap-1.5">
                   <span className="text-xs font-semibold text-ink">{w.orders}</span>
-                  <div className="w-full bg-orange rounded-t" style={{ height: `${(w.orders / maxOrders) * 100}%` }} />
+                  <div className="w-full bg-[#db2203] rounded-t" style={{ height: `${(w.orders / maxOrders) * 100}%` }} />
                   <span className="text-xs text-muted-foreground">{new Date(w.date).toLocaleDateString(undefined, { weekday: 'short' })}</span>
                 </div>
               ))}
@@ -589,7 +589,7 @@ function OrdersView({ orders, total, search, setSearch, statusFilter, setStatusF
                 <td className="py-3 pr-4"><Pill status={o.status} /></td>
                 <td className="py-3">
                   {!o.rider_accepted && o.status !== 'cancelled' && o.status !== 'delivered'
-                    ? <button onClick={() => onAssign(o)} className="text-xs font-bold text-orange border border-orange/30 rounded-lg px-3 py-1.5 hover:bg-[#FBF3EA]">Assign Rider</button>
+                    ? <button onClick={() => onAssign(o)} className="text-xs font-bold text-[#db2203] border border-orange/30 rounded-lg px-3 py-1.5 hover:bg-[#FBF3EA]">Assign Rider</button>
                     : <span className="text-muted-foreground text-xs">—</span>}
                 </td>
               </tr>
@@ -617,7 +617,7 @@ function AssignRiderModal({ order, riders, onClose, onAssign }: {
           <button key={r.rider_id} onClick={() => onAssign(r.rider_id)}
             className="flex items-center justify-between gap-3 border border-line rounded-xl p-3 hover:border-orange hover:bg-page text-left">
             <AvatarChip name={r.full_name} sub={`${r.vehicle_type || 'Vehicle'} · ★ ${r.rating}`} />
-            <span className="text-xs font-bold text-orange">Assign →</span>
+            <span className="text-xs font-bold text-[#db2203]">Assign →</span>
           </button>
         ))}
       </div>
@@ -744,7 +744,7 @@ function AssignmentView({ rules, onToggle, unassignedOrders, openAssign }: {
               </div>
               <button
                 onClick={() => onToggle(r.id)}
-                className={`flex-none w-11 h-6 rounded-full relative transition-colors ${r.active ? 'bg-orange' : 'bg-line'}`}
+                className={`flex-none w-11 h-6 rounded-full relative transition-colors ${r.active ? 'bg-[#db2203]' : 'bg-line'}`}
                 aria-label={r.active ? 'Disable rule' : 'Enable rule'}
               >
                 <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${r.active ? 'translate-x-5' : 'translate-x-0.5'}`} />
@@ -770,7 +770,7 @@ function AssignmentView({ rules, onToggle, unassignedOrders, openAssign }: {
                   <td className="py-2.5 text-xs text-muted-foreground">{o.pickup_address?.city || '—'} → {o.dropoff_address?.city || '—'}</td>
                   <td className="py-2.5"><Pill status={o.status} /></td>
                   <td className="py-2.5">
-                    <button onClick={() => openAssign(o)} className="text-xs font-bold text-orange border border-orange/30 rounded-lg px-3 py-1.5 hover:bg-[#FBF3EA]">Assign Manually</button>
+                    <button onClick={() => openAssign(o)} className="text-xs font-bold text-[#db2203] border border-orange/30 rounded-lg px-3 py-1.5 hover:bg-[#FBF3EA]">Assign Manually</button>
                   </td>
                 </tr>
               ))}
@@ -829,7 +829,7 @@ function BranchesView({ branches, zones }: { branches: Branch[]; zones: Zone[] }
           <h2 className="font-display font-bold text-base">Branches</h2>
           <p className="text-xs text-muted-foreground">{branches.length} branches in the network</p>
         </div>
-        <button onClick={() => setShowCreateBranchForm((s) => !s)} className="bg-orange hover:bg-orange-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
+        <button onClick={() => setShowCreateBranchForm((s) => !s)} className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
           <NavIcon name="plus" size={13} color="#fff" /> Add Branch
         </button>
       </div>
@@ -849,7 +849,7 @@ function BranchesView({ branches, zones }: { branches: Branch[]; zones: Zone[] }
                 <td className="py-3 pr-4"><Pill status={b.status || 'active'} /></td>
                 <td className="py-3">
                   {b.latitude && b.longitude ? (
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${b.latitude},${b.longitude}`} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-orange">Open map →</a>
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${b.latitude},${b.longitude}`} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-[#db2203]">Open map →</a>
                   ) : <span className="text-xs text-muted-foreground">No coordinates</span>}
                 </td>
               </tr>
@@ -907,7 +907,7 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
           <h2 className="font-display font-bold text-base">Service Zones</h2>
           <p className="text-xs text-muted-foreground">Coverage areas grouping branches together</p>
         </div>
-        {/* <button onClick={() => ((e) => !e)} className="bg-orange hover:bg-orange-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
+        {/* <button onClick={() => ((e) => !e)} className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
           <NavIcon name="plus" size={13} color="#fff" /> Add Zone
         </button> */}
       </div>
@@ -932,7 +932,7 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
                 <button onClick={
                   () => onDelete(z)
                   // () => null
-                  } className="text-xs font-bold text-danger border border-danger/30 rounded-lg px-3 py-1.5 hover:bg-[#FBEAE7] flex items-center gap-1">
+                  } className="text-xs font-bold text-[#db2203] border border-danger/30 rounded-lg px-3 py-1.5 hover:bg-[#FBEAE7] flex items-center gap-1">
                   <NavIcon name="trash" size={12} color="#E6350F" /> Remove
                 </button>
               </td>
@@ -982,7 +982,7 @@ function StaffView({ users, roleFilter, setRoleFilter, onDelete }: {
               <td className="py-3 pr-4"><Pill status={u.is_verified ? 'green' : 'gray'} label={u.is_verified ? 'Verified' : 'Unverified'} /></td>
               <td className="py-3 pr-4"><Pill status={u.is_active ? 'green' : 'red'} label={u.is_active ? 'Active' : 'Suspended'} /></td>
               <td className="py-3">
-                <button onClick={() => onDelete(u)} className="text-xs font-bold text-danger border border-danger/30 rounded-lg px-3 py-1.5 hover:bg-[#FBEAE7] flex items-center gap-1">
+                <button onClick={() => onDelete(u)} className="text-xs font-bold text-[#db2203] border border-danger/30 rounded-lg px-3 py-1.5 hover:bg-[#FBEAE7] flex items-center gap-1">
                   <NavIcon name="trash" size={12} color="#E6350F" /> Remove
                 </button>
               </td>
@@ -1054,7 +1054,7 @@ function CreateZoneModel({branches, zones, onClose, onCreate}: {
           </button>
         <div className="sm:col-span-2 flex justify-end gap-2 mt-2">
           <button type="button" onClick={onClose} className="text-sm font-bold px-4 py-2.5 rounded-lg border border-line text-ink hover:bg-page">Cancel</button>
-          <button type="submit" className="text-sm font-bold px-4 py-2.5 rounded-lg bg-orange hover:bg-orange-light text-white">Add new Zone</button>
+          <button type="submit" className="text-sm font-bold px-4 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white">Add new Zone</button>
         </div>
       </form>
     </Modal>
@@ -1120,7 +1120,7 @@ function CreateUserModal({ branches, zones, onClose, onCreate }: {
         </Field>
         <div className="sm:col-span-2 flex justify-end gap-2 mt-2">
           <button type="button" onClick={onClose} className="text-sm font-bold px-4 py-2.5 rounded-lg border border-line text-ink hover:bg-page">Cancel</button>
-          <button type="submit" className="text-sm font-bold px-4 py-2.5 rounded-lg bg-orange hover:bg-orange-light text-white">Create Account</button>
+          <button type="submit" className="text-sm font-bold px-4 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white">Create Account</button>
         </div>
       </form>
     </Modal>
@@ -1179,7 +1179,7 @@ function MessagingView({ templates, onToggle }: { templates: MessageTemplate[]; 
               </div>
               <p className="text-xs text-muted-foreground mt-1.5 max-w-xl font-mono">{t.body}</p>
             </div>
-            <button onClick={() => onToggle(t.id)} className={`flex-none w-11 h-6 rounded-full relative transition-colors ${t.active ? 'bg-orange' : 'bg-line'}`}>
+            <button onClick={() => onToggle(t.id)} className={`flex-none w-11 h-6 rounded-full relative transition-colors ${t.active ? 'bg-[#db2203]' : 'bg-line'}`}>
               <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${t.active ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </button>
           </div>
@@ -1208,7 +1208,7 @@ function ReportsView({ analytics, riders }: { analytics?: AdminAnalytics; riders
             {statusEntries.map(([status, count]) => (
               <div key={status}>
                 <div className="flex justify-between text-xs font-semibold text-ink mb-1"><span>{titleStatus(status)}</span><span>{count}</span></div>
-                <div className="h-1.5 bg-line rounded-full overflow-hidden"><div className="h-full bg-orange" style={{ width: `${(count / maxStatus) * 100}%` }} /></div>
+                <div className="h-1.5 bg-line rounded-full overflow-hidden"><div className="h-full bg-[#db2203]" style={{ width: `${(count / maxStatus) * 100}%` }} /></div>
               </div>
             ))}
             {statusEntries.length === 0 && <div className="text-sm text-muted-foreground">No data yet.</div>}
@@ -1245,11 +1245,11 @@ function ReportsView({ analytics, riders }: { analytics?: AdminAnalytics; riders
             {NETWORK_COMPARISON.map((c) => (
               <div key={c.label}>
                 <div className="flex justify-between text-xs font-semibold text-ink mb-1"><span>{c.label}</span><span>{c.thisWeek}% vs {c.lastWeek}%</span></div>
-                <div className="h-1.5 bg-line rounded-full overflow-hidden mb-1"><div className="h-full bg-orange" style={{ width: `${c.thisWeek}%` }} /></div>
+                <div className="h-1.5 bg-line rounded-full overflow-hidden mb-1"><div className="h-full bg-[#db2203]" style={{ width: `${c.thisWeek}%` }} /></div>
                 <div className="h-1.5 bg-line rounded-full overflow-hidden"><div className="h-full bg-[#B7BEC9]" style={{ width: `${c.lastWeek}%` }} /></div>
               </div>
             ))}
-            <div className="text-xs text-muted-foreground mt-1"><span className="text-orange font-bold">■</span> This week &nbsp; <span className="text-[#B7BEC9] font-bold">■</span> Last week</div>
+            <div className="text-xs text-muted-foreground mt-1"><span className="text-[#db2203] font-bold">■</span> This week &nbsp; <span className="text-[#B7BEC9] font-bold">■</span> Last week</div>
           </div>
         </section>
       </div>
@@ -1316,7 +1316,7 @@ function SettingsView({ toast }: { toast: (msg: string) => void }) {
             <div className="font-bold text-sm text-ink">Automatic rider assignment</div>
             <div className="text-xs text-muted-foreground mt-0.5">When on, new orders are matched to riders automatically using the active assignment rules.</div>
           </div>
-          <button type="button" onClick={() => setAutoAssign((v) => !v)} className={`flex-none w-11 h-6 rounded-full relative transition-colors ${autoAssign ? 'bg-orange' : 'bg-line'}`}>
+          <button type="button" onClick={() => setAutoAssign((v) => !v)} className={`flex-none w-11 h-6 rounded-full relative transition-colors ${autoAssign ? 'bg-[#db2203]' : 'bg-line'}`}>
             <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${autoAssign ? 'translate-x-5' : 'translate-x-0.5'}`} />
           </button>
         </div>
@@ -1324,7 +1324,7 @@ function SettingsView({ toast }: { toast: (msg: string) => void }) {
           <input className={inputCls} type="number" value={assignRadius} onChange={(e) => setAssignRadius(e.target.value)} disabled={!autoAssign} />
         </Field>
         <div className="flex justify-end mt-2">
-          <button type="submit" className="text-sm font-bold px-5 py-2.5 rounded-lg bg-orange hover:bg-orange-light text-white">Save Settings</button>
+          <button type="submit" className="text-sm font-bold px-5 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white">Save Settings</button>
         </div>
       </form>
     </section>

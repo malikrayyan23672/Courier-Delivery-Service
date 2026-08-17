@@ -68,7 +68,7 @@ function FinanceContent() {
       <header className="bg-white border-b border-line px-6 md:px-10 py-4 flex items-center justify-between">
         <Logo />
         <div className="flex items-center gap-4">
-          <span className="text-xs font-semibold uppercase tracking-wide text-orange bg-[#FBF3EA] px-3 py-1 rounded-full">
+          <span className="text-xs font-semibold uppercase tracking-wide text-[#db2203] bg-[#FBF3EA] px-3 py-1 rounded-full">
             Finance & COD Engine
           </span>
           <button onClick={handleLogout} className="text-sm font-semibold text-muted-foreground hover:text-navy transition-colors">
@@ -84,7 +84,7 @@ function FinanceContent() {
               key={n.key}
               onClick={() => setView(n.key)}
               className={`px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
-                view === n.key ? 'border-orange text-orange' : 'border-transparent text-muted-foreground hover:text-ink'
+                view === n.key ? 'border-orange text-[#db2203]' : 'border-transparent text-muted-foreground hover:text-ink'
               }`}
             >
               {n.label}

@@ -70,7 +70,7 @@ export function CameraScannerDialog({
           <DialogDescription>Point the camera at the AWB barcode on the parcel or packing slip.</DialogDescription>
         </DialogHeader>
         {error ? (
-          <p className="text-sm text-danger">{error}</p>
+          <p className="text-sm text-[#db2203]">{error}</p>
         ) : (
           <div className="rounded-xl overflow-hidden bg-black aspect-video relative">
             <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />

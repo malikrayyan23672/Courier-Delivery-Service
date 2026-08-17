@@ -54,7 +54,7 @@ export default function AdminDashboardPage() {
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
             <Kpi label="Total orders" value={String(analytics.total_orders)} icon={<Package className="h-5 w-5" />} tone="bg-[#EAF1FC] text-navy" />
             <Kpi label="Revenue (delivered)" value={money(analytics.total_revenue)} icon={<CircleDollarSign className="h-5 w-5" />} tone="bg-[#EAF7EF] text-success" />
-            <Kpi label="RTO rate" value={`${analytics.rto_rate}%`} icon={<Shield className="h-5 w-5" />} tone="bg-[#FBF3EA] text-orange" />
+            <Kpi label="RTO rate" value={`${analytics.rto_rate}%`} icon={<Shield className="h-5 w-5" />} tone="bg-[#FBF3EA] text-[#db2203]" />
             <Kpi label="COD collected" value={money(analytics.cod_collected_total)} icon={<CircleDollarSign className="h-5 w-5" />} tone="bg-[#EAF7EF] text-success" />
             <Kpi label="COD pending" value={money(analytics.cod_pending_total)} icon={<Truck className="h-5 w-5" />} tone="bg-[#FBF0DC] text-[#B9770E]" />
             <Kpi label="Active hubs" value={String(hubs.length)} icon={<Users className="h-5 w-5" />} tone="bg-[#EAF1FC] text-navy" />
@@ -62,7 +62,7 @@ export default function AdminDashboardPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-orange" /><CardTitle>Live corridor map</CardTitle></div>
+              <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#db2203]" /><CardTitle>Live corridor map</CardTitle></div>
               <CardDescription>Every active hub with its current parcel load</CardDescription>
             </CardHeader>
             <CardContent>

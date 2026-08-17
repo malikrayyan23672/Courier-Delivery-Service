@@ -55,7 +55,7 @@ export function SelectField({
           </svg>
         </span>
       </div>
-      {error && <span className="text-[0.74rem] text-danger">{error}</span>}
+      {error && <span className="text-[0.74rem] text-[#db2203]">{error}</span>}
     </div>
   );
 }

@@ -171,8 +171,8 @@ function AdminContent() {
 
   const alerts = useMemo(() => {
     const list: { id: string; icon: React.ReactNode; tone: string; text: string }[] = [];
-    if (stats.created > 0) list.push({ id: 'unassigned', icon: <Package className="h-3.5 w-3.5" />, tone: 'text-orange bg-[#FBF3EA]', text: `${stats.created} order(s) awaiting assignment` });
-    if (stats.available === 0 && riders.length > 0) list.push({ id: 'riders', icon: <Users className="h-3.5 w-3.5" />, tone: 'text-danger bg-[#FBE9E5]', text: 'No riders currently available' });
+    if (stats.created > 0) list.push({ id: 'unassigned', icon: <Package className="h-3.5 w-3.5" />, tone: 'text-[#db2203] bg-[#FBF3EA]', text: `${stats.created} order(s) awaiting assignment` });
+    if (stats.available === 0 && riders.length > 0) list.push({ id: 'riders', icon: <Users className="h-3.5 w-3.5" />, tone: 'text-[#db2203] bg-[#FBE9E5]', text: 'No riders currently available' });
     return list;
   }, [stats, riders]);
 
@@ -443,8 +443,8 @@ function OverviewView({ stats, analytics, orders, riders, syncing, onNavigate }:
   const kpis = [
     { label: 'Total orders', value: stats.created + stats.assigned + stats.delivered + stats.inTransit + orders.length, icon: <Package className="h-5 w-5" />, tone: 'bg-[#EAF1FC] text-navy', trend: `${stats.created} awaiting assignment`, up: stats.created === 0 },
     { label: 'Revenue (delivered)', value: `Rs ${stats.totalRevenue.toLocaleString()}`, icon: <CircleDollarSign className="h-5 w-5" />, tone: 'bg-[#EAF7EF] text-success', trend: 'T+1 settlements next morning', up: true },
-    { label: 'Delivered', value: stats.delivered, icon: <Shield className="h-5 w-5" />, tone: 'bg-[#FBF3EA] text-orange', trend: '0% RTO in live deliveries', up: true },
-    { label: 'In transit', value: stats.inTransit, icon: <Truck className="h-5 w-5" />, tone: 'bg-[#FBE9E5] text-danger', trend: '30–45 min bus dispatches', up: stats.inTransit > 0 },
+    { label: 'Delivered', value: stats.delivered, icon: <Shield className="h-5 w-5" />, tone: 'bg-[#FBF3EA] text-[#db2203]', trend: '0% RTO in live deliveries', up: true },
+    { label: 'In transit', value: stats.inTransit, icon: <Truck className="h-5 w-5" />, tone: 'bg-[#FBE9E5] text-[#db2203]', trend: '30–45 min bus dispatches', up: stats.inTransit > 0 },
     { label: 'Riders available', value: `${stats.available}/${stats.totalRiders}`, icon: <Users className="h-5 w-5" />, tone: 'bg-[#EAF1FC] text-navy', trend: stats.available > 0 ? 'Ready for dispatch' : 'None online', up: stats.available > 0 },
     { label: 'COD pending', value: analytics ? stats.inTransit + stats.assigned + stats.created : 0, icon: <Wallet className="h-5 w-5" />, tone: 'bg-[#FBF0DC] text-[#B9770E]', trend: 'Settle T+1 from Financials', up: true },
   ];
@@ -477,7 +477,7 @@ function OverviewView({ stats, analytics, orders, riders, syncing, onNavigate }:
                 {k.up ? (
                   <TrendingUp className="h-4 w-4 text-success" />
                 ) : (
-                  <TrendingDown className="h-4 w-4 text-danger" />
+                  <TrendingDown className="h-4 w-4 text-[#db2203]" />
                 )}
               </div>
               <div className="mt-3 text-xl font-bold tracking-tight text-ink">{k.value}</div>
@@ -692,7 +692,7 @@ function OrdersTab({ token, search }: { token: string; search: string }) {
         <Card><CardContent className="p-4"><div className="text-2xl font-bold text-ink">{orders.length}</div><div className="text-xs font-semibold text-muted-foreground">Total orders</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-2xl font-bold text-ink">{orders.filter((o) => o.status === 'created').length}</div><div className="text-xs font-semibold text-muted-foreground">Awaiting rider</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-2xl font-bold text-success">{orders.filter((o) => o.status === 'delivered').length}</div><div className="text-xs font-semibold text-muted-foreground">Delivered</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-2xl font-bold text-danger">{orders.filter((o) => o.status === 'failed' || o.status === 'cancelled').length}</div><div className="text-xs font-semibold text-muted-foreground">Failed / cancelled</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-2xl font-bold text-[#db2203]">{orders.filter((o) => o.status === 'failed' || o.status === 'cancelled').length}</div><div className="text-xs font-semibold text-muted-foreground">Failed / cancelled</div></CardContent></Card>
       </div>
 
       <Card>

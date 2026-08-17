@@ -7,7 +7,7 @@ import { ApiError, Corridor, listCorridors, createCorridor, updateCorridor } fro
 import { Plus, MapPinned, X } from 'lucide-react';
 
 function DeliveryRateBadge({ rate }: { rate: number }) {
-  const tone = rate >= 90 ? 'bg-[#EAF7EF] text-success' : rate >= 70 ? 'bg-[#FBF3EA] text-orange' : 'bg-[#FBE9E5] text-danger';
+  const tone = rate >= 90 ? 'bg-[#EAF7EF] text-success' : rate >= 70 ? 'bg-[#FBF3EA] text-[#db2203]' : 'bg-[#FBE9E5] text-[#db2203]';
   return <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${tone}`}>{rate}%</span>;
 }
 
@@ -135,7 +135,7 @@ export default function AdminCorridorsPage() {
               Active corridor
             </label>
             <div className="sm:col-span-2">
-              <button disabled={submitting} type="submit" className="rounded-lg bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-orange-light disabled:opacity-50">
+              <button disabled={submitting} type="submit" className="rounded-lg bg-[#db2203] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#db2203]-light disabled:opacity-50">
                 {submitting ? 'Saving…' : editingId ? 'Save changes' : 'Create corridor'}
               </button>
             </div>

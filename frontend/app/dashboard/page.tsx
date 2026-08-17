@@ -55,11 +55,11 @@ const OVERVIEW_ICON = (
 
 const STATUS_COLORS: Record<string, string> = {
   created: 'bg-[#EAF1FC] text-navy',
-  assigned: 'bg-[#FBF3EA] text-orange',
-  picked_up: 'bg-[#FBF3EA] text-orange',
-  in_transit: 'bg-[#FBF3EA] text-orange',
+  assigned: 'bg-[#FBF3EA] text-[#db2203]',
+  picked_up: 'bg-[#FBF3EA] text-[#db2203]',
+  in_transit: 'bg-[#FBF3EA] text-[#db2203]',
   delivered: 'bg-[#EAF7EF] text-success',
-  failed: 'bg-[#FBEAE7] text-danger',
+  failed: 'bg-[#FBEAE7] text-[#db2203]',
   cancelled: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
@@ -505,7 +505,7 @@ function BookingFormFields({
         /> */}
       </div>
 
-      {formError && <p className="text-sm text-danger mb-4">{formError}</p>}
+      {formError && <p className="text-sm text-[#db2203] mb-4">{formError}</p>}
 
       <button
         type="submit"
@@ -560,7 +560,7 @@ function OverviewTab({
         </div>
         <button
           onClick={() => setShowBookingForm((s) => !s)}
-          className="bg-orange hover:bg-orange-light text-white font-bold text-sm px-5 py-3 rounded-[10px] transition-colors"
+          className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-sm px-5 py-3 rounded-[10px] transition-colors"
         >
           {showBookingForm ? 'Cancel' : '+ Book a Shipment'}
         </button>
@@ -574,7 +574,7 @@ function OverviewTab({
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="Total Shipments" value={String(stats.total)} />
-        <StatCard label="In Transit" value={String(stats.inTransit)} accent="text-orange" />
+        <StatCard label="In Transit" value={String(stats.inTransit)} accent="text-[#db2203]" />
         <StatCard label="Delivered" value={String(stats.delivered)} accent="text-success" />
         <StatCard label="Total Spent" value={`Rs. ${stats.totalSpent.toLocaleString()}`} />
       </div>
@@ -587,13 +587,13 @@ function OverviewTab({
         <div className="flex items-center justify-between px-6 py-4 border-b border-line">
           <h2 className="font-display font-bold text-sm text-ink">Recent Shipments</h2>
           {orders.length > 5 && (
-            <button onClick={onViewAll} className="text-xs font-semibold text-orange hover:text-orange-light transition-colors">
+            <button onClick={onViewAll} className="text-xs font-semibold text-[#db2203] hover:text-[#db2203]-light transition-colors">
               View all →
             </button>
           )}
         </div>
         {ordersError ? (
-          <p className="p-6 text-danger text-sm">{ordersError}</p>
+          <p className="p-6 text-[#db2203] text-sm">{ordersError}</p>
         ) : loadingOrders ? (
           <p className="p-6 text-muted-foreground text-sm">Loading your orders…</p>
         ) : recent.length === 0 ? (
@@ -680,7 +680,7 @@ function ShipmentsTab({
 
       <div className="bg-white rounded-card shadow-card overflow-hidden">
         {ordersError ? (
-          <p className="p-6 text-danger text-sm">{ordersError}</p>
+          <p className="p-6 text-[#db2203] text-sm">{ordersError}</p>
         ) : loadingOrders ? (
           <p className="p-6 text-muted-foreground text-sm">Loading your orders…</p>
         ) : orders.length === 0 ? (
@@ -716,7 +716,7 @@ function ProfileTab({ profile, profileError }: { profile: MyProfile | null; prof
         <p className="text-muted-foreground text-sm mt-1">Your account details</p>
       </div>
 
-      {profileError && <p className="text-danger text-sm mb-4">{profileError}</p>}
+      {profileError && <p className="text-[#db2203] text-sm mb-4">{profileError}</p>}
 
       {!profile && !profileError ? (
         <p className="text-muted-foreground text-sm">Loading your profile…</p>
@@ -730,7 +730,7 @@ function ProfileTab({ profile, profileError }: { profile: MyProfile | null; prof
               <p className="font-display font-bold text-lg text-ink">{profile.full_name}</p>
               <span
                 className={`inline-block mt-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                  profile.is_verified ? 'bg-[#EAF7EF] text-success' : 'bg-[#FBF3EA] text-orange'
+                  profile.is_verified ? 'bg-[#EAF7EF] text-success' : 'bg-[#FBF3EA] text-[#db2203]'
                 }`}
               >
                 {profile.is_verified ? 'Verified account' : 'Phone not verified'}

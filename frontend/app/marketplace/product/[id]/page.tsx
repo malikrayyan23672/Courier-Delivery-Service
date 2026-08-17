@@ -93,7 +93,7 @@ export default function ProductDetailPage() {
         {loading ? (
           <p className="text-muted-foreground text-sm">Loading…</p>
         ) : !product ? (
-          <div className="bg-white rounded-card shadow-card p-8 text-center text-danger text-sm">{error || 'Product not found.'}</div>
+          <div className="bg-white rounded-card shadow-card p-8 text-center text-[#db2203] text-sm">{error || 'Product not found.'}</div>
         ) : (
           <div className="grid lg:grid-cols-2 gap-8">
             <div>
@@ -106,7 +106,7 @@ export default function ProductDetailPage() {
                 )}
               </div>
               <div className="mt-5">
-                {product.category && <span className="text-[0.68rem] font-bold uppercase tracking-wide text-orange">{product.category}</span>}
+                {product.category && <span className="text-[0.68rem] font-bold uppercase tracking-wide text-[#db2203]">{product.category}</span>}
                 <h1 className="font-display text-2xl font-extrabold text-navy mt-1">{product.name}</h1>
                 <p className="text-sm text-muted-foreground mt-1">Sold by <span className="font-semibold text-ink">{product.seller_name}</span>{product.seller_city ? ` · ${product.seller_city}` : ''}</p>
                 <div className="mt-2"><StarDisplay value={product.seller_rating_avg} /> <span className="text-xs text-muted-foreground">({product.seller_rating_count} reviews)</span></div>
@@ -117,14 +117,14 @@ export default function ProductDetailPage() {
             <div className="bg-white rounded-card shadow-card p-6 h-fit">
               <div className="flex items-baseline justify-between mb-1">
                 <span className="font-display text-3xl font-extrabold text-navy">Rs {product.price.toLocaleString()}</span>
-                <span className={`text-xs font-semibold ${product.stock_quantity > 0 ? 'text-success' : 'text-danger'}`}>
+                <span className={`text-xs font-semibold ${product.stock_quantity > 0 ? 'text-success' : 'text-[#db2203]'}`}>
                   {product.stock_quantity > 0 ? `${product.stock_quantity} in stock` : 'Out of stock'}
                 </span>
               </div>
 
               {!token && (
                 <div className="bg-[#FBF3EA] border border-orange/25 rounded-[10px] px-3.5 py-2.5 text-xs text-ink mb-4">
-                  <Link href="/register" className="text-orange font-bold hover:underline">Sign up</Link> before checking out to unlock login-only discounts on delivery. Guest checkout skips them.
+                  <Link href="/register" className="text-[#db2203] font-bold hover:underline">Sign up</Link> before checking out to unlock login-only discounts on delivery. Guest checkout skips them.
                 </div>
               )}
 
@@ -159,11 +159,11 @@ export default function ProductDetailPage() {
                   <input value={discountCode} onChange={(e) => setDiscountCode(e.target.value)} placeholder="Discount code (optional)" className={inputCls} />
                 )}
 
-                {error && <p className="text-sm text-danger">{error}</p>}
+                {error && <p className="text-sm text-[#db2203]">{error}</p>}
 
                 <button
                   disabled={submitting || product.stock_quantity === 0}
-                  className="w-full text-sm font-bold px-5 py-3.5 rounded-[10px] bg-orange text-white hover:bg-orange-light disabled:opacity-50 transition-colors"
+                  className="w-full text-sm font-bold px-5 py-3.5 rounded-[10px] bg-[#db2203] text-white hover:bg-[#db2203]-light disabled:opacity-50 transition-colors"
                 >
                   {submitting ? 'Placing order…' : `Buy now · Rs ${(product.price * quantity).toLocaleString()}`}
                 </button>

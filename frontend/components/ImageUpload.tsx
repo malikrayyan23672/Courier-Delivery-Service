@@ -75,7 +75,7 @@ export function ProductImageUpload({
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className="w-28 h-28 rounded-[10px] border-2 border-dashed border-line flex flex-col items-center justify-center gap-1.5 text-muted-foreground hover:border-orange hover:text-orange transition-colors"
+          className="w-28 h-28 rounded-[10px] border-2 border-dashed border-line flex flex-col items-center justify-center gap-1.5 text-muted-foreground hover:border-orange hover:text-[#db2203] transition-colors"
         >
           {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
           <span className="text-[0.68rem] font-semibold">{uploading ? 'Uploading…' : 'Add photo'}</span>
@@ -86,7 +86,7 @@ export function ProductImageUpload({
           Change photo
         </button>
       )}
-      {error && <p className="text-[0.7rem] text-danger mt-1 max-w-[7rem]">{error}</p>}
+      {error && <p className="text-[0.7rem] text-[#db2203] mt-1 max-w-[7rem]">{error}</p>}
     </div>
   );
 }

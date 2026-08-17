@@ -6,18 +6,18 @@ import { getMyOrder, OrderDetail, ApiError } from '@/lib/api';
 
 const STATUS_COLORS: Record<string, string> = {
   created: 'bg-[#EAF1FC] text-navy',
-  assigned: 'bg-[#FBF3EA] text-orange',
-  picked_up: 'bg-[#FBF3EA] text-orange',
-  in_transit: 'bg-[#FBF3EA] text-orange',
+  assigned: 'bg-[#FBF3EA] text-[#db2203]',
+  picked_up: 'bg-[#FBF3EA] text-[#db2203]',
+  in_transit: 'bg-[#FBF3EA] text-[#db2203]',
   delivered: 'bg-[#EAF7EF] text-success',
-  failed: 'bg-[#FBEAE7] text-danger',
+  failed: 'bg-[#FBEAE7] text-[#db2203]',
   cancelled: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
 const PAYMENT_STATUS_COLORS: Record<string, string> = {
   paid: 'bg-[#EAF7EF] text-success',
-  pending: 'bg-[#FBF3EA] text-orange',
-  failed: 'bg-[#FBEAE7] text-danger',
+  pending: 'bg-[#FBF3EA] text-[#db2203]',
+  failed: 'bg-[#FBEAE7] text-[#db2203]',
   refunded: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
@@ -113,7 +113,7 @@ export function OrderDetailModal({
                 <button
                   onClick={handleCopy}
                   title="Copy tracking number"
-                  className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-orange hover:bg-page transition-colors"
+                  className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-[#db2203] hover:bg-page transition-colors"
                 >
                   <span className="w-4 h-4 block">{COPY_ICON}</span>
                 </button>
@@ -131,7 +131,7 @@ export function OrderDetailModal({
 
         <div className="px-6 md:px-8 py-6 max-h-[70vh] overflow-y-auto">
           {loading && <p className="text-muted-foreground text-sm">Loading shipment details…</p>}
-          {error && <p className="text-danger text-sm">{error}</p>}
+          {error && <p className="text-[#db2203] text-sm">{error}</p>}
 
           {order && (
             <div className="flex flex-col gap-6">
@@ -150,11 +150,11 @@ export function OrderDetailModal({
                       <div key={step} className="flex items-center flex-1 last:flex-none">
                         <div
                           className={`w-3 h-3 rounded-full shrink-0 ${
-                            i <= currentStepIndex ? 'bg-orange' : 'bg-line'
+                            i <= currentStepIndex ? 'bg-[#db2203]' : 'bg-line'
                           }`}
                         />
                         {i < STATUS_ORDER.length - 1 && (
-                          <div className={`h-[2px] flex-1 ${i < currentStepIndex ? 'bg-orange' : 'bg-line'}`} />
+                          <div className={`h-[2px] flex-1 ${i < currentStepIndex ? 'bg-[#db2203]' : 'bg-line'}`} />
                         )}
                       </div>
                     ))}
@@ -167,7 +167,7 @@ export function OrderDetailModal({
                 <div className="bg-page rounded-[14px] p-4">
                   <p className="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Pickup</p>
                   <div className="flex gap-2">
-                    <span className="w-4 h-4 text-orange mt-0.5 shrink-0">{PIN_ICON}</span>
+                    <span className="w-4 h-4 text-[#db2203] mt-0.5 shrink-0">{PIN_ICON}</span>
                     <div className="text-sm text-ink">
                       <p className="font-semibold">{order.pickup_address?.full_address || '—'}</p>
                       <p className="text-muted-foreground">{order.pickup_address?.city}</p>
@@ -240,7 +240,7 @@ export function OrderDetailModal({
                   <p className="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide">Tracking history</p>
                   <button
                     onClick={() => router.push(`/dashboard/shipment/${order.id}`)}
-                    className="text-xs font-semibold text-orange hover:text-orange-light transition-colors"
+                    className="text-xs font-semibold text-[#db2203] hover:text-[#db2203]-light transition-colors"
                   >
                     View full route &amp; log →
                   </button>
@@ -255,7 +255,7 @@ export function OrderDetailModal({
                       .map((event, i) => (
                         <div key={i} className="flex gap-3">
                           <div className="flex flex-col items-center pt-1">
-                            <div className="w-2.5 h-2.5 rounded-full bg-orange shrink-0" />
+                            <div className="w-2.5 h-2.5 rounded-full bg-[#db2203] shrink-0" />
                             {i < order.tracking_events.length - 1 && <div className="w-[2px] flex-1 bg-line mt-1" />}
                           </div>
                           <div className="pb-1">

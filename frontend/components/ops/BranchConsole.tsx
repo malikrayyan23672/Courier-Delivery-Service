@@ -209,7 +209,7 @@ function BranchPulse({ onlineRiders, totalRiders, pendingPickups, deliveredCount
   return (
     <div className="rounded-xl bg-white/[0.06] border border-white/10 p-3.5">
       <div className="flex items-center gap-2 mb-3">
-        <Activity className="w-3.5 h-3.5 text-orange" />
+        <Activity className="w-3.5 h-3.5 text-[#db2203]" />
         <span className="text-[0.68rem] font-bold uppercase tracking-wide text-white/60">Branch Pulse</span>
       </div>
       <div className="flex flex-col gap-3">
@@ -220,7 +220,7 @@ function BranchPulse({ onlineRiders, totalRiders, pendingPickups, deliveredCount
               <span className="font-bold text-white">{it.value}</span>
             </div>
             <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
-              <div className="h-full rounded-full bg-orange" style={{ width: `${it.pct}%` }} />
+              <div className="h-full rounded-full bg-[#db2203]" style={{ width: `${it.pct}%` }} />
             </div>
           </div>
         ))}
@@ -229,7 +229,7 @@ function BranchPulse({ onlineRiders, totalRiders, pendingPickups, deliveredCount
       <div className="flex flex-col gap-1.5">
         {ALERTS.slice(0, 2).map((a, i) => (
           <div key={i} className="flex items-start gap-2 text-[0.68rem]">
-            <AlertTriangle className={`w-3 h-3 mt-0.5 flex-none ${a.sev === 'high' ? 'text-danger' : a.sev === 'medium' ? 'text-[#F2A93B]' : 'text-white/40'}`} />
+            <AlertTriangle className={`w-3 h-3 mt-0.5 flex-none ${a.sev === 'high' ? 'text-[#db2203]' : a.sev === 'medium' ? 'text-[#F2A93B]' : 'text-white/40'}`} />
             <span className="text-white/70 leading-snug">{a.title}</span>
           </div>
         ))}
@@ -572,9 +572,9 @@ export function BranchConsole() {
       )}
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-navy text-white flex flex-col overflow-hidden transition-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="flex items-center gap-2.5 px-5 py-4 flex-none">
-          <Building2 className="w-7 h-7 text-orange" />
+          <Building2 className="w-7 h-7 text-[#db2203]" />
           <div>
-            <div className="font-display text-base font-extrabold leading-none">RAFTAAR<span className="text-orange">EXPRESS</span></div>
+            <div className="font-display text-base font-extrabold leading-none">RAFTAAR<span className="text-[#db2203]">EXPRESS</span></div>
             <div className="text-[0.6rem] tracking-[0.2em] text-white/50 font-semibold mt-1">BRANCH CONSOLE</div>
           </div>
         </div>
@@ -675,7 +675,7 @@ export function BranchConsole() {
               <DropdownMenuSeparator />
               {ALERTS.slice(0, 5).map((a, i) => (
                 <DropdownMenuItem key={i} className="items-start gap-2 py-2" onClick={() => switchView('alerts')}>
-                  <AlertTriangle className={`w-4 h-4 mt-0.5 flex-none ${a.sev === 'high' ? 'text-danger' : a.sev === 'medium' ? 'text-[#F2A93B]' : 'text-muted-foreground'}`} />
+                  <AlertTriangle className={`w-4 h-4 mt-0.5 flex-none ${a.sev === 'high' ? 'text-[#db2203]' : a.sev === 'medium' ? 'text-[#F2A93B]' : 'text-muted-foreground'}`} />
                   <span>
                     <span className="block text-sm font-semibold text-ink">{a.title}</span>
                     <span className="block text-xs text-muted-foreground mt-0.5">{a.time}</span>
@@ -707,7 +707,7 @@ export function BranchConsole() {
                 <BarChart3 className="w-4 h-4 mr-2" /> Branch reports
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} className="text-danger focus:text-danger">
+              <DropdownMenuItem onClick={handleLogout} className="text-[#db2203] focus:text-[#db2203]">
                 <LogOut className="w-4 h-4 mr-2" /> Log out
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -722,7 +722,7 @@ export function BranchConsole() {
         <div className="flex-1 p-5 md:p-8 flex flex-col gap-6">
           {(syncing || syncError) && (
             <div className={`rounded-xl border px-4 py-3 text-sm ${
-              syncError ? 'bg-[#FBEAE7] border-danger/30 text-danger' : 'bg-[#EAF1FC] border-[#2563EB]/20 text-navy'
+              syncError ? 'bg-[#FBEAE7] border-danger/30 text-[#db2203]' : 'bg-[#EAF1FC] border-[#2563EB]/20 text-navy'
             }`}>
               {syncError || 'Syncing branch data with backend...'}
             </div>
@@ -946,7 +946,7 @@ function OverviewView({ managerProfile, branchDetails, pendingPickups, pickedUpC
             <CardTitle className="text-base">Priority Alerts</CardTitle>
             <CardDescription>Needs branch manager attention</CardDescription>
           </div>
-          <Button variant="ghost" size="sm" className="text-orange font-bold" onClick={() => switchView('alerts')}>
+          <Button variant="ghost" size="sm" className="text-[#db2203] font-bold" onClick={() => switchView('alerts')}>
             View all <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
           </Button>
         </div>
@@ -974,7 +974,7 @@ function PickupsView({ pickups, total, pending, assigned, done, failed, progress
 
       <div className="mt-4 mb-4">
         <div className="text-xs font-semibold text-muted-foreground mb-1.5">Pickup completion today</div>
-        <Progress value={progressPct} className="h-2 [&>div]:bg-orange" />
+        <Progress value={progressPct} className="h-2 [&>div]:bg-[#db2203]" />
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -1015,7 +1015,7 @@ function PickupsView({ pickups, total, pending, assigned, done, failed, progress
                 </TableCell>
                 <TableCell>
                   {p.status === 'Pending'
-                    ? <Button size="sm" variant="outline" className="text-orange" onClick={() => onQuickAssign(p.id)}>Quick Assign</Button>
+                    ? <Button size="sm" variant="outline" className="text-[#db2203]" onClick={() => onQuickAssign(p.id)}>Quick Assign</Button>
                     : <span className="text-muted-foreground text-xs">—</span>}
                 </TableCell>
               </TableRow>
@@ -1082,7 +1082,7 @@ function DeliveriesView({ deliveries, ready, out, done, failed, search, setSearc
                 <TableCell className="text-muted-foreground">{d.proof}</TableCell>
                 <TableCell>
                   {d.status === 'Failed'
-                    ? <Button size="sm" variant="outline" className="text-orange" onClick={() => onReschedule(d.id)}>Reschedule</Button>
+                    ? <Button size="sm" variant="outline" className="text-[#db2203]" onClick={() => onReschedule(d.id)}>Reschedule</Button>
                     : <span className="text-muted-foreground text-xs">—</span>}
                 </TableCell>
               </TableRow>
@@ -1119,7 +1119,7 @@ function ParcelOpsView({
   const mode = SCAN_MODES.find((m) => m.value === scanAction) || SCAN_MODES[0];
   return (
     <>
-      {hubError && <div className="rounded-lg border border-danger/30 bg-[#FBEAE7] px-4 py-3 text-sm text-danger">{hubError}</div>}
+      {hubError && <div className="rounded-lg border border-danger/30 bg-[#FBEAE7] px-4 py-3 text-sm text-[#db2203]">{hubError}</div>}
 
       <Card className="p-5">
         <CardHeader className="p-0 mb-4">
@@ -1284,7 +1284,7 @@ function ManifestsView({
 
   return (
     <>
-      {hubError && <div className="rounded-lg border border-danger/30 bg-[#FBEAE7] px-4 py-3 text-sm text-danger">{hubError}</div>}
+      {hubError && <div className="rounded-lg border border-danger/30 bg-[#FBEAE7] px-4 py-3 text-sm text-[#db2203]">{hubError}</div>}
 
       <Card className="p-5">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
@@ -1627,7 +1627,7 @@ function VendorsView({
                 <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="City" />
                 <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Contact phone" />
               </div>
-              {error && <p className="text-sm text-danger">{error}</p>}
+              {error && <p className="text-sm text-[#db2203]">{error}</p>}
               {notice && <p className="text-sm text-success">{notice}</p>}
               <div>
                 <Button type="submit" variant="navy" disabled={busy}>{busy ? 'Saving…' : 'Add operator'}</Button>
@@ -1652,7 +1652,7 @@ function VendorsView({
                     <TableCell><Pill status={o.status} /></TableCell>
                     <TableCell className="text-right">
                       {o.status !== 'inactive' && (
-                        <Button size="sm" variant="outline" className="text-danger" disabled={busy} onClick={() => handleRemove(o)}>Deactivate</Button>
+                        <Button size="sm" variant="outline" className="text-[#db2203]" disabled={busy} onClick={() => handleRemove(o)}>Deactivate</Button>
                       )}
                     </TableCell>
                   </TableRow>
@@ -1848,7 +1848,7 @@ function RidersView({ riders, onlineRiders, busyRiders, offlineRiders, staffRide
                             {r.cod_wallet_locked ? (
                               <Button size="sm" variant="outline" className="text-success" onClick={() => onUnlock(r.rider_id)}>Unlock (cash deposited)</Button>
                             ) : (
-                              <Button size="sm" variant="outline" className="text-danger" onClick={() => onLock(r.rider_id)}>Lock</Button>
+                              <Button size="sm" variant="outline" className="text-[#db2203]" onClick={() => onLock(r.rider_id)}>Lock</Button>
                             )}
                           </div>
                         )}
@@ -1886,11 +1886,11 @@ function RidersView({ riders, onlineRiders, busyRiders, offlineRiders, staffRide
                   <div><div className="text-muted-foreground">Status</div><div className="font-semibold text-ink">{r.status === 'online' ? 'Available' : r.status === 'busy' ? 'On Delivery' : 'Offline'}</div></div>
                   <div><div className="text-muted-foreground">Success Rate</div><div className="font-semibold text-ink">{r.success}%</div></div>
                   <div className="col-span-2"><div className="text-muted-foreground">GPS Location</div><div className="font-semibold text-ink text-[0.72rem]">{r.gps}</div></div>
-                  <div className="col-span-2"><div className="text-muted-foreground">Performance</div><div className="text-orange">{'★'.repeat(Math.round(r.score))}{'☆'.repeat(5 - Math.round(r.score))}</div></div>
+                  <div className="col-span-2"><div className="text-muted-foreground">Performance</div><div className="text-[#db2203]">{'★'.repeat(Math.round(r.score))}{'☆'.repeat(5 - Math.round(r.score))}</div></div>
                 </div>
                 <div className="flex items-center justify-between border-t border-line pt-3">
                   <span className="text-xs text-muted-foreground">{r.deliveries} deliveries today</span>
-                  <Button size="sm" variant="outline" className="text-orange" onClick={() => toast(`Shipment assignment started for ${r.name}.`)}>Assign</Button>
+                  <Button size="sm" variant="outline" className="text-[#db2203]" onClick={() => toast(`Shipment assignment started for ${r.name}.`)}>Assign</Button>
                 </div>
               </div>
             );
@@ -2072,11 +2072,11 @@ function ReportsView({ riders, hubAnalytics, hubLoading }: { riders: RiderCard[]
             {comparisons.map((c) => (
               <div key={c.label}>
                 <div className="flex justify-between text-xs font-semibold text-ink mb-1"><span>{c.label}</span><span>{c.branch}% vs {c.network}%</span></div>
-                <div className="h-1.5 bg-line rounded-full overflow-hidden mb-1"><div className="h-full bg-orange" style={{ width: `${c.branch}%` }} /></div>
+                <div className="h-1.5 bg-line rounded-full overflow-hidden mb-1"><div className="h-full bg-[#db2203]" style={{ width: `${c.branch}%` }} /></div>
                 <div className="h-1.5 bg-line rounded-full overflow-hidden"><div className="h-full bg-[#B7BEC9]" style={{ width: `${c.network}%` }} /></div>
               </div>
             ))}
-            <div className="text-xs text-muted-foreground mt-1"><span className="text-orange font-bold">■</span> This branch &nbsp; <span className="text-[#B7BEC9] font-bold">■</span> Network average</div>
+            <div className="text-xs text-muted-foreground mt-1"><span className="text-[#db2203] font-bold">■</span> This branch &nbsp; <span className="text-[#B7BEC9] font-bold">■</span> Network average</div>
           </div>
         </Card>
       </div>

@@ -189,7 +189,7 @@ function ZoneCard({
                       <td className="py-2 pr-4 text-muted-foreground">{s.fuel_surcharge_percentage ?? '—'}</td>
                       <td className="py-2 pr-4 text-muted-foreground">{s.tax_percentage ?? '—'}</td>
                       <td className="py-2 text-right">
-                        <button onClick={() => handleDeleteSlab(s.id)} className="text-muted-foreground hover:text-danger">
+                        <button onClick={() => handleDeleteSlab(s.id)} className="text-muted-foreground hover:text-[#db2203]">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </td>
@@ -209,7 +209,7 @@ function ZoneCard({
               <input type="number" step="0.1" placeholder="Fuel %" value={slabForm.fuel_surcharge_percentage} onChange={(e) => setSlabForm((f) => ({ ...f, fuel_surcharge_percentage: e.target.value }))} className="h-9 rounded-lg border border-input bg-white px-2.5 text-sm outline-none focus:border-ring" />
               <input type="number" step="0.1" placeholder="Tax %" value={slabForm.tax_percentage} onChange={(e) => setSlabForm((f) => ({ ...f, tax_percentage: e.target.value }))} className="h-9 rounded-lg border border-input bg-white px-2.5 text-sm outline-none focus:border-ring" />
               <div className="flex gap-2 sm:col-span-3 lg:col-span-6">
-                <button disabled={savingSlab} type="submit" className="rounded-lg bg-orange px-4 py-2 text-xs font-bold text-white hover:bg-orange-light disabled:opacity-50">
+                <button disabled={savingSlab} type="submit" className="rounded-lg bg-[#db2203] px-4 py-2 text-xs font-bold text-white hover:bg-[#db2203]-light disabled:opacity-50">
                   {savingSlab ? 'Adding…' : 'Add slab'}
                 </button>
                 <button type="button" onClick={() => setShowSlabForm(false)} className="rounded-lg border border-border px-4 py-2 text-xs font-semibold text-ink hover:bg-muted">

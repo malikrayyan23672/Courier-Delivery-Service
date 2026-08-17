@@ -39,11 +39,11 @@ export default function MarketplacePage() {
         <Logo />
         <div className="flex items-center gap-3">
           {token ? (
-            <Link href="/dashboard" className="text-sm font-semibold text-navy hover:text-orange transition-colors">My account</Link>
+            <Link href="/dashboard" className="text-sm font-semibold text-navy hover:text-[#db2203] transition-colors">My account</Link>
           ) : (
             <>
               <Link href="/login" className="text-sm font-semibold text-muted-foreground hover:text-navy transition-colors">Login</Link>
-              <Link href="/register" className="text-sm font-bold bg-orange text-white px-4 py-2 rounded-[10px] hover:bg-orange-light transition-colors">Sign up &amp; save</Link>
+              <Link href="/register" className="text-sm font-bold bg-[#db2203] text-white px-4 py-2 rounded-[10px] hover:bg-[#db2203]-light transition-colors">Sign up &amp; save</Link>
             </>
           )}
         </div>
@@ -55,7 +55,7 @@ export default function MarketplacePage() {
           <p className="text-muted-foreground text-sm mt-1">
             Buy directly from verified sellers — Raftaar Express picks it up and delivers it.
             {!token && (
-              <> <Link href="/register" className="text-orange font-semibold hover:underline">Sign up</Link> for a login-only discount at checkout.</>
+              <> <Link href="/register" className="text-[#db2203] font-semibold hover:underline">Sign up</Link> for a login-only discount at checkout.</>
             )}
           </p>
         </div>
@@ -80,7 +80,7 @@ export default function MarketplacePage() {
           </select>
         </div>
 
-        {error && <div className="rounded-lg border border-danger/30 bg-[#FBEAE7] px-4 py-3 text-sm text-danger mb-6">{error}</div>}
+        {error && <div className="rounded-lg border border-danger/30 bg-[#FBEAE7] px-4 py-3 text-sm text-[#db2203] mb-6">{error}</div>}
 
         {loading ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -109,13 +109,13 @@ export default function MarketplacePage() {
                   )}
                 </div>
                 <div className="p-4 flex flex-col gap-1.5 flex-1">
-                  {p.category && <span className="text-[0.68rem] font-bold uppercase tracking-wide text-orange">{p.category}</span>}
+                  {p.category && <span className="text-[0.68rem] font-bold uppercase tracking-wide text-[#db2203]">{p.category}</span>}
                   <h3 className="font-bold text-ink text-sm leading-snug line-clamp-2">{p.name}</h3>
                   <p className="text-xs text-muted-foreground">{p.seller_name}{p.seller_city ? ` · ${p.seller_city}` : ''}</p>
                   <StarDisplay value={p.seller_rating_avg} size={13} />
                   <div className="mt-auto pt-2 flex items-center justify-between">
                     <span className="font-display font-extrabold text-navy">Rs {p.price.toLocaleString()}</span>
-                    <span className={`text-xs font-semibold ${p.stock_quantity > 0 ? 'text-success' : 'text-danger'}`}>
+                    <span className={`text-xs font-semibold ${p.stock_quantity > 0 ? 'text-success' : 'text-[#db2203]'}`}>
                       {p.stock_quantity > 0 ? 'In stock' : 'Out of stock'}
                     </span>
                   </div>

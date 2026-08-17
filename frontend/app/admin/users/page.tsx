@@ -332,9 +332,9 @@ function SellerApprovalSection({ token }: { token: string }) {
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Card><CardContent className="p-4"><div className="text-2xl font-bold text-ink">{sellers.length}</div><div className="text-xs font-semibold text-muted-foreground">Total sellers</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-2xl font-bold text-orange">{pendingCount}</div><div className="text-xs font-semibold text-muted-foreground">Pending approval</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-2xl font-bold text-[#db2203]">{pendingCount}</div><div className="text-xs font-semibold text-muted-foreground">Pending approval</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-2xl font-bold text-success">{sellers.filter((s) => s.status === 'active').length}</div><div className="text-xs font-semibold text-muted-foreground">Active</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-2xl font-bold text-danger">{sellers.filter((s) => s.status === 'suspended' || s.status === 'rejected').length}</div><div className="text-xs font-semibold text-muted-foreground">Suspended / rejected</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-2xl font-bold text-[#db2203]">{sellers.filter((s) => s.status === 'suspended' || s.status === 'rejected').length}</div><div className="text-xs font-semibold text-muted-foreground">Suspended / rejected</div></CardContent></Card>
       </div>
 
       {error && <div className="rounded-lg border border-destructive/30 bg-[#FBE9E5] px-4 py-3 text-sm text-destructive">{error}</div>}

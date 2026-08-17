@@ -122,7 +122,7 @@ function SelectField({
           {options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
         </select>
       </div>
-      {error && <span className="text-[0.74rem] text-danger">{error}</span>}
+      {error && <span className="text-[0.74rem] text-[#db2203]">{error}</span>}
     </div>
   );
 }
@@ -150,7 +150,7 @@ function PasswordField({
           <Icon path={ICONS.eye} />
         </button>
       </div>
-      {error && <span className="text-[0.74rem] text-danger">{error}</span>}
+      {error && <span className="text-[0.74rem] text-[#db2203]">{error}</span>}
     </div>
   );
 }
@@ -201,7 +201,7 @@ function CnicPhotoField({ value, onChange }: { value: string; onChange: (url: st
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={uploading}
-            className="text-[0.8rem] font-bold text-orange hover:underline disabled:opacity-50"
+            className="text-[0.8rem] font-bold text-[#db2203] hover:underline disabled:opacity-50"
           >
             {uploading ? 'Uploading…' : displaySrc ? 'Change photo' : 'Upload a photo of your CNIC'}
           </button>
@@ -209,7 +209,7 @@ function CnicPhotoField({ value, onChange }: { value: string; onChange: (url: st
         </div>
         <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
       </div>
-      {error && <span className="text-[0.74rem] text-danger">{error}</span>}
+      {error && <span className="text-[0.74rem] text-[#db2203]">{error}</span>}
     </div>
   );
 }
@@ -386,6 +386,17 @@ export default function BusinessSignupPage() {
     }
   }
 
+  function formatPhone(raw: string) : string{
+
+    const digits = raw.replace(/[^0-9]/g, '').slice(0,11);
+    let out = digits;
+
+    if(digits.length > 4) out = digits.slice(0,4) + '-' + digits.slice(4);
+
+    return out;
+
+  }
+
   const progressPct = (step / 4) * 100;
 
   return (
@@ -397,13 +408,13 @@ export default function BusinessSignupPage() {
             <path d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20" fill="none" stroke="#F2650D" strokeWidth="3.4" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
           <div>
-            <div className="font-display text-2xl font-extrabold tracking-tight leading-none text-navy">FAST<span className="text-orange">EX</span></div>
+            <div className="font-display text-2xl font-extrabold tracking-tight leading-none text-navy">RAFTAAR<span className="text-[#db2203]">EXPRESS</span></div>
             <div className="text-[0.62rem] tracking-[0.22em] text-muted-foreground font-semibold mt-0.5">COURIER SERVICES</div>
           </div>
         </div>
 
         <h1 className="font-display text-3xl md:text-4xl font-extrabold leading-tight mb-4 max-w-[480px]">
-          Fast. Reliable.<br /><span className="text-orange">Delivered</span> with Care.
+          Fast. Reliable.<br /><span className="text-[#db2203]">Delivered</span> with Care.
         </h1>
         <p className="text-base text-[#3A4A64] max-w-[420px] leading-relaxed mb-9">
           Join Raftaar Express and grow your business with our trusted courier solutions.
@@ -412,9 +423,9 @@ export default function BusinessSignupPage() {
         <div className="flex flex-col gap-5 mb-10">
           {[
             { icon: ICONS.fastDelivery, bg: 'bg-navy', title: 'Fast Delivery', sub: 'On-time, every time' },
-            { icon: ICONS.shield, bg: 'bg-orange', title: 'Safe & Secure', sub: 'We care for your parcel' },
+            { icon: ICONS.shield, bg: 'bg-[#db2203]', title: 'Safe & Secure', sub: 'We care for your parcel' },
             { icon: ICONS.worldwide, bg: 'bg-navy', title: 'Worldwide', sub: 'Delivering globally' },
-            { icon: ICONS.support, bg: 'bg-orange', title: '24/7 Support', sub: "We're here to help" },
+            { icon: ICONS.support, bg: 'bg-[#db2203]', title: '24/7 Support', sub: "We're here to help" },
           ].map((f) => (
             <div key={f.title} className="flex items-center gap-3.5">
               <div className={`w-[46px] h-[46px] rounded-full flex-none flex items-center justify-center text-white ${f.bg}`}>
@@ -448,7 +459,7 @@ export default function BusinessSignupPage() {
               <circle cx="85" cy="88" r="5" fill="#CBD3DF" />
               <circle cx="165" cy="88" r="12" fill="#16233D" />
               <circle cx="165" cy="88" r="5" fill="#CBD3DF" />
-              <text x="95" y="65" fontFamily="Poppins, sans-serif" fontWeight="700" fontSize="12" fill="#F2650D">FAST<tspan fill="#0B2472">EX</tspan></text>
+              <text x="95" y="65" fontFamily="Poppins, sans-serif" fontWeight="700" fontSize="12" fill="#F2650D">RAFTAAR<tspan fill="#0B2472">EXPRESS</tspan></text>
               <rect x="0" y="60" width="42" height="35" fill="#C88A4E" />
               <rect x="6" y="66" width="30" height="8" fill="#F2650D" />
               <rect x="18" y="35" width="42" height="60" fill="#D69A5F" />
@@ -460,7 +471,7 @@ export default function BusinessSignupPage() {
         <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-2.5 py-5 md:py-6 border-t border-navy/10">
           {[['10K+', 'Parcels Delivered'], ['500+', 'Cities Covered'], ['5K+', 'Happy Customers'], ['24/7', 'Customer Support']].map(([num, label]) => (
             <div key={label}>
-              <div className="text-orange font-extrabold text-lg font-display">{num}</div>
+              <div className="text-[#db2203] font-extrabold text-lg font-display">{num}</div>
               <div className="text-muted-foreground text-[0.72rem]">{label}</div>
             </div>
           ))}
@@ -477,14 +488,14 @@ export default function BusinessSignupPage() {
                   <Icon path={ICONS.support} size={24} />
                 </div>
                 <div>
-                  <h2 className="font-display text-xl font-bold m-0">Create <span className="text-orange">Your Account</span></h2>
+                  <h2 className="font-display text-xl font-bold m-0">Create <span className="text-[#db2203]">Your Account</span></h2>
                   <p className="text-muted-foreground text-sm mt-1 m-0">Sign up to get started with raftaarexpress</p>
                 </div>
               </div>
 
               <div className="mb-7">
                 <div className="flex justify-between text-xs text-muted-foreground font-semibold mb-2">
-                  <span>Step <b className="text-orange">{step}</b> of 4</span>
+                  <span>Step <b className="text-[#db2203]">{step}</b> of 4</span>
                   <span>{STEP_NAMES[step]}</span>
                 </div>
                 <div className="h-1.5 bg-line rounded-full overflow-hidden">
@@ -502,7 +513,8 @@ export default function BusinessSignupPage() {
                     <Field id="sellerEmail" type="email" label="Email Address *" icon={<Icon path={ICONS.mail} />} placeholder="Enter your email"
                       value={form.sellerEmail} onChange={(e) => set('sellerEmail', e.target.value)} error={errors.sellerEmail} />
                     <Field id="phone" type="tel" label="Phone Number *" icon={<Icon path={ICONS.phone} />} placeholder="Enter your phone number"
-                      value={form.phone} onChange={(e) => set('phone', e.target.value)} error={errors.phone} />
+                      value={form.phone} onChange={(e) => set('phone', formatPhone(e.target.value))} error={errors.phone} />
+
                     <PasswordField id="password" label="Password *" icon={<Icon path={ICONS.lock} />} placeholder="Create a password"
                       value={form.password} onChange={(v) => set('password', v)} error={errors.password} />
                     <PasswordField id="confirmPassword" label="Confirm Password *" icon={<Icon path={ICONS.lock} />} placeholder="Confirm your password"
@@ -592,11 +604,11 @@ export default function BusinessSignupPage() {
                       <input type="checkbox" id="acceptTerms" checked={form.acceptTerms} onChange={(e) => set('acceptTerms', e.target.checked)}
                         className="w-[18px] h-[18px] mt-0.5 accent-orange flex-none" />
                       <label htmlFor="acceptTerms" className="font-normal text-sm text-ink">
-                        I accept the <a href="#" className="text-orange font-semibold no-underline">Terms &amp; Conditions</a> and{' '}
-                        <a href="#" className="text-orange font-semibold no-underline">Privacy Policy</a>
+                        I accept the <a href="#" className="text-[#db2203] font-semibold no-underline">Terms &amp; Conditions</a> and{' '}
+                        <a href="#" className="text-[#db2203] font-semibold no-underline">Privacy Policy</a>
                       </label>
                     </div>
-                    {errors.acceptTerms && <p className="text-[0.74rem] text-danger mb-2.5">{errors.acceptTerms}</p>}
+                    {errors.acceptTerms && <p className="text-[0.74rem] text-[#db2203] mb-2.5">{errors.acceptTerms}</p>}
                   </>
                 )}
 
@@ -607,19 +619,19 @@ export default function BusinessSignupPage() {
                     </p>
 
                     <OtpBoxes value={otpValue} onChange={setOtpValue} />
-                    {otpError && <p className="text-[0.74rem] text-danger mb-3.5">{otpError}</p>}
+                    {otpError && <p className="text-[0.74rem] text-[#db2203] mb-3.5">{otpError}</p>}
 
                     <p className="text-sm text-muted-foreground mb-5">
                       Didn&apos;t get the code?{' '}
                       <button type="button" disabled={resendSeconds > 0} onClick={handleResendOtp}
-                        className="text-orange font-bold bg-transparent p-0 disabled:text-muted-foreground disabled:cursor-not-allowed">
+                        className="text-[#db2203] font-bold bg-transparent p-0 disabled:text-muted-foreground disabled:cursor-not-allowed">
                         {resendSeconds > 0 ? `Resend code (${resendSeconds}s)` : 'Resend code'}
                       </button>
                     </p>
                   </>
                 )}
 
-                {step === 3 && errors.form && <p className="text-sm text-danger mb-4">{errors.form}</p>}
+                {step === 3 && errors.form && <p className="text-sm text-[#db2203] mb-4">{errors.form}</p>}
 
                 <div className="flex justify-between items-center mt-7">
                   <button type="button" onClick={goBack} disabled={step === 1 || step === 4}
@@ -642,7 +654,7 @@ export default function BusinessSignupPage() {
 
               <p className="text-center mt-6 text-sm text-muted-foreground">
                 Already have an account?{' '}
-                <Link href="/login" className="text-orange font-bold no-underline">Login</Link>
+                <Link href="/login" className="text-[#db2203] font-bold no-underline">Login</Link>
               </p>
             </>
           ) : (

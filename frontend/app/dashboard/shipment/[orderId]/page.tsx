@@ -11,11 +11,11 @@ const STATUS_ORDER = ['created', 'assigned', 'picked_up', 'in_transit', 'deliver
 
 const STATUS_COLORS: Record<string, string> = {
   created: 'bg-[#EAF1FC] text-navy',
-  assigned: 'bg-[#FBF3EA] text-orange',
-  picked_up: 'bg-[#FBF3EA] text-orange',
-  in_transit: 'bg-[#FBF3EA] text-orange',
+  assigned: 'bg-[#FBF3EA] text-[#db2203]',
+  picked_up: 'bg-[#FBF3EA] text-[#db2203]',
+  in_transit: 'bg-[#FBF3EA] text-[#db2203]',
   delivered: 'bg-[#EAF7EF] text-success',
-  failed: 'bg-[#FBEAE7] text-danger',
+  failed: 'bg-[#FBEAE7] text-[#db2203]',
   cancelled: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
@@ -165,7 +165,7 @@ function ShipmentTrackingContent() {
         </button>
 
         {loading && <p className="text-muted-foreground text-sm">Loading shipment…</p>}
-        {error && <p className="text-danger text-sm">{error}</p>}
+        {error && <p className="text-[#db2203] text-sm">{error}</p>}
 
         {order && (
           <div className="flex flex-col gap-6">
@@ -179,7 +179,7 @@ function ShipmentTrackingContent() {
                     <button
                       onClick={handleCopy}
                       title="Copy tracking number"
-                      className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-orange hover:bg-page transition-colors"
+                      className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-[#db2203] hover:bg-page transition-colors"
                     >
                       <span className="w-4 h-4 block">{COPY_ICON}</span>
                     </button>
@@ -197,13 +197,13 @@ function ShipmentTrackingContent() {
               <div className="flex items-center justify-between mb-2">
                 <h2 className="font-display font-bold text-sm text-ink">Route Progress</h2>
                 {!isIssue && (
-                  <span className="text-sm font-semibold text-orange">{percent}% of the way there</span>
+                  <span className="text-sm font-semibold text-[#db2203]">{percent}% of the way there</span>
                 )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="flex gap-2">
-                  <span className="w-4 h-4 text-orange mt-0.5 shrink-0">{PIN_ICON}</span>
+                  <span className="w-4 h-4 text-[#db2203] mt-0.5 shrink-0">{PIN_ICON}</span>
                   <div>
                     <p className="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide">Pickup</p>
                     <p className="text-sm font-semibold text-ink">{order.pickup_address?.city || order.pickup_address?.full_address || '—'}</p>
@@ -222,7 +222,7 @@ function ShipmentTrackingContent() {
               <div className="relative pt-2 pb-1">
                 <div className="h-2 rounded-full bg-line overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-500 ${isIssue ? 'bg-danger' : 'bg-orange'}`}
+                    className={`h-full rounded-full transition-all duration-500 ${isIssue ? 'bg-danger' : 'bg-[#db2203]'}`}
                     style={{ width: `${isIssue ? 100 : percent}%` }}
                   />
                 </div>
@@ -258,7 +258,7 @@ function ShipmentTrackingContent() {
                 <p className="text-[0.7rem] font-semibold uppercase tracking-wide mb-1.5 text-muted-foreground">
                   {isDelivered ? 'Complete' : 'Next Step'}
                 </p>
-                <h3 className={`font-display font-bold text-lg mb-1.5 ${isDelivered ? 'text-success' : isIssue ? 'text-danger' : 'text-orange'}`}>
+                <h3 className={`font-display font-bold text-lg mb-1.5 ${isDelivered ? 'text-success' : isIssue ? 'text-[#db2203]' : 'text-[#db2203]'}`}>
                   {nextStep.title}
                 </h3>
                 <p className="text-sm text-ink">{nextStep.detail}</p>
@@ -271,7 +271,7 @@ function ShipmentTrackingContent() {
               {order.tracking_events.length === 0 ? (
                 <div className="flex gap-3">
                   <div className="flex flex-col items-center pt-1">
-                    <div className="w-2.5 h-2.5 rounded-full bg-orange shrink-0" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#db2203] shrink-0" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-ink">Order placed</p>
@@ -298,7 +298,7 @@ function ShipmentTrackingContent() {
                       <div className="flex flex-col items-center pt-1">
                         <div
                           className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                            i === order.tracking_events.length - 1 ? 'bg-orange' : 'bg-navy'
+                            i === order.tracking_events.length - 1 ? 'bg-[#db2203]' : 'bg-navy'
                           }`}
                         />
                         {i < order.tracking_events.length - 1 && <div className="w-[2px] flex-1 bg-line mt-1" />}

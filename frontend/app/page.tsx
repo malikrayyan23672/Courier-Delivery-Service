@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useState, useRef, FormEvent } from "react";
- 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, panelPathForRole } from '@/context/AuthContext';
 
@@ -113,8 +113,9 @@ export default function HomePage() {
     <>
       {/* ============ TOP NAV ============ */}
       <nav className="nav">
-        <a href="#" className="logo">
-          <svg className="logo-mark" viewBox="0 0 40 40" fill="none">
+        <a href="/" className="logo">
+        <img src="icon.jpeg" width={45} height={45} alt="" />
+          {/* <svg className="logo-mark" viewBox="0 0 40 40" fill="none">
             <path
               d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20"
               fill="none"
@@ -123,10 +124,11 @@ export default function HomePage() {
               strokeLinejoin="round"
               strokeLinecap="round"
             />
-          </svg>
+          </svg> */}
+          
           <div>
             <div className="brand-name">
-              RAFTAAR<span className="fx">EXPRESS</span>
+              RAFTAAR<span className="text-[#db2203]">EXPRESS</span>
             </div>
             <div className="brand-sub">COURIER SERVICES</div>
           </div>
@@ -626,8 +628,8 @@ export default function HomePage() {
         :root {
           --navy: #0b2472;
           --navy-2: #1d3c8f;
-          --orange: #f2650d;
-          --orange-2: #ff8a3d;
+          --orange: #db2203;
+          --orange-2: #db2203;
           --text-dark: #16233d;
           --text-gray: #6b7686;
           --border: #e4e8f0;

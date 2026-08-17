@@ -28,7 +28,7 @@ export function HeroPanel({
       <h1 className="font-display text-3xl md:text-4xl font-extrabold leading-tight mb-4 max-w-[480px]">
         {heading}
         <br />
-        <span className="text-orange">{highlight}</span>
+        <span className="text-[#db2203]">{highlight}</span>
       </h1>
       <p className="text-base text-[#3A4A64] max-w-[420px] leading-relaxed mb-10">{lede}</p>
 
@@ -37,7 +37,7 @@ export function HeroPanel({
           <div key={perk.title} className="flex items-start gap-3">
             <div
               className={`w-9 h-9 rounded-full flex-none flex items-center justify-center text-white ${
-                perk.accent ? 'bg-orange' : 'bg-navy'
+                perk.accent ? 'bg-[#db2203]' : 'bg-navy'
               }`}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -60,7 +60,7 @@ export function HeroPanel({
           ['24/7', 'Support'],
         ].map(([num, label]) => (
           <div key={label}>
-            <div className="text-orange font-extrabold text-lg font-display">{num}</div>
+            <div className="text-[#db2203] font-extrabold text-lg font-display">{num}</div>
             <div className="text-muted-foreground text-[0.7rem]">{label}</div>
           </div>
         ))}

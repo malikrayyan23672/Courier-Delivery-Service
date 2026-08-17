@@ -28,7 +28,7 @@
 //       <h1 className="font-display text-3xl md:text-4xl font-extrabold leading-tight mb-4 max-w-[480px]">
 //         {heading}
 //         <br />
-//         <span className="text-orange">{highlight}</span>
+//         <span className="text-[#db2203]">{highlight}</span>
 //       </h1>
 //       <p className="text-base text-[#3A4A64] max-w-[420px] leading-relaxed mb-10">{lede}</p>
 
@@ -37,7 +37,7 @@
 //           <div key={perk.title} className="flex items-start gap-3">
 //             <div
 //               className={`w-9 h-9 rounded-full flex-none flex items-center justify-center text-white ${
-//                 perk.accent ? 'bg-orange' : 'bg-navy'
+//                 perk.accent ? 'bg-[#db2203]' : 'bg-navy'
 //               }`}
 //             >
 //               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -60,7 +60,7 @@
 //           ['24/7', 'Support'],
 //         ].map(([num, label]) => (
 //           <div key={label}>
-//             <div className="text-orange font-extrabold text-lg font-display">{num}</div>
+//             <div className="text-[#db2203] font-extrabold text-lg font-display">{num}</div>
 //             <div className="text-muted-foreground text-[0.7rem]">{label}</div>
 //           </div>
 //         ))}
@@ -108,7 +108,7 @@ export default function BusinessHeroPanel() {
 
           <div>
             <h2 className="text-3xl font-extrabold tracking-tight">
-              RAFTAAR<span className="text-danger">EXPRESS</span>
+              RAFTAAR<span className="text-[#db2203]">EXPRESS</span>
             </h2>
 
             <p className="uppercase text-xs tracking-[4px] text-gray-500">
@@ -125,7 +125,7 @@ export default function BusinessHeroPanel() {
           Fast. Reliable.
           <br />
 
-          <span className="text-orange-500">
+          <span className="text-[#db2203]-500">
             Delivered
           </span>{" "}
           with Care.
@@ -154,7 +154,7 @@ export default function BusinessHeroPanel() {
             icon={<ShieldIcon />}
             title="Safe & Secure"
             subtitle="We care for your parcel"
-            bg="bg-orange-500"
+            bg="bg-[#db2203]-500"
           />
 
           <Feature
@@ -168,7 +168,7 @@ export default function BusinessHeroPanel() {
             icon={<SupportIcon />}
             title="24/7 Support"
             subtitle="We're here to help"
-            bg="bg-orange-500"
+            bg="bg-[#db2203]-500"
           />
 
         </div>
@@ -272,7 +272,7 @@ function Stat({
   return (
     <div>
 
-      <h3 className="text-orange-500 text-2xl font-bold">
+      <h3 className="text-[#db2203]-500 text-2xl font-bold">
         {number}
       </h3>
 

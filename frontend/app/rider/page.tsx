@@ -81,14 +81,14 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_BADGE: Record<string, string> = {
   created: 'bg-[#EAF1FC] text-navy',
   assigned: 'bg-[#EAF1FC] text-navy',
-  picked_up: 'bg-[#FBF3EA] text-orange',
-  in_hub: 'bg-[#FBF3EA] text-orange',
-  in_transit: 'bg-[#FBF3EA] text-orange',
-  dest_hub: 'bg-[#FBF3EA] text-orange',
-  out_for_delivery: 'bg-[#FBF3EA] text-orange',
+  picked_up: 'bg-[#FBF3EA] text-[#db2203]',
+  in_hub: 'bg-[#FBF3EA] text-[#db2203]',
+  in_transit: 'bg-[#FBF3EA] text-[#db2203]',
+  dest_hub: 'bg-[#FBF3EA] text-[#db2203]',
+  out_for_delivery: 'bg-[#FBF3EA] text-[#db2203]',
   delivered: 'bg-[#EAF7EF] text-success',
-  failed: 'bg-[#FBEAE7] text-danger',
-  rto: 'bg-[#FBEAE7] text-danger',
+  failed: 'bg-[#FBEAE7] text-[#db2203]',
+  rto: 'bg-[#FBEAE7] text-[#db2203]',
   cancelled: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
@@ -311,7 +311,7 @@ function RiderContent() {
       <header className="bg-white border-b border-line px-6 md:px-10 py-4 flex items-center justify-between">
         <Logo />
         <div className="flex items-center gap-4">
-          <span className="text-xs font-semibold uppercase tracking-wide text-orange bg-[#FBF3EA] px-3 py-1 rounded-full">
+          <span className="text-xs font-semibold uppercase tracking-wide text-[#db2203] bg-[#FBF3EA] px-3 py-1 rounded-full">
             Rider Panel
           </span>
           <button onClick={handleLogout} className="text-sm font-semibold text-muted-foreground hover:text-navy transition-colors">
@@ -322,7 +322,7 @@ function RiderContent() {
 
       <main className="max-w-4xl mx-auto px-6 md:px-10 py-8">
         {error && (
-          <div className="bg-[#FBEAE7] text-danger text-sm rounded-[10px] px-4 py-3 mb-6">{error}</div>
+          <div className="bg-[#FBEAE7] text-[#db2203] text-sm rounded-[10px] px-4 py-3 mb-6">{error}</div>
         )}
 
         {/* profile + availability */}
@@ -338,7 +338,7 @@ function RiderContent() {
               <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
                 <span className="capitalize">{profile?.vehicle_type || 'Vehicle not set'}</span>
                 <span className="text-line">•</span>
-                <span className="flex items-center gap-1 text-orange">
+                <span className="flex items-center gap-1 text-[#db2203]">
                   {STAR_ICON}
                   <span className="text-ink font-semibold">{profile?.rating?.toFixed(2) ?? '—'}</span>
                 </span>
@@ -373,7 +373,7 @@ function RiderContent() {
           <div className={`bg-white rounded-card shadow-card p-4 mb-6 ${profile.cod_wallet_locked ? 'ring-2 ring-danger' : wallet?.atWarning ? 'ring-2 ring-warning' : ''}`}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">COD cash in hand</span>
-              <span className={`text-sm font-bold ${profile.cod_wallet_locked ? 'text-danger' : wallet?.atWarning ? 'text-warning' : 'text-ink'}`}>
+              <span className={`text-sm font-bold ${profile.cod_wallet_locked ? 'text-[#db2203]' : wallet?.atWarning ? 'text-warning' : 'text-ink'}`}>
                 Rs {profile.cod_cash_held.toLocaleString()} / {profile.cod_wallet_limit.toLocaleString()}
               </span>
             </div>
@@ -384,7 +384,7 @@ function RiderContent() {
               />
             </div>
             {profile.cod_wallet_locked ? (
-              <p className="text-xs text-danger mt-2 font-semibold">
+              <p className="text-xs text-[#db2203] mt-2 font-semibold">
                 Wallet locked - deposit cash at the hub before accepting new COD parcels.
               </p>
             ) : wallet?.atWarning ? (
@@ -411,11 +411,11 @@ function RiderContent() {
               )}
             </div>
             <div className="flex items-center gap-3">
-              {locationError && <span className="text-xs text-danger">{locationError}</span>}
+              {locationError && <span className="text-xs text-[#db2203]">{locationError}</span>}
               <button
                 onClick={handleArrivedAtBranch}
                 disabled={locating}
-                className="text-sm font-semibold text-orange hover:opacity-80 disabled:opacity-60 transition-opacity"
+                className="text-sm font-semibold text-[#db2203] hover:opacity-80 disabled:opacity-60 transition-opacity"
               >
                 {locating ? 'Sharing…' : "I've arrived at branch"}
               </button>
@@ -427,7 +427,7 @@ function RiderContent() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <StatCard label="Today's earnings" value={profileLoading ? '—' : `$${(profile?.stats.earnings_today ?? 0).toFixed(2)}`} accent="text-success" />
           <StatCard label="Delivered today" value={profileLoading ? '—' : String(profile?.stats.deliveries_today ?? 0)} accent="text-navy" />
-          <StatCard label="Active now" value={profileLoading ? '—' : String(profile?.stats.active_deliveries ?? 0)} accent="text-orange" />
+          <StatCard label="Active now" value={profileLoading ? '—' : String(profile?.stats.active_deliveries ?? 0)} accent="text-[#db2203]" />
         </div>
 
         {/* incoming offers */}
@@ -446,7 +446,7 @@ function RiderContent() {
                 >
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div>
-                      <span className="text-xs font-semibold uppercase tracking-wide text-orange">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-[#db2203]">
                         {order.status === 'dest_hub' ? 'Last-mile delivery request' : 'New pickup request'}
                       </span>
                       <p className="font-mono font-bold text-ink mt-1">{order.tracking_number}</p>
@@ -464,7 +464,7 @@ function RiderContent() {
                       <span>{order.pickup_address?.full_address || 'Pickup address unavailable'}</span>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="text-orange mt-0.5">{FLAG_ICON}</span>
+                      <span className="text-[#db2203] mt-0.5">{FLAG_ICON}</span>
                       <span>{order.dropoff_address?.full_address || 'Dropoff address unavailable'}</span>
                     </div>
                   </div>
@@ -473,14 +473,14 @@ function RiderContent() {
                     <button
                       onClick={() => handleRespond(order, false)}
                       disabled={respondingId === order.id}
-                      className="flex-1 border border-line text-muted-foreground hover:text-danger hover:border-danger font-semibold text-sm py-2.5 rounded-[10px] transition-colors disabled:opacity-60"
+                      className="flex-1 border border-line text-muted-foreground hover:text-[#db2203] hover:border-danger font-semibold text-sm py-2.5 rounded-[10px] transition-colors disabled:opacity-60"
                     >
                       Decline
                     </button>
                     <button
                       onClick={() => handleRespond(order, true)}
                       disabled={respondingId === order.id}
-                      className="flex-[1.4] bg-orange hover:opacity-90 text-white font-bold text-sm py-2.5 rounded-[10px] transition-opacity disabled:opacity-60"
+                      className="flex-[1.4] bg-[#db2203] hover:opacity-90 text-white font-bold text-sm py-2.5 rounded-[10px] transition-opacity disabled:opacity-60"
                     >
                       {respondingId === order.id ? 'Responding…' : 'Accept'}
                     </button>
@@ -534,7 +534,7 @@ function RiderContent() {
                       </span>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="text-orange mt-0.5">{FLAG_ICON}</span>
+                      <span className="text-[#db2203] mt-0.5">{FLAG_ICON}</span>
                       <span>
                         {order.dropoff_address?.full_address || 'Dropoff address unavailable'}
                         {order.dropoff_address?.city ? `, ${order.dropoff_address.city}` : ''}
@@ -567,7 +567,7 @@ function RiderContent() {
                       <button
                         onClick={() => handleReportFailedAttempt(order)}
                         disabled={updatingId === order.id}
-                        className="flex-1 border border-line text-muted-foreground hover:text-danger hover:border-danger font-semibold text-sm py-2.5 rounded-[10px] transition-colors disabled:opacity-60"
+                        className="flex-1 border border-line text-muted-foreground hover:text-[#db2203] hover:border-danger font-semibold text-sm py-2.5 rounded-[10px] transition-colors disabled:opacity-60"
                       >
                         Report failed attempt
                       </button>
@@ -731,7 +731,7 @@ function DeliveryModal({
         </div>
         <p className="font-mono text-sm text-muted-foreground mb-4">{order.tracking_number}</p>
 
-        {error && <div className="bg-[#FBEAE7] text-danger text-sm rounded-[10px] px-4 py-3 mb-4">{error}</div>}
+        {error && <div className="bg-[#FBEAE7] text-[#db2203] text-sm rounded-[10px] px-4 py-3 mb-4">{error}</div>}
 
         <div className="flex flex-col gap-4">
           {/* Step 1: OTP */}
@@ -741,7 +741,7 @@ function DeliveryModal({
               <button
                 onClick={handleSendOtp}
                 disabled={sendingOtp}
-                className="w-full bg-orange hover:opacity-90 text-white font-bold text-sm py-2.5 rounded-[10px] disabled:opacity-60"
+                className="w-full bg-[#db2203] hover:opacity-90 text-white font-bold text-sm py-2.5 rounded-[10px] disabled:opacity-60"
               >
                 {sendingOtp ? 'Sending…' : 'Send OTP to recipient'}
               </button>

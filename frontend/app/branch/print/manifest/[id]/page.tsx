@@ -32,7 +32,7 @@ function PrintManifestContent() {
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load this manifest.'));
   }, [id]);
 
-  if (error) return <div className="max-w-lg mx-auto mt-10 text-sm text-danger">{error}</div>;
+  if (error) return <div className="max-w-lg mx-auto mt-10 text-sm text-[#db2203]">{error}</div>;
   if (!manifest) return <div className="max-w-lg mx-auto mt-10 text-sm text-muted-foreground">Loading…</div>;
 
   const scannedCount = manifest.items.filter((i) => i.scan_status && i.scan_status !== 'loaded').length;
@@ -53,11 +53,11 @@ function PrintManifestContent() {
           <div className="flex items-start justify-between mb-6 pb-6 border-b border-line">
             <div>
               <div className="font-display text-lg font-extrabold text-navy leading-none">
-                RAFTAAR<span className="text-danger">EXPRESS</span>
+                RAFTAAR<span className="text-[#db2203]">EXPRESS</span>
               </div>
               <div className="text-[0.6rem] tracking-[0.2em] text-muted-foreground font-semibold mt-1">BUS MANIFEST</div>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#FBF3EA] text-orange">{titleCase(manifest.status || '')}</span>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#FBF3EA] text-[#db2203]">{titleCase(manifest.status || '')}</span>
           </div>
 
           <div className="flex flex-col items-center mb-6">

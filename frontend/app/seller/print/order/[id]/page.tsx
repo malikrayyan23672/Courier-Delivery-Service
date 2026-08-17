@@ -34,7 +34,7 @@ function PrintOrderContent() {
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load this order.'));
   }, [token, id]);
 
-  if (error) return <div className="max-w-lg mx-auto mt-10 text-sm text-danger">{error}</div>;
+  if (error) return <div className="max-w-lg mx-auto mt-10 text-sm text-[#db2203]">{error}</div>;
   if (!order) return <div className="max-w-lg mx-auto mt-10 text-sm text-muted-foreground">Loading…</div>;
 
   return (
@@ -53,11 +53,11 @@ function PrintOrderContent() {
           <div className="flex items-start justify-between mb-6 pb-6 border-b border-line">
             <div>
               <div className="font-display text-lg font-extrabold text-navy leading-none">
-                RAFTAAR<span className="text-danger">EXPRESS</span>
+                RAFTAAR<span className="text-[#db2203]">EXPRESS</span>
               </div>
               <div className="text-[0.6rem] tracking-[0.2em] text-muted-foreground font-semibold mt-1">PACKING SLIP</div>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#FBF3EA] text-orange">{titleCase(order.status)}</span>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#FBF3EA] text-[#db2203]">{titleCase(order.status)}</span>
           </div>
 
           <div className="flex flex-col items-center mb-6">
