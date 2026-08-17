@@ -28,7 +28,9 @@ import {
   getHubAgingParcels,
   getHubAnalytics,
   getHubRtoQueue,
-  scanHubInbound,
+  hubScan,
+  HubScanAction,
+  HubScanResult,
   listBusSchedules,
   createBusManifest,
   addManifestItem,
@@ -254,6 +256,8 @@ export function BranchConsole() {
   const [deliveries, setDeliveries] = useState<Delivery[]>(INITIAL_DELIVERIES);
   const [scanInput, setScanInput] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [scanAction, setScanAction] = useState<HubScanAction>('in');
+  const [lastScan, setLastScan] = useState<HubScanResult | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState('');
 
@@ -497,9 +501,10 @@ export function BranchConsole() {
     }
     if (!token) return;
     setScanning(true);
-    scanHubInbound(val, token, branchId)
-      .then(() => {
-        toast(`Scanned in at hub: ${val}`);
+    hubScan(val, scanAction, token, branchId)
+      .then((res) => {
+        setLastScan(res);
+        toast(`Scanned ${scanAction}: ${val} -> ${res.status.replace(/_/g, ' ')}`);
         setScanInput('');
         loadHubData();
       })
@@ -703,6 +708,7 @@ export function BranchConsole() {
           {view === 'parcelops' && (
             <ParcelOpsView
               scanInput={scanInput} setScanInput={setScanInput} scanning={scanning}
+              scanAction={scanAction} setScanAction={setScanAction} lastScan={lastScan}
               inboundQueue={inboundQueue} dispatchQueue={dispatchQueue} manifestHistory={manifestHistory}
               hubLoading={hubLoading} hubError={hubError}
               onScan={handleScan} toast={toast} switchView={switchView}
@@ -1040,14 +1046,23 @@ function DeliveriesView({ deliveries, ready, out, done, failed, search, setSearc
 // ============================================================
 // VIEW: PARCEL OPERATIONS
 // ============================================================
+const SCAN_MODES: { value: HubScanAction; label: string; desc: string }[] = [
+  { value: 'in', label: 'Scan In', desc: 'received at this hub' },
+  { value: 'out', label: 'Scan Out', desc: 'departed this branch (on the bus)' },
+  { value: 'arrive', label: 'Scan Arrive', desc: 'arrived at destination hub' },
+];
+
 function ParcelOpsView({
-  scanInput, setScanInput, scanning, inboundQueue, dispatchQueue, manifestHistory, hubLoading, hubError, onScan, toast, switchView,
+  scanInput, setScanInput, scanning, scanAction, setScanAction, lastScan,
+  inboundQueue, dispatchQueue, manifestHistory, hubLoading, hubError, onScan, toast, switchView,
 }: {
   scanInput: string; setScanInput: (v: string) => void; scanning: boolean;
+  scanAction: HubScanAction; setScanAction: (v: HubScanAction) => void; lastScan: HubScanResult | null;
   inboundQueue: HubOrderSummary[]; dispatchQueue: HubOrderSummary[]; manifestHistory: HubManifestSummary[];
   hubLoading: boolean; hubError: string;
   onScan: () => void; toast: (msg: string) => void; switchView: (v: View) => void;
 }) {
+  const mode = SCAN_MODES.find((m) => m.value === scanAction) || SCAN_MODES[0];
   return (
     <>
       {hubError && <div className="rounded-lg border border-danger/30 bg-[#FBEAE7] px-4 py-3 text-sm text-danger">{hubError}</div>}
@@ -1055,13 +1070,36 @@ function ParcelOpsView({
       <Card className="p-5">
         <CardHeader className="p-0 mb-4">
           <CardTitle className="text-base">Scan Parcel</CardTitle>
-          <CardDescription>Hub receiving scan - moves a parcel to IN_HUB</CardDescription>
+          <CardDescription>The hub scanner drives the parcel through the bus network - a scan updates its status (arrived at this hub / in transit / out of this branch)</CardDescription>
         </CardHeader>
-        <div className="flex flex-col sm:flex-row gap-2.5">
-          <Input type="text" placeholder="Enter or scan tracking number…" value={scanInput} onChange={(e) => setScanInput(e.target.value)} className="flex-1" />
-          <CameraScanButton onScan={setScanInput} />
-          <Button onClick={onScan} variant="navy" disabled={scanning}>{scanning ? 'Scanning…' : 'Scan Incoming'}</Button>
-          <Button onClick={() => switchView('manifests')} variant="outline">Load onto manifest →</Button>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2">
+            {SCAN_MODES.map((m) => (
+              <button
+                key={m.value}
+                onClick={() => setScanAction(m.value)}
+                className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                  scanAction === m.value ? 'bg-navy text-white border-navy' : 'bg-card border-line text-muted-foreground hover:border-navy/40'
+                }`}
+              >
+                {m.label}
+                <span className={`block text-[0.62rem] font-medium ${scanAction === m.value ? 'text-white/70' : 'text-muted-foreground'}`}>{m.desc}</span>
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <Input type="text" placeholder="Enter or scan tracking number…" value={scanInput} onChange={(e) => setScanInput(e.target.value)} className="flex-1" />
+            <CameraScanButton onScan={setScanInput} />
+            <Button onClick={onScan} variant="navy" disabled={scanning}>{scanning ? 'Scanning…' : `Scan ${mode.label}`}</Button>
+            <Button onClick={() => switchView('manifests')} variant="outline">Load onto manifest →</Button>
+          </div>
+          {lastScan && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-success/30 bg-[#EAF7EF] px-4 py-2.5 text-sm">
+              <span className="font-mono font-bold text-ink">{lastScan.tracking_number}</span>
+              <span className="text-success font-semibold">{lastScan.status.replace(/_/g, ' ')}</span>
+              <span className="text-xs text-muted-foreground flex-1 text-right">{lastScan.note}</span>
+            </div>
+          )}
         </div>
       </Card>
 

@@ -96,6 +96,8 @@ export function panelPathForRole(role: string | null, designation: string | null
       }
       
       return '/staff';
+    case 'manager':
+      return '/branch';
     case 'rider':
       return '/rider';
     case 'admin':
