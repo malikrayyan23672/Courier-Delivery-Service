@@ -234,6 +234,7 @@ export interface Order {
   package_weight_kg?: number | null;
   package_description?: string | null;
   estimated_price?: number;
+  unit_price?: number | null;
   final_price?: number;
   discount_id?: string | null;
   discount_amount?: number | null;
