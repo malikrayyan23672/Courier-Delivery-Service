@@ -22,7 +22,7 @@ class BranchLocationOut(BaseModel):
     id: str
     name: str
     address: str
-    manager_id: str
+    manager_id: Optional[str]
     phone: Optional[str]
     email: Optional[str]
     latitude: str | None

@@ -300,11 +300,11 @@ export interface BranchDetails{
   id: string;
   name: string;
   address: string;
-  manager_id: string;
-  phone: string;
-  email: string;
+  manager_id: string | null;
+  phone: string | null;
+  email: string | null;
   latitude: string | null;
-  logitude: string | null;
+  longitude: string | null;
 }
 
 export function getMyProfile(token: string) {
