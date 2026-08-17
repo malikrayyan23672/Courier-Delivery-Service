@@ -113,6 +113,51 @@ def delete_staff_or_rider(user_id: str, db: Session = Depends(get_db), current_u
     db.delete(user)
     db.commit()
 
+@router.patch("/users/{user_id}/status")
+def set_user_active_status(
+    user_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    """Activate / deactivate a user account. Deactivated accounts can no longer log in."""
+    is_active = payload.get("is_active")
+    if is_active is None or not isinstance(is_active, bool):
+        raise HTTPException(status_code=400, detail="is_active (boolean) is required")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
+    user.is_active = is_active
+    db.commit()
+    return {"id": str(user.id), "full_name": user.full_name, "is_active": user.is_active}
+
+@router.patch("/users/{user_id}")
+def edit_user(
+    user_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    """Edit a user's basic details (full_name / phone)."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    full_name = payload.get("full_name")
+    phone = payload.get("phone")
+    if full_name is not None:
+        if not isinstance(full_name, str) or len(full_name.strip()) < 2:
+            raise HTTPException(status_code=400, detail="Full name must be at least 2 characters")
+        user.full_name = full_name.strip()
+    if phone is not None:
+        existing = db.query(User).filter(User.phone == phone, User.id != user.id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Phone number already in use")
+        user.phone = phone
+    db.commit()
+    return {"id": str(user.id), "full_name": user.full_name, "phone": user.phone, "email": user.email, "role": user.role.name if user.role else None, "is_active": user.is_active, "is_verified": user.is_verified}
+
 # @router.post("/zones", response_model=ZoneOut, status_code=201)
 # def add_zone(
 #     payload: ZoneCreateRequest,

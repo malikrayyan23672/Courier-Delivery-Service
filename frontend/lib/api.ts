@@ -632,6 +632,22 @@ export function createStaffOrRider(payload: AdminCreateUserPayload, token: strin
   return request<AdminUser>('/admin/users', { method: 'POST', body: JSON.stringify(payload) }, token);
 }
 
+export function setUserActiveStatus(userId: string, isActive: boolean, token: string) {
+  return request<{ id: string; full_name: string; is_active: boolean }>(
+    `/admin/users/${userId}/status`,
+    { method: 'PATCH', body: JSON.stringify({ is_active: isActive }) },
+    token
+  );
+}
+
+export function editUser(userId: string, payload: { full_name?: string; phone?: string }, token: string) {
+  return request<{ id: string; full_name: string; phone: string; email: string; role: string; is_active: boolean; is_verified: boolean }>(
+    `/admin/users/${userId}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    token
+  );
+}
+
 export interface AdminAnalytics {
   total_orders: number;
   total_revenue: number;
@@ -1161,14 +1177,25 @@ export function getMarketplaceOrderByTracking(trackingNumber: string) {
   return request<MarketplaceOrder>(`/marketplace/orders/${trackingNumber}`, { method: 'GET' });
 }
 
+export interface PublicTrackingRider {
+  full_name: string | null;
+  phone: string | null;
+  vehicle_type: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 export interface PublicTrackingInfo {
   tracking_number: string;
   status: string;
+  pickup_city: string | null;
+  dropoff_city: string | null;
   history: { status: string; note: string | null; timestamp: string }[];
+  rider: PublicTrackingRider | null;
 }
 
 export function trackPublicOrder(trackingNumber: string) {
-  return request<PublicTrackingInfo>(`/tracking/${trackingNumber}`, { method: 'GET' });
+  return request<PublicTrackingInfo>(`/tracking/${trackingNumber.trim().toUpperCase()}`, { method: 'GET' });
 }
 
 export interface RatingPayload {
@@ -1636,5 +1663,190 @@ export function unlockRiderWallet(riderId: string, note: string, token: string) 
     `/finance/rider-wallets/${riderId}/unlock`,
     { method: 'POST', body: JSON.stringify({ note }) },
     token
+  );
+}
+
+// ---- Admin: Corridors ----
+
+export interface Corridor {
+  id: string;
+  origin: string;
+  destination: string;
+  distance_km: number;
+  estimated_time_min: number;
+  is_active: boolean;
+  base_rate: number | null;
+  total_orders: number;
+  delivered: number;
+  rto: number;
+  in_transit: number;
+  delivery_rate: number;
+  avg_delivery_hours: number | null;
+}
+
+export function listCorridors(token: string) {
+  return request<Corridor[]>('/admin/corridors', { method: 'GET' }, token);
+}
+
+export interface CorridorPayload {
+  origin: string;
+  destination: string;
+  distance_km: number;
+  estimated_time_min: number;
+  is_active?: boolean;
+}
+
+export function createCorridor(payload: CorridorPayload, token: string) {
+  return request<Corridor>('/admin/corridors', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function updateCorridor(corridorId: string, payload: CorridorPayload, token: string) {
+  return request<Corridor>(`/admin/corridors/${corridorId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
+export interface CorridorMapHub {
+  id: string;
+  name: string;
+  address: string | null;
+  zone_name: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  in_transit: number;
+  delivered_today: number;
+  total_parcels: number;
+}
+
+export function getCorridorMap(token: string) {
+  return request<CorridorMapHub[]>('/admin/corridors/map', { method: 'GET' }, token);
+}
+
+// ---- Admin: Pricing ----
+
+export interface PricingWeightSlab {
+  id: string;
+  weight_range_min: number;
+  weight_range_max: number;
+  price: number;
+  extra_per_kg: number | null;
+  fuel_surcharge_percentage: number | null;
+  tax_percentage: number | null;
+}
+
+export interface PricingZone {
+  zone_id: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  base_rate: number;
+  cod_fee_percentage: number;
+  weight_slabs: PricingWeightSlab[];
+}
+
+export function getPricingOverview(token: string) {
+  return request<PricingZone[]>('/admin/pricing', { method: 'GET' }, token);
+}
+
+export function updateZonePricing(zoneId: string, payload: { base_rate?: number; cod_fee_percentage?: number }, token: string) {
+  return request<{ zone_id: string; name: string; base_rate: number; cod_fee_percentage: number }>(
+    `/admin/pricing/zones/${zoneId}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    token
+  );
+}
+
+export interface PricingRulePayload {
+  zone_id: string;
+  weight_range_min: number;
+  weight_range_max: number;
+  price: number;
+  extra_per_kg?: number | null;
+  fuel_surcharge_percentage?: number | null;
+  tax_percentage?: number | null;
+}
+
+export function createPricingRule(payload: PricingRulePayload, token: string) {
+  return request<PricingWeightSlab>('/admin/pricing/rules', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function updatePricingRule(ruleId: string, payload: PricingRulePayload, token: string) {
+  return request<PricingWeightSlab>(`/admin/pricing/rules/${ruleId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
+export function deletePricingRule(ruleId: string, token: string) {
+  return request<void>(`/admin/pricing/rules/${ruleId}`, { method: 'DELETE' }, token);
+}
+
+// ---- Admin: Audit log ----
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  details: string | null;
+  created_at: string;
+  user: { id: string | null; full_name: string | null; email: string | null };
+}
+
+export function listAuditLogs(
+  token: string,
+  filters?: { user_id?: string; entity_type?: string; from_date?: string; to_date?: string; q?: string; limit?: number }
+) {
+  const params = new URLSearchParams();
+  if (filters?.user_id) params.set('user_id', filters.user_id);
+  if (filters?.entity_type) params.set('entity_type', filters.entity_type);
+  if (filters?.from_date) params.set('from_date', filters.from_date);
+  if (filters?.to_date) params.set('to_date', filters.to_date);
+  if (filters?.q) params.set('q', filters.q);
+  if (filters?.limit) params.set('limit', String(filters.limit));
+  const qs = params.toString();
+  return request<AuditLogEntry[]>(`/admin/audit-logs${qs ? `?${qs}` : ''}`, { method: 'GET' }, token);
+}
+
+// ---- Admin: Seller approval workflow ----
+
+export interface AdminSeller {
+  business_id: string;
+  company_name: string;
+  business_type: string | null;
+  email: string;
+  phone: string;
+  city: string;
+  status: string;
+  is_active: boolean;
+  wallet_balance: number;
+  credit_limit: number;
+  cod_service: boolean;
+  total_orders: number;
+  created_at: string | null;
+  owner_name: string | null;
+  owner_verified: boolean | null;
+}
+
+export function listSellersAdmin(token: string) {
+  return request<AdminSeller[]>('/admin/sellers', { method: 'GET' }, token);
+}
+
+export function approveSeller(businessId: string, token: string) {
+  return request<{ business_id: string; company_name: string; status: string; is_active: boolean }>(
+    `/admin/sellers/${businessId}/approve`, { method: 'POST' }, token
+  );
+}
+
+export function rejectSeller(businessId: string, token: string) {
+  return request<{ business_id: string; company_name: string; status: string; is_active: boolean }>(
+    `/admin/sellers/${businessId}/reject`, { method: 'POST' }, token
+  );
+}
+
+export function deactivateSeller(businessId: string, token: string) {
+  return request<{ business_id: string; company_name: string; status: string; is_active: boolean }>(
+    `/admin/sellers/${businessId}/deactivate`, { method: 'POST' }, token
+  );
+}
+
+export function activateSeller(businessId: string, token: string) {
+  return request<{ business_id: string; company_name: string; status: string; is_active: boolean }>(
+    `/admin/sellers/${businessId}/activate`, { method: 'POST' }, token
   );
 }

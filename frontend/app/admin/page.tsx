@@ -243,6 +243,30 @@ function AdminContent() {
                 </div>
               </div>
             ))}
+
+            <div>
+              <div className="px-3 pb-1.5 text-[0.68rem] font-bold uppercase tracking-wider text-white/40">
+                Governance
+              </div>
+              <div className="flex flex-col gap-0.5">
+                {[
+                  { href: '/admin/dashboard', label: 'Network Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+                  { href: '/admin/users', label: 'Users & Sellers', icon: <Users className="h-4 w-4" /> },
+                  { href: '/admin/corridors', label: 'Corridors', icon: <MapPin className="h-4 w-4" /> },
+                  { href: '/admin/pricing', label: 'Pricing', icon: <Percent className="h-4 w-4" /> },
+                  { href: '/admin/audit-log', label: 'Audit Log', icon: <Shield className="h-4 w-4" /> },
+                ].map((item) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    className="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+                  >
+                    <span className="text-white/50 group-hover:text-white/80">{item.icon}</span>
+                    <span className="flex-1 text-left">{item.label}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
           </nav>
         </ScrollArea>
 

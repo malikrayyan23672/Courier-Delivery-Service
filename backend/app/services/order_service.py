@@ -135,7 +135,7 @@ def create_order(
     db.add_all([pickup_address, dropoff_address])
     db.flush()  # get IDs without committing yet
 
-    price = estimate_price(pickup_address, dropoff_address, package_weight_kg)
+    price = estimate_price(pickup_address, dropoff_address, package_weight_kg, db)
     goods_amount = round(unit_price * quantity, 2) if unit_price is not None and quantity is not None else 0.0
 
     # Determine zone and branch

@@ -154,7 +154,15 @@ export default function HomePage() {
             <path d="M10 17l5-5-5-5M15 12H3" />
             </svg>
           Register</a>
- 
+
+          <a href="/business/register" className='btn-login-nav'>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 21h18" />
+            <path d="M5 21V7l8-4 8 4v14" />
+            <path d="M9 21v-6h6v6" />
+            </svg>
+          Register as Seller</a>
+
         {/* <button type="button" className="btn-login-nav" onClick={openModal}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Field } from '@/components/Field';
 import { OtpBoxes } from '@/components/OtpBoxes';
 import next from 'next';
-import { ApiError, mediaUrl, registerBusinessUser, uploadCnicPhoto } from '@/lib/api';
+import { ApiError, mediaUrl, registerBusinessUser, sendOtp, uploadCnicPhoto, verifyOtp } from '@/lib/api';
 
 // ============================================================
 // TYPES & CONSTANTS
@@ -265,13 +265,6 @@ function formatCnic(raw: string): string {
   return out;
 }
 
-function maskEmail(email: string): string {
-  const [user, domain] = email.split('@');
-  if (!domain) return email;
-  const visible = user.slice(0, Math.min(2, user.length));
-  return `${visible}${'*'.repeat(Math.max(user.length - 2, 1))}@${domain}`;
-}
-
 // ============================================================
 // MAIN PAGE
 // ============================================================
@@ -283,23 +276,22 @@ export default function BusinessSignupPage() {
   const [submitted, setSubmitted] = useState(false);
   const [refNum, setRefNum] = useState('');
 
-  // OTP (demo mode - see note below)
-  const [generatedOtp, setGeneratedOtp] = useState('');
   const [otpValue, setOtpValue] = useState('');
   const [otpError, setOtpError] = useState('');
   const [resendSeconds, setResendSeconds] = useState(0);
+  const [registering, setRegistering] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  function goNext() {
+  async function goNext() {
     const stepErrors = validateStep(step, form);
     setErrors(stepErrors);
     if (Object.keys(stepErrors).length > 0) return;
     if (step === 3) {
-      sendOtp();
-      setStep(4);
+      await submitRegistration();
     } else {
       setStep((s) => s + 1);
     }
@@ -310,24 +302,56 @@ export default function BusinessSignupPage() {
     setStep((s) => Math.max(1, s - 1));
   }
 
-  function sendOtp() {
-    // DEMO MODE: the original mockup never sent a real email either - it
-    // generated a code client-side and displayed it in a "demo hint" box.
-    // Kept identical here rather than wiring to /auth/send-otp, because
-    // this form collects business fields (NTN, bank details, registration
-    // number, etc.) that don't exist anywhere on the backend's Business
-    // model yet - pretending this saves real data would be misleading.
-    // Once a real business-registration endpoint exists, replace this
-    // with a call to it and use its OTP flow instead.
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedOtp(code);
-    setOtpValue('');
-    setOtpError('');
-    startResendTimer();
+  // Creates the account (backend sends the real OTP as part of registration),
+  // then moves to the verification step.
+  async function submitRegistration() {
+    setRegistering(true);
+    setErrors((e) => ({ ...e, form: '' }));
+    try {
+      await registerBusinessUser({
+        full_name: form.fullName,
+        email: form.sellerEmail,
+        phone: form.phone,
+        cnic: form.cnic,
+        cnic_photo_url: form.cnicPhotoUrl || undefined,
+        password: form.password,
+        business_name: form.businessName,
+        business_type: form.businessType,
+        business_registration_number: form.regNumber,
+        ntn: form.ntn,
+        estimated_monthly_shipments: form.estimatedMonthlyShipments,
+        business_address: form.businessAddress,
+        pickup_address: form.pickupAddress,
+        city: form.city,
+        province: form.province,
+        postal_code: form.postalCode,
+        country: form.country,
+        preffered_pickup_time: form.prefferedPickupTime,
+        cod_service: form.codRequired,
+        bank_name: form.bankName,
+        account_title: form.accountTitle,
+        account_number: form.accountNumber,
+      });
+      setOtpValue('');
+      setOtpError('');
+      startResendTimer();
+      setStep(4);
+    } catch (err) {
+      setErrors({ form: err instanceof ApiError ? err.message : 'Could not create your account. Please try again.' });
+    } finally {
+      setRegistering(false);
+    }
   }
 
-  function updateField(key: keyof typeof form, value: string) {
-    setForm((f) => ({ ...f, [key]: value }));
+  async function handleResendOtp() {
+    setOtpError('');
+    setOtpValue('');
+    try {
+      await sendOtp(form.phone);
+      startResendTimer();
+    } catch (err) {
+      setOtpError(err instanceof ApiError ? err.message : 'Could not resend code.');
+    }
   }
 
   function startResendTimer() {
@@ -345,57 +369,21 @@ export default function BusinessSignupPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const nextErrors: Record<string, string> = {}
-
-    if(form.password !== form.confirmPassword){
-        nextErrors.confirm = "Password don't match.";
-    }
-
-    if(Object.keys(nextErrors).length){
-        setErrors(nextErrors);
-        return;
-    }
-
-    try{
-
-        await registerBusinessUser({
-            full_name: form.fullName,
-            email: form.sellerEmail,
-            phone: form.phone,
-            cnic: form.cnic,
-            cnic_photo_url: form.cnicPhotoUrl || undefined,
-            password: form.password,
-            business_name: form.businessName,
-            business_type: form.businessType,
-            business_registration_number: form.regNumber,
-            ntn: form.ntn, //n,tional tax number -> optional
-            estimated_monthly_shipments: form.estimatedMonthlyShipments,
-            business_address: form.businessAddress,
-            pickup_address: form.pickupAddress,
-            city: form.city,
-            province: form.province,
-            postal_code: form.postalCode,
-            country: form.country,
-            preffered_pickup_time: form.prefferedPickupTime,
-            cod_service: form.codRequired,
-            bank_name: form.bankName,
-            account_title: form.accountTitle,
-            account_number: form.accountNumber,
-
-        });
-    }catch(err){
-        if(err instanceof ApiError){
-            setErrors({form: err.message})
-        }
-    }
-
-    if (otpValue.length < 6 || otpValue !== generatedOtp) {
-      setOtpError("That code doesn't match. Please try again.");
+    if (otpValue.length < 6) {
+      setOtpError('Enter the 6-digit code sent to your phone.');
       return;
     }
+    setVerifying(true);
     setOtpError('');
-    setRefNum(String(Math.floor(100000 + Math.random() * 899999)));
-    setSubmitted(true);
+    try {
+      await verifyOtp(form.phone, otpValue);
+      setRefNum(String(Math.floor(100000 + Math.random() * 899999)));
+      setSubmitted(true);
+    } catch (err) {
+      setOtpError(err instanceof ApiError ? err.message : "That code doesn't match. Please try again.");
+    } finally {
+      setVerifying(false);
+    }
   }
 
   const progressPct = (step / 4) * 100;
@@ -615,19 +603,15 @@ export default function BusinessSignupPage() {
                 {step === 4 && (
                   <>
                     <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
-                      We&apos;ve sent a 6-digit verification code to <b className="text-ink">{maskEmail(form.sellerEmail)}</b>. Enter it below to confirm your account.
+                      We&apos;ve sent a 6-digit verification code by SMS to <b className="text-ink">{form.phone}</b>. Enter it below to confirm your account.
                     </p>
-
-                    <div className="text-xs text-muted-foreground bg-[#FBF3EA] border border-dashed border-[#F0C89A] px-3 py-2.5 rounded-lg mb-5">
-                      Demo mode — no real email is sent. Your one-time code is <b className="text-orange">{generatedOtp}</b>.
-                    </div>
 
                     <OtpBoxes value={otpValue} onChange={setOtpValue} />
                     {otpError && <p className="text-[0.74rem] text-danger mb-3.5">{otpError}</p>}
 
                     <p className="text-sm text-muted-foreground mb-5">
                       Didn&apos;t get the code?{' '}
-                      <button type="button" disabled={resendSeconds > 0} onClick={sendOtp}
+                      <button type="button" disabled={resendSeconds > 0} onClick={handleResendOtp}
                         className="text-orange font-bold bg-transparent p-0 disabled:text-muted-foreground disabled:cursor-not-allowed">
                         {resendSeconds > 0 ? `Resend code (${resendSeconds}s)` : 'Resend code'}
                       </button>
@@ -635,20 +619,22 @@ export default function BusinessSignupPage() {
                   </>
                 )}
 
+                {step === 3 && errors.form && <p className="text-sm text-danger mb-4">{errors.form}</p>}
+
                 <div className="flex justify-between items-center mt-7">
-                  <button type="button" onClick={goBack} disabled={step === 1}
+                  <button type="button" onClick={goBack} disabled={step === 1 || step === 4}
                     className="text-muted-foreground hover:text-ink font-bold text-sm px-1.5 py-3 bg-transparent disabled:invisible">
                     ← Back
                   </button>
                   {step < 4 ? (
-                    <button type="button" onClick={goNext}
-                      className="bg-navy hover:bg-navy-light text-white font-bold text-sm px-6 py-3.5 rounded-[10px] transition-colors">
-                      {step === 3 ? 'Verify email →' : 'Continue →'}
+                    <button type="button" onClick={goNext} disabled={registering}
+                      className="bg-navy hover:bg-navy-light text-white font-bold text-sm px-6 py-3.5 rounded-[10px] transition-colors disabled:opacity-60">
+                      {step === 3 ? (registering ? 'Sending code…' : 'Send verification code →') : 'Continue →'}
                     </button>
                   ) : (
-                    <button type="submit"
-                      className="bg-navy hover:bg-navy-light text-white font-bold text-sm px-6 py-3.5 rounded-[10px] transition-colors">
-                      Verify &amp; Create Account ✓
+                    <button type="submit" disabled={verifying}
+                      className="bg-navy hover:bg-navy-light text-white font-bold text-sm px-6 py-3.5 rounded-[10px] transition-colors disabled:opacity-60">
+                      {verifying ? 'Verifying…' : 'Verify & Create Account ✓'}
                     </button>
                   )}
                 </div>

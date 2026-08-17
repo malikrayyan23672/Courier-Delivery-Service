@@ -6,6 +6,7 @@ from app.models.user import User
 from app.models.role import Role
 from app.models.business import Business
 from app.models.staff import StaffProfile
+from app.models.phone_otp import PhoneOTP
 from app.schemas.auth import (
     RegisterRequest,
     BusinessRegisterRequest,
@@ -77,7 +78,8 @@ def register_business(payload: BusinessRegisterRequest, db: Session = Depends(ge
     cod_service= payload.cod_service,
     bank_name= payload.bank_name,
     account_title= payload.account_title,
-    account_number = payload.account_number
+    account_number = payload.account_number,
+    status = "pending",  # requires admin approval before the seller portal unlocks
     )
 
     db.add(user)
@@ -96,7 +98,7 @@ def register_business(payload: BusinessRegisterRequest, db: Session = Depends(ge
     send_otp(db, payload.phone)
 
     return {
-        "message": "Business registered successfully. An OTP has been sent to your phone for verification.",
+        "message": "Business registered successfully. An OTP has been sent to your phone for verification. Your seller account is pending admin approval.",
         "user_id": str(user.id),
         "business_id": str(business.id),
     }
@@ -113,6 +115,15 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     if not customer_role:
         raise HTTPException(status_code=500, detail="Customer role not seeded. Run seed script first.")
 
+    # Phone-first signup flow: the phone was already OTP-verified on /customer/signup,
+    # so no second code is sent and the account starts verified.
+    previously_verified = (
+        db.query(PhoneOTP)
+        .filter(PhoneOTP.phone == payload.phone, PhoneOTP.is_used.is_(True))
+        .order_by(PhoneOTP.created_at.desc())
+        .first()
+    )
+
     user = User(
         full_name=payload.full_name,
         email=payload.email,
@@ -120,14 +131,15 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         cnic=payload.cnic,
         hashed_password=hash_password(payload.password),
         role_id=customer_role.id,
-        is_verified=False,
+        is_verified=bool(previously_verified),
     )
     db.add(user)
     db.commit()
     db.refresh(user)
 
     # Automatically send the first OTP so the user can verify right away
-    send_otp(db, payload.phone)
+    if not previously_verified:
+        send_otp(db, payload.phone)
 
     return {
         "message": "Registered successfully. An OTP has been sent to your phone for verification.",

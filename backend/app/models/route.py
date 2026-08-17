@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -12,3 +12,4 @@ class Route(Base, TimestampMixin):
     destination = Column(String(150), nullable=False)
     distance_km = Column(Integer, nullable=False)  # Distance in kilometers
     estimated_time_min = Column(Integer, nullable=False)  # Estimated time in minutes
+    is_active = Column(Boolean, default=True)  # Corridor enabled for the network

@@ -95,6 +95,39 @@ const EMPTY_FORM: BookingForm = {
   // package_size: '',
 };
 
+/**
+ * Rule-based natural-language status summary (TRD Stage 1 - "Customer Summary").
+ * Deliberately simple: picks the most urgent/recent order and describes it in
+ * plain English. Upgrade to a Claude-generated summary in Stage 2.
+ */
+function statusSummary(orders: Order[]): string | null {
+  if (orders.length === 0) return null;
+  const priority: Record<string, number> = {
+    out_for_delivery: 0, in_transit: 1, picked_up: 2, assigned: 3, created: 4, delivered: 5, failed: 6, cancelled: 7,
+  };
+  const active = [...orders].sort((a, b) => (priority[a.status] ?? 9) - (priority[b.status] ?? 9))[0];
+  const dest = active.dropoff_address?.city || active.dropoff_address?.full_address || 'its destination';
+
+  switch (active.status) {
+    case 'out_for_delivery':
+      return `Your parcel ${active.tracking_number} is out for delivery to ${dest} — it should arrive today.`;
+    case 'in_transit':
+      return `Your parcel ${active.tracking_number} is in transit toward ${dest}.`;
+    case 'picked_up':
+      return `Your parcel ${active.tracking_number} has been picked up and is heading to the hub.`;
+    case 'assigned':
+      return `A rider has been assigned to pick up ${active.tracking_number}.`;
+    case 'created':
+      return `${active.tracking_number} is booked and awaiting rider assignment.`;
+    case 'delivered':
+      return `Your most recent parcel ${active.tracking_number} was delivered to ${dest}.`;
+    case 'failed':
+      return `Delivery attempt for ${active.tracking_number} failed — our team will retry shortly.`;
+    default:
+      return null;
+  }
+}
+
 export default function DashboardPage() {
   return (
     <RoleGuard allowedRoles={['customer']}>
@@ -517,6 +550,7 @@ function OverviewTab({
   onViewAll,
 }: OverviewTabProps) {
   const recent = orders.slice(0, 5);
+  const summary = statusSummary(orders);
   return (
     <>
       <div className="flex items-center justify-between mb-6">
@@ -531,6 +565,12 @@ function OverviewTab({
           {showBookingForm ? 'Cancel' : '+ Book a Shipment'}
         </button>
       </div>
+
+      {summary && (
+        <div className="mb-6 rounded-[12px] border border-line bg-[#EAF1FC] px-4 py-3 text-sm font-medium text-navy">
+          {summary}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="Total Shipments" value={String(stats.total)} />

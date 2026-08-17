@@ -162,6 +162,12 @@ export default function LoginPage() {
               Sign up
             </Link>
           </p>
+          <p className="text-center mt-2 text-sm text-muted-foreground">
+            Want to sell with us?{' '}
+            <Link href="/business/register" className="text-orange font-bold no-underline">
+              Register as a seller
+            </Link>
+          </p>
         </div>
       </div>
     </div>
