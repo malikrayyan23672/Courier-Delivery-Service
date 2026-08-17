@@ -95,7 +95,7 @@ export function OrderDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-[#0F2648]/40 flex items-start md:items-center justify-center p-3 md:p-6 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-[#0B2472]/40 flex items-start md:items-center justify-center p-3 md:p-6 overflow-y-auto"
       onClick={onClose}
     >
       <div

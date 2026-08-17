@@ -19,7 +19,7 @@ const STATUS_COLOR_MAP: Record<string, string> = {
 const COLOR_STYLES: Record<string, string> = {
   green: 'bg-[#EAF7EF] text-[#1E8E5A] border-[#1E8E5A]/25',
   amber: 'bg-[#FDF1DD] text-[#B8710A] border-[#F2A93B]/35',
-  red: 'bg-[#FBEAE7] text-[#D8432C] border-[#D8432C]/25',
+  red: 'bg-[#FBEAE7] text-[#E6350F] border-[#E6350F]/25',
   blue: 'bg-[#EAF1FC] text-[#2563EB] border-[#2563EB]/25',
   gray: 'bg-page text-muted-foreground border-line',
 };

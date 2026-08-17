@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Poppins, Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
@@ -18,6 +18,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Raftaar Express Courier Services',
   description: 'Book, track, and manage shipments with Raftaar Express.',
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0B2472',
 };
 
 export default function RootLayout({

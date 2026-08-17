@@ -833,11 +833,12 @@ export function updateManifestStatus(
   manifestId: string,
   status: string,
   itemStatus: string | undefined,
-  token: string
+  token: string,
+  scannedItemIds?: string[]
 ) {
   return request<BusManifest>(
     `/admin/bus/manifests/${manifestId}/status`,
-    { method: 'PATCH', body: JSON.stringify({ status, item_status: itemStatus }) },
+    { method: 'PATCH', body: JSON.stringify({ status, item_status: itemStatus, scanned_item_ids: scannedItemIds }) },
     token
   );
 }
@@ -1011,6 +1012,14 @@ export interface HubAgingOrder extends HubOrderSummary {
   hours_aging: number;
 }
 
+export interface HubManifestItem {
+  id: string;
+  order_id: string | null;
+  crate_label: string | null;
+  scan_status: string | null;
+  tracking_number: string | null;
+}
+
 export interface HubManifestSummary {
   id: string;
   manifest_number: string | null;
@@ -1021,6 +1030,8 @@ export interface HubManifestSummary {
   destination_city: string | null;
   item_count: number;
   operator_name: string | null;
+  direction: 'outbound' | 'inbound';
+  items: HubManifestItem[];
 }
 
 export interface VendorScore {
@@ -1069,6 +1080,10 @@ export function getHubVendorScores(token: string, branchId?: string) {
 export function getHubAnalytics(token: string, branchId?: string, days = 14) {
   const params = new URLSearchParams({ days: String(days), ...(branchId ? { branch_id: branchId } : {}) });
   return request<HubAnalytics>(`/hub/analytics?${params.toString()}`, { method: 'GET' }, token);
+}
+
+export function getHubRtoQueue(token: string, branchId?: string) {
+  return request<HubOrderSummary[]>(`/hub/rto-queue${branchQuery(branchId)}`, { method: 'GET' }, token);
 }
 
 // ---- Finance & COD Engine ----

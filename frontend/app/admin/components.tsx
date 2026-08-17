@@ -871,7 +871,7 @@ export function DiscountsTab({ token }: { token: string }) {
             <Input value={form.max_uses} onChange={(e) => setForm({ ...form, max_uses: e.target.value })} placeholder="Max uses (optional)" />
           </div>
           <label className="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" checked={form.is_auto_applied} onChange={(e) => setForm({ ...form, is_auto_applied: e.target.checked })} className="accent-[#F2701A]" />
+            <input type="checkbox" checked={form.is_auto_applied} onChange={(e) => setForm({ ...form, is_auto_applied: e.target.checked })} className="accent-[#F2650D]" />
             Auto-apply to first-time customers (signup bonus)
           </label>
           {error && <p className="text-sm text-destructive">{error}</p>}

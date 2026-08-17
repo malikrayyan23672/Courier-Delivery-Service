@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   LayoutGrid, Package, Truck, Box, Warehouse, Bike, Users, MapPin, Map, BarChart3,
   Bell, Search, Menu, LogOut, Plus, Building2, AlertTriangle, CheckCircle2, Clock,
-  ArrowUpRight, Activity, PackageCheck, RefreshCw, ChevronRight,
+  ArrowUpRight, Activity, PackageCheck, RefreshCw, ChevronRight, Bus, Undo2, Star,
 } from 'lucide-react';
 
 import { useAuth } from '@/context/AuthContext';
@@ -27,11 +27,19 @@ import {
   getHubManifestHistory,
   getHubAgingParcels,
   getHubAnalytics,
+  getHubRtoQueue,
   scanHubInbound,
+  listBusSchedules,
+  createBusManifest,
+  addManifestItem,
+  updateManifestStatus,
   HubOrderSummary,
   HubAgingOrder,
   HubManifestSummary,
+  HubManifestItem,
   HubAnalytics,
+  BusSchedule,
+  VendorScore,
 } from '@/lib/api';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { TrendLine } from '@/components/charts/TrendLine';
@@ -58,7 +66,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type View = 'overview' | 'pickups' | 'deliveries' | 'parcelops' | 'warehouse' | 'riders' | 'staff' | 'servicearea' | 'map' | 'reports' | 'alerts';
+type View = 'overview' | 'pickups' | 'deliveries' | 'parcelops' | 'manifests' | 'returns' | 'vendors' | 'warehouse' | 'riders' | 'staff' | 'servicearea' | 'map' | 'reports' | 'alerts';
 
 const NAV_SECTIONS: { label: string; items: { view: View; label: string; icon: React.ElementType }[] }[] = [
   { label: 'Operations', items: [
@@ -67,6 +75,11 @@ const NAV_SECTIONS: { label: string; items: { view: View; label: string; icon: R
     { view: 'deliveries', label: 'Deliveries', icon: Truck },
     { view: 'parcelops', label: 'Parcel Operations', icon: Box },
     { view: 'warehouse', label: 'Warehouse', icon: Warehouse },
+  ]},
+  { label: 'Hub Network', items: [
+    { view: 'manifests', label: 'Manifests', icon: Bus },
+    { view: 'returns', label: 'Returns / RTO', icon: Undo2 },
+    { view: 'vendors', label: 'Bus Vendors', icon: Star },
   ]},
   { label: 'Team', items: [
     { view: 'riders', label: 'Riders', icon: Bike },
@@ -87,6 +100,9 @@ const PAGE_META: Record<View, { title: string; sub: string }> = {
   pickups: { title: 'Pickup Management', sub: "today's pickup requests and rider assignment" },
   deliveries: { title: 'Delivery Management', sub: 'every order from ready to delivered' },
   parcelops: { title: 'Parcel Operations', sub: 'scanning, sorting and inter-branch transfers' },
+  manifests: { title: 'Manifests', sub: 'create outbound bus manifests, load crates, and receive arrivals' },
+  returns: { title: 'Returns / RTO', sub: 'parcels awaiting a return dispatch after failed delivery' },
+  vendors: { title: 'Bus Vendors', sub: 'operator on-time performance through this hub' },
   warehouse: { title: 'Warehouse Management', sub: 'storage capacity and inventory movement' },
   riders: { title: 'Rider Management', sub: 'availability, location and performance' },
   staff: { title: 'Branch Staff', sub: 'roles, attendance and permissions' },
@@ -244,6 +260,9 @@ export function BranchConsole() {
   const [hubAnalytics, setHubAnalytics] = useState<HubAnalytics | null>(null);
   const [hubLoading, setHubLoading] = useState(true);
   const [hubError, setHubError] = useState('');
+  const [rtoQueue, setRtoQueue] = useState<HubOrderSummary[]>([]);
+  const [schedules, setSchedules] = useState<BusSchedule[]>([]);
+  const [manifestBusy, setManifestBusy] = useState(false);
 
   const [pickupSearch, setPickupSearch] = useState('');
   const [pickupStatusFilter, setPickupStatusFilter] = useState('');
@@ -308,16 +327,89 @@ export function BranchConsole() {
       getHubManifestHistory(token, branchId),
       getHubAgingParcels(token, branchId),
       getHubAnalytics(token, branchId),
+      getHubRtoQueue(token, branchId),
+      listBusSchedules(token),
     ])
-      .then(([inbound, dispatch, history, aging, analytics]) => {
+      .then(([inbound, dispatch, history, aging, analytics, rto, allSchedules]) => {
         setInboundQueue(inbound);
         setDispatchQueue(dispatch);
         setManifestHistory(history);
         setAgingParcels(aging);
         setHubAnalytics(analytics);
+        setRtoQueue(rto);
+        setSchedules(allSchedules);
       })
       .catch((err) => setHubError(err instanceof ApiError ? err.message : 'Could not load hub operations data.'))
       .finally(() => setHubLoading(false));
+  }
+
+  // ---- Manifests (outbound dispatch + inbound arrivals) ----
+  async function handleCreateManifest(scheduleId: string, coachNumber: string): Promise<string | undefined> {
+    if (!token) return undefined;
+    setManifestBusy(true);
+    try {
+      const created = await createBusManifest({ schedule_id: scheduleId || undefined, coach_number: coachNumber || undefined }, token);
+      toast('Manifest created.');
+      loadHubData();
+      return created.id;
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not create manifest.');
+      return undefined;
+    } finally {
+      setManifestBusy(false);
+    }
+  }
+
+  /** Loads a crate onto a manifest by tracking number - resolves against whichever queue it's coming from (dispatch = normal freight, RTO = a return batch). */
+  async function handleLoadCrate(manifestId: string, trackingNumber: string, source: HubOrderSummary[], crateLabelPrefix?: string) {
+    if (!token) return;
+    const val = trackingNumber.trim().toUpperCase();
+    if (!val) { toast('Enter a tracking number to load.'); return; }
+    const match = source.find((o) => o.tracking_number.toUpperCase() === val);
+    if (!match) { toast(`${val} isn't in the queue for this hub yet.`); return; }
+    setManifestBusy(true);
+    try {
+      await addManifestItem(manifestId, match.id, crateLabelPrefix ? `${crateLabelPrefix}${match.tracking_number}` : undefined, token);
+      toast(`Loaded ${match.tracking_number} onto manifest.`);
+      loadHubData();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not load crate onto manifest.');
+    } finally {
+      setManifestBusy(false);
+    }
+  }
+
+  async function handleDepartManifest(manifestId: string) {
+    if (!token) return;
+    setManifestBusy(true);
+    try {
+      await updateManifestStatus(manifestId, 'in_transit', 'in_transit', token);
+      toast('Manifest departed and locked.');
+      loadHubData();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not depart manifest.');
+    } finally {
+      setManifestBusy(false);
+    }
+  }
+
+  async function handleArriveManifest(manifestId: string, scannedItemIds: string[]) {
+    if (!token) return;
+    setManifestBusy(true);
+    try {
+      const result = await updateManifestStatus(manifestId, 'arrived', 'arrived', token, scannedItemIds);
+      const total = (manifestHistory.find((m) => m.id === manifestId)?.items.length) ?? scannedItemIds.length;
+      if (scannedItemIds.length < total) {
+        toast(`Manifest received - ${total - scannedItemIds.length} crate(s) missing, logged as a count mismatch.`);
+      } else {
+        toast('Manifest received - all crates scanned off.');
+      }
+      loadHubData();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not mark manifest arrived.');
+    } finally {
+      setManifestBusy(false);
+    }
   }
 
   useEffect(() => {
@@ -387,14 +479,10 @@ export function BranchConsole() {
     toast(`${deliveryId} rescheduled for next delivery slot.`);
   }
 
-  function handleScan(type: 'Incoming' | 'Outgoing') {
+  function handleScan() {
     const val = scanInput.trim();
     if (!val) {
       toast('Enter a tracking ID to scan.');
-      return;
-    }
-    if (type === 'Outgoing') {
-      toast('Outbound dispatch happens by loading parcels onto a manifest - see the Bus Network tab in Admin.');
       return;
     }
     if (!token) return;
@@ -606,9 +694,28 @@ export function BranchConsole() {
               scanInput={scanInput} setScanInput={setScanInput} scanning={scanning}
               inboundQueue={inboundQueue} dispatchQueue={dispatchQueue} manifestHistory={manifestHistory}
               hubLoading={hubLoading} hubError={hubError}
-              onScan={handleScan} toast={toast}
+              onScan={handleScan} toast={toast} switchView={switchView}
             />
           )}
+
+          {view === 'manifests' && (
+            <ManifestsView
+              branchId={branchId} manifestHistory={manifestHistory} schedules={schedules}
+              dispatchQueue={dispatchQueue} hubLoading={hubLoading} hubError={hubError} busy={manifestBusy}
+              onCreateManifest={handleCreateManifest} onLoadCrate={handleLoadCrate}
+              onDepart={handleDepartManifest} onArrive={handleArriveManifest}
+            />
+          )}
+
+          {view === 'returns' && (
+            <ReturnsView
+              rtoQueue={rtoQueue} manifestHistory={manifestHistory} hubLoading={hubLoading} busy={manifestBusy}
+              onCreateManifest={handleCreateManifest} onLoadCrate={handleLoadCrate}
+              onDepart={handleDepartManifest}
+            />
+          )}
+
+          {view === 'vendors' && <VendorsView vendorScores={hubAnalytics?.vendor_scores ?? []} hubLoading={hubLoading} />}
 
           {view === 'warehouse' && <WarehouseView shelfCells={shelfCells} agingParcels={agingParcels} hubLoading={hubLoading} />}
 
@@ -641,10 +748,10 @@ function OverviewView({ managerProfile, branchDetails, pendingPickups, pickedUpC
     { icon: <PackageCheck className="w-4.5 h-4.5" />, bg: '#1E8E5A', label: 'Picked Up Parcels', num: pickedUpCount, trend: 'On schedule', trendColor: '#1E8E5A' },
     { icon: <Truck className="w-4.5 h-4.5" />, bg: '#F2A93B', label: 'Out for Delivery', num: outForDelivery, trend: 'Riders en route', trendColor: '#B8710A' },
     { icon: <CheckCircle2 className="w-4.5 h-4.5" />, bg: '#1E8E5A', label: 'Delivered Orders', num: deliveredCount, trend: '91% success rate', trendColor: '#1E8E5A' },
-    { icon: <AlertTriangle className="w-4.5 h-4.5" />, bg: '#D8432C', label: 'Failed Deliveries', num: failedDeliveries, trend: 'Review reasons', trendColor: '#D8432C' },
+    { icon: <AlertTriangle className="w-4.5 h-4.5" />, bg: '#E6350F', label: 'Failed Deliveries', num: failedDeliveries, trend: 'Review reasons', trendColor: '#E6350F' },
     { icon: <Bike className="w-4.5 h-4.5" />, bg: '#1E8E5A', label: 'Available Riders', num: onlineRiders, trend: 'Ready for dispatch', trendColor: '#1E8E5A' },
     { icon: <Bike className="w-4.5 h-4.5" />, bg: '#F2A93B', label: 'Busy Riders', num: busyRiders, trend: 'On active routes', trendColor: '#B8710A' },
-    { icon: <Warehouse className="w-4.5 h-4.5" />, bg: '#173868', label: 'Warehouse Capacity', num: '72%', trend: 'Approaching limit', trendColor: '#B8710A' },
+    { icon: <Warehouse className="w-4.5 h-4.5" />, bg: '#1D3C8F', label: 'Warehouse Capacity', num: '72%', trend: 'Approaching limit', trendColor: '#B8710A' },
   ];
 
   const quickActions = [
@@ -878,7 +985,7 @@ function DeliveriesView({ deliveries, ready, out, done, failed, search, setSearc
                 <TableCell><AvatarChip name={d.rider} /></TableCell>
                 <TableCell className="min-w-[100px]">
                   <div className="h-1.5 bg-line rounded-full overflow-hidden">
-                    <div className="h-full transition-all" style={{ width: `${d.progress}%`, background: d.status === 'Failed' ? '#D8432C' : '#F2701A' }} />
+                    <div className="h-full transition-all" style={{ width: `${d.progress}%`, background: d.status === 'Failed' ? '#E6350F' : '#F2650D' }} />
                   </div>
                 </TableCell>
                 <TableCell><Pill status={d.status} /></TableCell>
@@ -904,12 +1011,12 @@ function DeliveriesView({ deliveries, ready, out, done, failed, search, setSearc
 // VIEW: PARCEL OPERATIONS
 // ============================================================
 function ParcelOpsView({
-  scanInput, setScanInput, scanning, inboundQueue, dispatchQueue, manifestHistory, hubLoading, hubError, onScan, toast,
+  scanInput, setScanInput, scanning, inboundQueue, dispatchQueue, manifestHistory, hubLoading, hubError, onScan, toast, switchView,
 }: {
   scanInput: string; setScanInput: (v: string) => void; scanning: boolean;
   inboundQueue: HubOrderSummary[]; dispatchQueue: HubOrderSummary[]; manifestHistory: HubManifestSummary[];
   hubLoading: boolean; hubError: string;
-  onScan: (type: 'Incoming' | 'Outgoing') => void; toast: (msg: string) => void;
+  onScan: () => void; toast: (msg: string) => void; switchView: (v: View) => void;
 }) {
   return (
     <>
@@ -922,8 +1029,8 @@ function ParcelOpsView({
         </CardHeader>
         <div className="flex flex-col sm:flex-row gap-2.5">
           <Input type="text" placeholder="Enter or scan tracking number…" value={scanInput} onChange={(e) => setScanInput(e.target.value)} className="flex-1" />
-          <Button onClick={() => onScan('Incoming')} variant="navy" disabled={scanning}>{scanning ? 'Scanning…' : 'Scan Incoming'}</Button>
-          <Button onClick={() => onScan('Outgoing')} variant="outline">Scan Outgoing</Button>
+          <Button onClick={onScan} variant="navy" disabled={scanning}>{scanning ? 'Scanning…' : 'Scan Incoming'}</Button>
+          <Button onClick={() => switchView('manifests')} variant="outline">Load onto manifest →</Button>
         </div>
       </Card>
 
@@ -1018,11 +1125,338 @@ function ParcelOpsView({
 }
 
 // ============================================================
+// VIEW: MANIFESTS (create outbound, load crates, depart, receive arrivals)
+// ============================================================
+function ManifestsView({
+  branchId, manifestHistory, schedules, dispatchQueue, hubLoading, hubError, busy,
+  onCreateManifest, onLoadCrate, onDepart, onArrive,
+}: {
+  branchId?: string; manifestHistory: HubManifestSummary[]; schedules: BusSchedule[]; dispatchQueue: HubOrderSummary[];
+  hubLoading: boolean; hubError: string; busy: boolean;
+  onCreateManifest: (scheduleId: string, coachNumber: string) => Promise<string | undefined>;
+  onLoadCrate: (manifestId: string, trackingNumber: string, source: HubOrderSummary[], crateLabelPrefix?: string) => void;
+  onDepart: (manifestId: string) => void;
+  onArrive: (manifestId: string, scannedItemIds: string[]) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [scheduleId, setScheduleId] = useState('');
+  const [coachNumber, setCoachNumber] = useState('');
+  const [crateInputs, setCrateInputs] = useState<Record<string, string>>({});
+  const [checkedItems, setCheckedItems] = useState<Record<string, Set<string>>>({});
+
+  const outboundSchedules = schedules.filter((s) => s.origin_branch_id === branchId);
+  const outbound = manifestHistory.filter((m) => m.direction === 'outbound');
+  const preparing = outbound.filter((m) => m.status === 'in_preparation');
+  const departed = outbound.filter((m) => m.status !== 'in_preparation');
+  const arrivals = manifestHistory.filter((m) => m.direction === 'inbound' && m.status === 'in_transit');
+
+  function toggleItem(manifestId: string, itemId: string) {
+    setCheckedItems((prev) => {
+      const set = new Set(prev[manifestId] ?? []);
+      set.has(itemId) ? set.delete(itemId) : set.add(itemId);
+      return { ...prev, [manifestId]: set };
+    });
+  }
+
+  return (
+    <>
+      {hubError && <div className="rounded-lg border border-danger/30 bg-[#FBEAE7] px-4 py-3 text-sm text-danger">{hubError}</div>}
+
+      <Card className="p-5">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+          <div>
+            <CardTitle className="text-base">Outbound Manifests</CardTitle>
+            <CardDescription>Create a manifest, load crates by scan, then depart to lock it</CardDescription>
+          </div>
+          {!showForm && <Button size="sm" variant="navy" onClick={() => setShowForm(true)}>New manifest</Button>}
+        </div>
+
+        {showForm && (
+          <div className="mt-4 grid gap-3 md:grid-cols-3 border-t border-line pt-4">
+            <select value={scheduleId} onChange={(e) => setScheduleId(e.target.value)} className="h-10 rounded-lg border border-line bg-white px-3 text-sm md:col-span-2">
+              <option value="">Departure corridor (optional)</option>
+              {outboundSchedules.map((s) => (
+                <option key={s.id} value={s.id}>{s.origin_city} → {s.destination_city} · {s.operator_name || 'no operator'}</option>
+              ))}
+            </select>
+            <Input value={coachNumber} onChange={(e) => setCoachNumber(e.target.value)} placeholder="Coach / bus number" />
+            <div className="flex gap-2 md:col-span-3">
+              <Button size="sm" disabled={busy} onClick={() => { onCreateManifest(scheduleId, coachNumber); setShowForm(false); setScheduleId(''); setCoachNumber(''); }}>Create</Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
+            </div>
+            {outboundSchedules.length === 0 && (
+              <p className="md:col-span-3 text-xs text-muted-foreground">No departure corridors are set up with this branch as origin yet - you can still create a manifest without one and fill in the coach number manually.</p>
+            )}
+          </div>
+        )}
+      </Card>
+
+      {hubLoading ? (
+        <Card className="p-6"><p className="text-sm text-muted-foreground">Loading manifests…</p></Card>
+      ) : preparing.length === 0 ? (
+        <Card className="p-6"><p className="text-sm text-muted-foreground">No manifest is being prepared at this hub right now.</p></Card>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {preparing.map((m) => (
+            <Card key={m.id} className="p-5">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-bold text-ink">{m.manifest_number || m.id.slice(0, 8)}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{m.origin_city || '—'} → {m.destination_city || '—'} · {m.operator_name || 'no operator'} · coach {m.coach_number || '—'}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Pill status={m.status} />
+                  <Button size="sm" disabled={busy || m.items.length === 0} onClick={() => onDepart(m.id)}>Depart ({m.items.length})</Button>
+                </div>
+              </div>
+              <div className="mb-3 flex items-center gap-2">
+                <Input
+                  value={crateInputs[m.id] || ''}
+                  onChange={(e) => setCrateInputs({ ...crateInputs, [m.id]: e.target.value })}
+                  placeholder="Scan or enter tracking number to load…"
+                  className="flex-1"
+                />
+                <Button
+                  type="button" variant="navy" disabled={busy}
+                  onClick={() => { onLoadCrate(m.id, crateInputs[m.id] || '', dispatchQueue); setCrateInputs({ ...crateInputs, [m.id]: '' }); }}
+                >
+                  Load crate
+                </Button>
+              </div>
+              <ManifestItemsTable items={m.items} />
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Card className="p-5">
+        <CardHeader className="p-0 mb-3">
+          <CardTitle className="text-base">Arrivals Expected at This Hub</CardTitle>
+          <CardDescription>Scan crates off the bus as they're physically unloaded, then mark the manifest arrived</CardDescription>
+        </CardHeader>
+        {arrivals.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nothing in transit to this hub right now.</p>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {arrivals.map((m) => {
+              const checked = checkedItems[m.id] ?? new Set<string>();
+              return (
+                <div key={m.id} className="rounded-xl border border-line p-4">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-ink">{m.manifest_number || m.id.slice(0, 8)}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{m.origin_city} → {m.destination_city} · {m.operator_name || 'no operator'}</p>
+                    </div>
+                    <Button size="sm" disabled={busy} onClick={() => onArrive(m.id, Array.from(checked))}>
+                      Mark arrived ({checked.size}/{m.items.length})
+                    </Button>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {m.items.map((it) => (
+                      <label key={it.id} className="flex items-center gap-2 text-sm text-ink">
+                        <input type="checkbox" checked={checked.has(it.id)} onChange={() => toggleItem(m.id, it.id)} />
+                        <span className="font-mono text-xs">{it.tracking_number || it.crate_label || it.id.slice(0, 8)}</span>
+                      </label>
+                    ))}
+                    {m.items.length === 0 && <p className="text-xs text-muted-foreground">No crates recorded on this manifest.</p>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      {departed.length > 0 && (
+        <Card className="p-5">
+          <CardHeader className="p-0 mb-3">
+            <CardTitle className="text-base">Departed / Arrived History</CardTitle>
+          </CardHeader>
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30"><TableHead>Manifest</TableHead><TableHead>Route</TableHead><TableHead>Items</TableHead><TableHead>Status</TableHead></TableRow>
+            </TableHeader>
+            <TableBody>
+              {departed.map((m) => (
+                <TableRow key={m.id}>
+                  <TableCell className="font-mono text-xs">{m.manifest_number || m.id.slice(0, 8)}</TableCell>
+                  <TableCell className="text-muted-foreground">{m.origin_city} → {m.destination_city}</TableCell>
+                  <TableCell>{m.item_count}</TableCell>
+                  <TableCell><Pill status={m.status} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+    </>
+  );
+}
+
+function ManifestItemsTable({ items }: { items: HubManifestItem[] }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow className="bg-muted/30"><TableHead>Crate</TableHead><TableHead>Tracking</TableHead><TableHead>Scan</TableHead></TableRow>
+      </TableHeader>
+      <TableBody>
+        {items.map((i) => (
+          <TableRow key={i.id}>
+            <TableCell className="font-mono text-xs">{i.crate_label || '—'}</TableCell>
+            <TableCell className="font-mono text-xs text-muted-foreground">{i.tracking_number || '—'}</TableCell>
+            <TableCell><Pill status={i.scan_status || 'loaded'} /></TableCell>
+          </TableRow>
+        ))}
+        {items.length === 0 && <TableRow><TableCell colSpan={3} className="text-center py-4 text-muted-foreground">No crates loaded yet.</TableCell></TableRow>}
+      </TableBody>
+    </Table>
+  );
+}
+
+// ============================================================
+// VIEW: RETURNS / RTO
+// ============================================================
+function ReturnsView({
+  rtoQueue, manifestHistory, hubLoading, busy, onCreateManifest, onLoadCrate, onDepart,
+}: {
+  rtoQueue: HubOrderSummary[]; manifestHistory: HubManifestSummary[]; hubLoading: boolean; busy: boolean;
+  onCreateManifest: (scheduleId: string, coachNumber: string) => Promise<string | undefined>;
+  onLoadCrate: (manifestId: string, trackingNumber: string, source: HubOrderSummary[], crateLabelPrefix?: string) => void;
+  onDepart: (manifestId: string) => void;
+}) {
+  const [selectedManifest, setSelectedManifest] = useState('');
+  const [scanInput, setScanInput] = useState('');
+  const [coachNumber, setCoachNumber] = useState('');
+
+  // A "return batch" is just a manifest whose crates carry an RTO- prefix -
+  // the manifest system already gives us route, bus, lock-on-departure and
+  // an audit trail, so returns don't need a parallel data model.
+  const returnBatches = manifestHistory.filter((m) => m.direction === 'outbound' && m.items.some((i) => i.crate_label?.startsWith('RTO-')));
+  const openBatches = returnBatches.filter((m) => m.status === 'in_preparation');
+
+  return (
+    <>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KpiCard icon={<Undo2 className="w-4.5 h-4.5" />} bg="#E6350F" label="Awaiting Return Dispatch" num={rtoQueue.length} trend="3-attempt policy exhausted" trendColor="#E6350F" />
+        <KpiCard icon={<Bus className="w-4.5 h-4.5" />} bg="#1D3C8F" label="Open Return Batches" num={openBatches.length} trend="in preparation" trendColor="#1D3C8F" />
+        <KpiCard icon={<CheckCircle2 className="w-4.5 h-4.5" />} bg="#1E8E5A" label="Return Batches Dispatched" num={returnBatches.length - openBatches.length} trend="on the way back" trendColor="#1E8E5A" />
+      </div>
+
+      <Card className="p-5">
+        <CardHeader className="p-0 mb-3">
+          <CardTitle className="text-base">RTO Queue</CardTitle>
+          <CardDescription>Failed delivery, 3 attempts exhausted - waiting to be batched onto a return bus</CardDescription>
+        </CardHeader>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/30"><TableHead>Tracking ID</TableHead><TableHead>Origin</TableHead><TableHead>Status</TableHead></TableRow>
+          </TableHeader>
+          <TableBody>
+            {rtoQueue.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell className="font-mono text-xs">{r.tracking_number}</TableCell>
+                <TableCell>{r.dropoff_city || '—'}</TableCell>
+                <TableCell><Pill status={r.status} /></TableCell>
+              </TableRow>
+            ))}
+            {!hubLoading && rtoQueue.length === 0 && (
+              <TableRow><TableCell colSpan={3} className="text-center py-6 text-muted-foreground">No parcels awaiting return right now.</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+
+      <Card className="p-5">
+        <CardHeader className="p-0 mb-3">
+          <CardTitle className="text-base">Return Batch Dispatch</CardTitle>
+          <CardDescription>Start a batch (or pick an open one), scan RTO parcels into it, then dispatch - each parcel gets an RTO- crate label as its batch ID</CardDescription>
+        </CardHeader>
+        <div className="grid gap-3 md:grid-cols-3 mb-4">
+          <select value={selectedManifest} onChange={(e) => setSelectedManifest(e.target.value)} className="h-10 rounded-lg border border-line bg-white px-3 text-sm md:col-span-2">
+            <option value="">Select an open return batch…</option>
+            {openBatches.map((m) => <option key={m.id} value={m.id}>{m.manifest_number || m.id.slice(0, 8)} · {m.item_count} crate(s)</option>)}
+          </select>
+          <div className="flex gap-2">
+            <Input value={coachNumber} onChange={(e) => setCoachNumber(e.target.value)} placeholder="Coach number" className="flex-1" />
+            <Button
+              type="button" variant="outline" disabled={busy}
+              onClick={async () => {
+                const id = await onCreateManifest('', coachNumber);
+                if (id) setSelectedManifest(id);
+                setCoachNumber('');
+              }}
+            >
+              New batch
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2.5">
+          <Input value={scanInput} onChange={(e) => setScanInput(e.target.value)} placeholder="Scan or enter RTO tracking number…" className="flex-1" />
+          <Button
+            variant="navy" disabled={busy || !selectedManifest}
+            onClick={() => { onLoadCrate(selectedManifest, scanInput, rtoQueue, 'RTO-'); setScanInput(''); }}
+          >
+            Add to batch
+          </Button>
+        </div>
+        {!selectedManifest && <p className="text-xs text-muted-foreground mt-2">Start a new batch or pick an open one above before scanning parcels into it.</p>}
+
+        {openBatches.length > 0 && (
+          <div className="mt-5 flex flex-col gap-4">
+            {openBatches.map((m) => (
+              <div key={m.id} className="rounded-xl border border-line p-4">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+                  <p className="font-bold text-ink text-sm">{m.manifest_number || m.id.slice(0, 8)} <span className="font-normal text-muted-foreground">· coach {m.coach_number || '—'}</span></p>
+                  <Button size="sm" disabled={busy || m.items.length === 0} onClick={() => onDepart(m.id)}>Dispatch batch ({m.items.length})</Button>
+                </div>
+                <ManifestItemsTable items={m.items} />
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </>
+  );
+}
+
+// ============================================================
+// VIEW: BUS VENDORS
+// ============================================================
+function VendorsView({ vendorScores, hubLoading }: { vendorScores: VendorScore[]; hubLoading: boolean }) {
+  return (
+    <Card className="p-5">
+      <CardHeader className="p-0 mb-3">
+        <CardTitle className="text-base">Bus Operator On-Time Scores</CardTitle>
+        <CardDescription>Departures within 15 minutes of schedule, through this hub</CardDescription>
+      </CardHeader>
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/30"><TableHead>Operator</TableHead><TableHead>Manifests</TableHead><TableHead>On-Time</TableHead><TableHead>Score</TableHead></TableRow>
+        </TableHeader>
+        <TableBody>
+          {vendorScores.map((v) => (
+            <TableRow key={v.operator_id}>
+              <TableCell className="font-semibold text-ink">{v.operator_name}</TableCell>
+              <TableCell>{v.total}</TableCell>
+              <TableCell>{v.on_time}</TableCell>
+              <TableCell><Badge variant={v.on_time_pct >= 90 ? 'success' : v.on_time_pct >= 70 ? 'warning' : 'danger'}>{v.on_time_pct}%</Badge></TableCell>
+            </TableRow>
+          ))}
+          {!hubLoading && vendorScores.length === 0 && (
+            <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No dispatched manifests yet.</TableCell></TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </Card>
+  );
+}
+
+// ============================================================
 // VIEW: WAREHOUSE
 // ============================================================
 function WarehouseView({ shelfCells, agingParcels, hubLoading }: { shelfCells: ('low' | 'mid' | 'high')[]; agingParcels: HubAgingOrder[]; hubLoading: boolean }) {
   const shelfColor = { low: '#EAF7EF', mid: '#FDF1DD', high: '#FBEAE7' };
-  const shelfBorder = { low: '#1E8E5A', mid: '#F2A93B', high: '#D8432C' };
+  const shelfBorder = { low: '#1E8E5A', mid: '#F2A93B', high: '#E6350F' };
   return (
     <>
       <div className="grid lg:grid-cols-2 gap-6">
@@ -1239,7 +1673,7 @@ function MapView({ riders }: { riders: RiderCard[] }) {
         <Badge variant="warning">Moderate traffic</Badge>
       </div>
       <div className="relative w-full aspect-[16/9] bg-page rounded-xl overflow-hidden border border-line">
-        <MapDot x={50} y={50} color="#0F2648" label="Lahore Central" />
+        <MapDot x={50} y={50} color="#0B2472" label="Lahore Central" />
         {activeRiders.map((r) => <MapDot key={r.name} x={r.x} y={r.y} color={r.busy ? '#2563EB' : '#B7BEC9'} label={r.name.split(' ')[0]} />)}
         {pickupPins.map((p) => <MapDot key={p.label} x={p.x} y={p.y} color="#F2A93B" label={p.label} />)}
         {deliveryPins.map((d) => <MapDot key={d.label} x={d.x} y={d.y} color="#1E8E5A" label={d.label} />)}
@@ -1365,7 +1799,7 @@ function AlertsView() {
 }
 
 function AlertCard({ alert }: { alert: { sev: string; title: string; msg: string; time: string } }) {
-  const border = alert.sev === 'high' ? '#D8432C' : alert.sev === 'medium' ? '#F2A93B' : '#B7BEC9';
+  const border = alert.sev === 'high' ? '#E6350F' : alert.sev === 'medium' ? '#F2A93B' : '#B7BEC9';
   return (
     <div className="flex gap-3 border-l-4 rounded-lg bg-page p-3.5" style={{ borderColor: border }}>
       <div className="w-7 h-7 rounded-full flex items-center justify-center flex-none text-white" style={{ background: border }}>

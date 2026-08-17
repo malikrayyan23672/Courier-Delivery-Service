@@ -135,7 +135,7 @@ export const ACTIVITY: ActivityItem[] = [
   { icon: 'rider', color: '#1E8E5A', text: 'Rider Bilal Ahmed assigned to pickup PK-70235', time: '8 min ago' },
   { icon: 'truck', color: '#2563EB', text: 'Shipment FX-592012 dispatched to Peshawar Branch', time: '15 min ago' },
   { icon: 'check', color: '#1E8E5A', text: 'Order FX-582011 delivered — OTP confirmed', time: '22 min ago' },
-  { icon: 'alert', color: '#D8432C', text: 'Delivery attempt failed for FX-582017 — customer unavailable', time: '34 min ago' },
+  { icon: 'alert', color: '#E6350F', text: 'Delivery attempt failed for FX-582017 — customer unavailable', time: '34 min ago' },
   { icon: 'return', color: '#F2A93B', text: 'Parcel FX-570092 marked for RTO after 5 days aging', time: '51 min ago' },
   { icon: 'box', color: '#2563EB', text: 'Parcel FX-591046 sorted and shelved at C-02', time: '1 hr ago' },
   { icon: 'rider', color: '#1E8E5A', text: 'Rider Hassan Iqbal came online', time: '1.5 hr ago' },

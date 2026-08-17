@@ -9,7 +9,7 @@ from app.core.permissions import require_roles
 from app.models.user import User
 from app.models.order import Order, OrderStatus
 from app.models.tracking_event import TrackingEvent
-from app.models.bus_network import BusManifest, BusSchedule, ManifestStatus
+from app.models.bus_network import BusManifest, BusSchedule, ManifestItem, ManifestStatus
 from app.services.order_service import transition
 
 router = APIRouter(prefix="/hub", tags=["Hub Operations"])
@@ -132,7 +132,10 @@ def manifest_history(
     manifests = (
         db.query(BusManifest)
         .join(BusSchedule, BusManifest.schedule_id == BusSchedule.id, isouter=True)
-        .options(joinedload(BusManifest.schedule).joinedload(BusSchedule.operator), joinedload(BusManifest.items))
+        .options(
+            joinedload(BusManifest.schedule).joinedload(BusSchedule.operator),
+            joinedload(BusManifest.items).joinedload(ManifestItem.order),
+        )
         .filter((BusSchedule.origin_branch_id == bid) | (BusSchedule.destination_branch_id == bid))
         .order_by(BusManifest.created_at.desc())
         .limit(50)
@@ -149,9 +152,41 @@ def manifest_history(
             "destination_city": m.destination_city,
             "item_count": len(m.items),
             "operator_name": m.schedule.operator.name if m.schedule and m.schedule.operator else None,
+            # Whether this hub is the manifest's origin (loading/dispatching it)
+            # or its destination (expecting it to arrive) - lets the hub console
+            # split "Outbound" from "Arrivals" without a second round trip.
+            "direction": "outbound" if m.schedule and str(m.schedule.origin_branch_id) == bid else "inbound",
+            "items": [
+                {
+                    "id": str(i.id),
+                    "order_id": str(i.order_id) if i.order_id else None,
+                    "crate_label": i.crate_label,
+                    "scan_status": i.scan_status.value if hasattr(i.scan_status, "value") else i.scan_status,
+                    "tracking_number": i.order.tracking_number if i.order else None,
+                }
+                for i in m.items
+            ],
         }
         for m in manifests
     ]
+
+
+@router.get("/rto-queue")
+def rto_queue(
+    branch_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin")),
+):
+    """Parcels at this branch that exhausted delivery attempts and are awaiting a return dispatch."""
+    bid = _resolve_branch_id(current_user, branch_id)
+    orders = (
+        db.query(Order)
+        .options(joinedload(Order.dropoff_address))
+        .filter(Order.branch_id == bid, Order.status == OrderStatus.rto)
+        .order_by(Order.updated_at.desc())
+        .all()
+    )
+    return [_order_summary(o) for o in orders]
 
 
 @router.get("/aging-parcels")

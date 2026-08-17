@@ -114,8 +114,8 @@ function SelectField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={`w-full appearance-none text-[0.92rem] py-3 pl-[42px] pr-8 rounded-[10px] border-[1.5px] bg-[#FBFCFE] text-ink outline-none transition-colors
-            focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,112,26,0.13)]
-            ${error ? 'border-danger shadow-[0_0_0_3px_rgba(216,67,44,0.12)]' : 'border-line'}`}
+            focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,101,13,0.13)]
+            ${error ? 'border-danger shadow-[0_0_0_3px_rgba(230,53,15,0.12)]' : 'border-line'}`}
         >
           <option value="" disabled>Select an option</option>
           {options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
@@ -142,8 +142,8 @@ function PasswordField({
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
           className={`w-full text-[0.92rem] py-3 pl-[42px] pr-10 rounded-[10px] border-[1.5px] bg-[#FBFCFE] text-ink outline-none transition-colors
-            focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,112,26,0.13)]
-            ${error ? 'border-danger shadow-[0_0_0_3px_rgba(216,67,44,0.12)]' : 'border-line'}`}
+            focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,101,13,0.13)]
+            ${error ? 'border-danger shadow-[0_0_0_3px_rgba(230,53,15,0.12)]' : 'border-line'}`}
         />
         <button type="button" onClick={() => setVisible((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground" aria-label="Toggle password visibility">
           <Icon path={ICONS.eye} />
@@ -345,7 +345,7 @@ export default function BusinessSignupPage() {
       <div className="lg:flex-[1.05] relative overflow-hidden px-7 md:px-14 pt-9 md:pt-13 flex flex-col bg-hero-gradient text-navy min-h-[280px] lg:min-h-screen">
         <div className="flex items-center gap-2.5 mb-10">
           <svg width="34" height="34" viewBox="0 0 40 40" fill="none">
-            <path d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20" fill="none" stroke="#F2701A" strokeWidth="3.4" strokeLinejoin="round" strokeLinecap="round" />
+            <path d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20" fill="none" stroke="#F2650D" strokeWidth="3.4" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
           <div>
             <div className="font-display text-2xl font-extrabold tracking-tight leading-none text-navy">FAST<span className="text-orange">EX</span></div>
@@ -381,29 +381,29 @@ export default function BusinessSignupPage() {
 
         <div className="relative mt-auto h-[230px] hidden md:block">
           <svg viewBox="0 0 600 230" preserveAspectRatio="none" className="absolute bottom-0 left-0 w-full h-full">
-            <path d="M0 210 C150 150, 450 150, 600 210 L600 230 L0 230 Z" fill="#0F2648" opacity="0.06" />
-            <path d="M0 214 C150 160, 450 160, 600 214" fill="none" stroke="#F2701A" strokeWidth="4" strokeLinecap="round" />
+            <path d="M0 210 C150 150, 450 150, 600 210 L600 230 L0 230 Z" fill="#0B2472" opacity="0.06" />
+            <path d="M0 214 C150 160, 450 160, 600 214" fill="none" stroke="#F2650D" strokeWidth="4" strokeLinecap="round" />
             <g opacity="0.5">
-              <rect x="20" y="120" width="18" height="90" fill="#173868" />
-              <rect x="46" y="95" width="22" height="115" fill="#0F2648" />
-              <rect x="76" y="130" width="16" height="80" fill="#173868" />
-              <rect x="500" y="110" width="20" height="100" fill="#0F2648" />
-              <rect x="528" y="140" width="16" height="70" fill="#173868" />
-              <rect x="552" y="100" width="22" height="110" fill="#0F2648" />
+              <rect x="20" y="120" width="18" height="90" fill="#1D3C8F" />
+              <rect x="46" y="95" width="22" height="115" fill="#0B2472" />
+              <rect x="76" y="130" width="16" height="80" fill="#1D3C8F" />
+              <rect x="500" y="110" width="20" height="100" fill="#0B2472" />
+              <rect x="528" y="140" width="16" height="70" fill="#1D3C8F" />
+              <rect x="552" y="100" width="22" height="110" fill="#0B2472" />
             </g>
             <g transform="translate(230,120)">
-              <rect x="60" y="30" width="130" height="55" rx="6" fill="#fff" stroke="#0F2648" strokeWidth="3" />
-              <path d="M60 30 h60 l30 25 v30 h-90 z" fill="#0F2648" />
+              <rect x="60" y="30" width="130" height="55" rx="6" fill="#fff" stroke="#0B2472" strokeWidth="3" />
+              <path d="M60 30 h60 l30 25 v30 h-90 z" fill="#0B2472" />
               <rect x="95" y="40" width="30" height="18" rx="2" fill="#EAF1FC" />
               <circle cx="85" cy="88" r="12" fill="#16233D" />
               <circle cx="85" cy="88" r="5" fill="#CBD3DF" />
               <circle cx="165" cy="88" r="12" fill="#16233D" />
               <circle cx="165" cy="88" r="5" fill="#CBD3DF" />
-              <text x="95" y="65" fontFamily="Poppins, sans-serif" fontWeight="700" fontSize="12" fill="#F2701A">FAST<tspan fill="#0F2648">EX</tspan></text>
+              <text x="95" y="65" fontFamily="Poppins, sans-serif" fontWeight="700" fontSize="12" fill="#F2650D">FAST<tspan fill="#0B2472">EX</tspan></text>
               <rect x="0" y="60" width="42" height="35" fill="#C88A4E" />
-              <rect x="6" y="66" width="30" height="8" fill="#F2701A" />
+              <rect x="6" y="66" width="30" height="8" fill="#F2650D" />
               <rect x="18" y="35" width="42" height="60" fill="#D69A5F" />
-              <rect x="24" y="42" width="30" height="8" fill="#0F2648" />
+              <rect x="24" y="42" width="30" height="8" fill="#0B2472" />
             </g>
           </svg>
         </div>

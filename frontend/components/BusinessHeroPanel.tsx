@@ -99,7 +99,7 @@ export default function BusinessHeroPanel() {
           >
             <path
               d="M2 20L24 20L18 12L34 20L18 28L24 20"
-              stroke="#F2701A"
+              stroke="#F2650D"
               strokeWidth="3.4"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -108,7 +108,7 @@ export default function BusinessHeroPanel() {
 
           <div>
             <h2 className="text-3xl font-extrabold tracking-tight">
-              RAFTAAR<span className="text-orange-500">EXPRESS</span>
+              RAFTAAR<span className="text-danger">EXPRESS</span>
             </h2>
 
             <p className="uppercase text-xs tracking-[4px] text-gray-500">
@@ -184,25 +184,25 @@ export default function BusinessHeroPanel() {
         >
           <path
             d="M0 210 C150 150,450 150,600 210 L600 230 L0 230 Z"
-            fill="#0F2648"
+            fill="#0B2472"
             opacity=".06"
           />
 
           <path
             d="M0 214 C150 160,450 160,600 214"
-            stroke="#F2701A"
+            stroke="#F2650D"
             strokeWidth="4"
             fill="none"
           />
 
           <g opacity=".5">
-            <rect x="20" y="120" width="18" height="90" fill="#173868" />
-            <rect x="46" y="95" width="22" height="115" fill="#0F2648" />
-            <rect x="76" y="130" width="16" height="80" fill="#173868" />
+            <rect x="20" y="120" width="18" height="90" fill="#1D3C8F" />
+            <rect x="46" y="95" width="22" height="115" fill="#0B2472" />
+            <rect x="76" y="130" width="16" height="80" fill="#1D3C8F" />
 
-            <rect x="500" y="110" width="20" height="100" fill="#0F2648" />
-            <rect x="528" y="140" width="16" height="70" fill="#173868" />
-            <rect x="552" y="100" width="22" height="110" fill="#0F2648" />
+            <rect x="500" y="110" width="20" height="100" fill="#0B2472" />
+            <rect x="528" y="140" width="16" height="70" fill="#1D3C8F" />
+            <rect x="552" y="100" width="22" height="110" fill="#0B2472" />
           </g>
         </svg>
 

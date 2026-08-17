@@ -53,7 +53,7 @@ export function OtpBoxes({
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
           className="w-12 h-[54px] text-center text-xl font-bold p-0 rounded-[10px] border-[1.5px] border-line bg-[#FBFCFE] outline-none
-            focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,112,26,0.13)]"
+            focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,101,13,0.13)]"
         />
       ))}
     </div>

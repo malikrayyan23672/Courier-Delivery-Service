@@ -84,8 +84,8 @@ export const NETWORK_ACTIVITY: ActivityItem[] = [
   { icon: 'building', color: '#2563EB', text: 'New branch "Multan West" created by super admin', time: '4 min ago' },
   { icon: 'riders', color: '#1E8E5A', text: '3 new riders onboarded across Lahore zone', time: '18 min ago' },
   { icon: 'business', color: '#F2A93B', text: 'Business account "Threadbare Apparel" upgraded to bulk pricing', time: '35 min ago' },
-  { icon: 'alert', color: '#D8432C', text: 'Auto-assignment rule "Nearest Available Rider" radius updated to 3km', time: '52 min ago' },
-  { icon: 'message', color: '#173868', text: 'Messaging template "Delivery Failed" edited', time: '1 hr ago' },
+  { icon: 'alert', color: '#E6350F', text: 'Auto-assignment rule "Nearest Available Rider" radius updated to 3km', time: '52 min ago' },
+  { icon: 'message', color: '#1D3C8F', text: 'Messaging template "Delivery Failed" edited', time: '1 hr ago' },
 ];
 
 export const NETWORK_COMPARISON = [

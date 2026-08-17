@@ -54,7 +54,7 @@ function PasswordField({
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
           className={`w-full text-[0.92rem] py-3 pl-[42px] pr-10 rounded-[10px] border-[1.5px] bg-[#FBFCFE] text-ink outline-none transition-colors
-            focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,112,26,0.13)]`}
+            focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,101,13,0.13)]`}
         />
         <button type="button" onClick={() => setVisible((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground" aria-label="Toggle password visibility">
           <Icon path={ICONS.eye} />

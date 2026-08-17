@@ -442,7 +442,7 @@ function RiderContent() {
                 <div
                   key={order.id}
                   className="bg-white rounded-card p-5"
-                  style={{ boxShadow: '0 0 0 1.5px #F2701A, 0 24px 60px -18px rgba(15,38,72,0.22)' }}
+                  style={{ boxShadow: '0 0 0 1.5px #F2650D, 0 24px 60px -18px rgba(11,36,114,0.22)' }}
                 >
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div>

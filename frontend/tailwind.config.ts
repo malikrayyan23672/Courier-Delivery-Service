@@ -9,29 +9,29 @@ module.exports = {
     extend: {
       colors: {
         navy: {
-          DEFAULT: '#0F2648',
-          light: '#173868',
+          DEFAULT: '#0B2472',
+          light: '#1D3C8F',
         },
         orange: {
-          DEFAULT: '#F2701A',
+          DEFAULT: '#F2650D',
           light: '#FF8A3D',
         },
         ink: '#16233D',        // primary text
         line: '#E4E8F0',       // borders
         page: '#F3F5F9',       // page background
         success: '#1E8E5A',
-        danger: '#D8432C',
+        danger: '#E6350F',
         // ---- shadcn/ui tokens (brand-mapped) ----
         border: '#E4E8F0',
         input: '#E4E8F0',
-        ring: '#F2701A',
+        ring: '#F2650D',
         background: '#F3F5F9',
         foreground: '#16233D',
-        primary: { DEFAULT: '#F2701A', foreground: '#FFFFFF' },
-        secondary: { DEFAULT: '#EAF1FC', foreground: '#0F2648' },
-        destructive: { DEFAULT: '#D8432C', foreground: '#FFFFFF' },
+        primary: { DEFAULT: '#F2650D', foreground: '#FFFFFF' },
+        secondary: { DEFAULT: '#EAF1FC', foreground: '#0B2472' },
+        destructive: { DEFAULT: '#E6350F', foreground: '#FFFFFF' },
         muted: { DEFAULT: '#EEF0F4', foreground: '#6B7686' }, // bg-muted light / text-muted-foreground #6B7686
-        accent: { DEFAULT: '#FBF3EA', foreground: '#C85A10' },
+        accent: { DEFAULT: '#FBF3EA', foreground: '#C24F0C' },
         popover: { DEFAULT: '#FFFFFF', foreground: '#16233D' },
         card: { DEFAULT: '#FFFFFF', foreground: '#16233D' },
       },
@@ -46,7 +46,7 @@ module.exports = {
         sm: 'calc(var(--radius) - 4px)',
       },
       boxShadow: {
-        card: '0 24px 60px -18px rgba(15, 38, 72, 0.22)',
+        card: '0 24px 60px -18px rgba(11, 36, 114, 0.22)',
       },
       backgroundImage: {
         'hero-gradient':

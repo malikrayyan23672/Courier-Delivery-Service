@@ -294,7 +294,7 @@ function AdminDashboardContent() {
       <aside className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-navy text-white flex flex-col p-4 gap-1 overflow-y-auto transition-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="flex items-center gap-2.5 mb-6 px-1">
           <svg width="30" height="30" viewBox="0 0 40 40" fill="none">
-            <path d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20" fill="none" stroke="#F2701A" strokeWidth="3.4" strokeLinejoin="round" strokeLinecap="round" />
+            <path d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20" fill="none" stroke="#F2650D" strokeWidth="3.4" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
           <div>
             <div className="font-display text-lg font-extrabold leading-none">RAFTAAR<span className="text-orange">EXPRESS</span></div>
@@ -439,7 +439,7 @@ function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, un
     { icon: 'clock', bg: '#F2A93B', label: 'Unassigned Orders', num: unassignedOrders, trend: 'Needs a rider', trendColor: '#B8710A' },
     { icon: 'riders', bg: '#1E8E5A', label: 'Riders Online', num: onlineRiders, trend: 'Ready for dispatch', trendColor: '#1E8E5A' },
     { icon: 'riders', bg: '#F2A93B', label: 'Riders on Delivery', num: busyRiders, trend: 'Active routes', trendColor: '#B8710A' },
-    { icon: 'building', bg: '#173868', label: 'Branches', num: branches.length, trend: 'Across the network', trendColor: '#8A94A6' },
+    { icon: 'building', bg: '#1D3C8F', label: 'Branches', num: branches.length, trend: 'Across the network', trendColor: '#8A94A6' },
     { icon: 'zone', bg: '#2563EB', label: 'Service Zones', num: zones.length, trend: 'Coverage areas', trendColor: '#8A94A6' },
     { icon: 'check', bg: '#1E8E5A', label: 'Delivered', num: analytics?.status_counts?.delivered ?? 0, trend: 'Completed orders', trendColor: '#1E8E5A' },
   ];
@@ -507,7 +507,7 @@ function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, un
           {quickActions.map((q) => (
             <button key={q.label} onClick={() => switchView(q.goto)}
               className="flex flex-col items-center gap-2 border border-line rounded-xl p-4 text-xs font-semibold text-ink hover:border-orange hover:bg-page transition-colors text-center">
-              <NavIcon name={q.icon} size={18} color="#0F2648" />
+              <NavIcon name={q.icon} size={18} color="#0B2472" />
               {q.label}
             </button>
           ))}
@@ -646,7 +646,7 @@ function MapView({ branches, riders }: { branches: Branch[]; riders: RiderCard[]
         <Pill status="blue" label={`${riders.filter((r) => r.status !== 'offline').length} riders active`} />
       </div>
       <div className="relative w-full aspect-[16/9] bg-page rounded-xl overflow-hidden border border-line">
-        {branchPins.map((b) => <MapPin key={b.name} x={b.x} y={b.y} color="#0F2648" label={b.name} large />)}
+        {branchPins.map((b) => <MapPin key={b.name} x={b.x} y={b.y} color="#0B2472" label={b.name} large />)}
         {riderPins.map((r) => <MapPin key={r.name} x={r.x} y={r.y} color={r.busy ? '#2563EB' : '#B7BEC9'} label={r.name.split(' ')[0]} />)}
         {branchPins.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">No branch location data yet.</div>
@@ -933,7 +933,7 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
                   () => onDelete(z)
                   // () => null
                   } className="text-xs font-bold text-danger border border-danger/30 rounded-lg px-3 py-1.5 hover:bg-[#FBEAE7] flex items-center gap-1">
-                  <NavIcon name="trash" size={12} color="#D8432C" /> Remove
+                  <NavIcon name="trash" size={12} color="#E6350F" /> Remove
                 </button>
               </td>
             </tr>
@@ -983,7 +983,7 @@ function StaffView({ users, roleFilter, setRoleFilter, onDelete }: {
               <td className="py-3 pr-4"><Pill status={u.is_active ? 'green' : 'red'} label={u.is_active ? 'Active' : 'Suspended'} /></td>
               <td className="py-3">
                 <button onClick={() => onDelete(u)} className="text-xs font-bold text-danger border border-danger/30 rounded-lg px-3 py-1.5 hover:bg-[#FBEAE7] flex items-center gap-1">
-                  <NavIcon name="trash" size={12} color="#D8432C" /> Remove
+                  <NavIcon name="trash" size={12} color="#E6350F" /> Remove
                 </button>
               </td>
             </tr>
@@ -1273,7 +1273,7 @@ function AlertsView({ alerts }: { alerts: AdminAlert[] }) {
 }
 
 function AlertCard({ alert }: { alert: AdminAlert }) {
-  const border = alert.sev === 'high' ? '#D8432C' : alert.sev === 'medium' ? '#F2A93B' : '#B7BEC9';
+  const border = alert.sev === 'high' ? '#E6350F' : alert.sev === 'medium' ? '#F2A93B' : '#B7BEC9';
   return (
     <div className="flex gap-3 border-l-4 rounded-lg bg-page p-3.5" style={{ borderColor: border }}>
       <div className="w-7 h-7 rounded-full flex items-center justify-center flex-none text-white" style={{ background: border }}>

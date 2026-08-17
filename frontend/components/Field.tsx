@@ -20,8 +20,8 @@ export function Field({ label, icon, error, id, ...props }: FieldProps) {
           id={id}
           {...props}
           className={`w-full text-[0.92rem] py-3 pl-[42px] pr-3.5 rounded-[10px] border-[1.5px] bg-[#FBFCFE] text-ink outline-none transition-colors
-            focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,112,26,0.13)]
-            ${error ? 'border-danger shadow-[0_0_0_3px_rgba(216,67,44,0.12)]' : 'border-line'}`}
+            focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,101,13,0.13)]
+            ${error ? 'border-danger shadow-[0_0_0_3px_rgba(230,53,15,0.12)]' : 'border-line'}`}
         />
       </div>
       {error && <span className="text-[0.74rem] text-danger">{error}</span>}

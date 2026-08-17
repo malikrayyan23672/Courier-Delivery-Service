@@ -190,10 +190,14 @@ def add_manifest_item(
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
-        if order.status != OrderStatus.in_hub:
+        # A manifest carries either forward-moving hub freight (`in_hub`) or a
+        # return/RTO batch heading back to the seller (`rto`) - both are
+        # "ready to load at this hub" states. Anything else means the parcel
+        # hasn't been scanned in yet, or has already moved on.
+        if order.status not in (OrderStatus.in_hub, OrderStatus.rto):
             raise HTTPException(
                 status_code=400,
-                detail=f"Order must be scanned in at the hub (in_hub) before it can be loaded onto a manifest - currently '{order.status.value if hasattr(order.status, 'value') else order.status}'",
+                detail=f"Order must be scanned in at the hub (in_hub) or awaiting return (rto) before it can be loaded onto a manifest - currently '{order.status.value if hasattr(order.status, 'value') else order.status}'",
             )
 
     db.add(

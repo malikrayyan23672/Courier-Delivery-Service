@@ -35,8 +35,8 @@ export function SelectField({
           id={id}
           {...props}
           className={`w-full appearance-none text-[0.92rem] py-3 pl-[42px] pr-9 rounded-[10px] border-[1.5px] bg-[#FBFCFE] text-ink outline-none transition-colors cursor-pointer
-            focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,112,26,0.13)]
-            ${error ? 'border-danger shadow-[0_0_0_3px_rgba(216,67,44,0.12)]' : 'border-line'}`}
+            focus:border-orange focus:bg-white focus:shadow-[0_0_0_3px_rgba(242,101,13,0.13)]
+            ${error ? 'border-danger shadow-[0_0_0_3px_rgba(230,53,15,0.12)]' : 'border-line'}`}
         >
           {placeholder && (
             <option value="" disabled hidden>

@@ -5,10 +5,10 @@
 // Fixed categorical order - assign by this order, never cycle or reassign per filter.
 export const CATEGORICAL = [
   '#2563EB', // blue
-  '#F2701A', // brand orange
+  '#F2650D', // brand orange
   '#1E8E5A', // success green
   '#7C3AED', // purple
-  '#D8432C', // danger red
+  '#E6350F', // danger red
   '#0891B2', // teal
 ] as const;
 
@@ -16,12 +16,12 @@ export const CATEGORICAL = [
 export const STATUS = {
   good: '#1E8E5A',
   warning: '#B9770E',
-  critical: '#D8432C',
+  critical: '#E6350F',
   neutral: '#8A94A6',
 } as const;
 
 // Single-hue sequential ramp (magnitude) - light to dark orange.
-export const SEQUENTIAL_ORANGE = ['#FFE3C7', '#FFB570', '#F2701A', '#C1550C'] as const;
+export const SEQUENTIAL_ORANGE = ['#FFE3C7', '#FFB570', '#F2650D', '#C1550C'] as const;
 
 export const GRID_COLOR = '#E4E8F0'; // matches --line token
 export const AXIS_TEXT_COLOR = '#6B7686'; // matches muted-foreground

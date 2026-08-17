@@ -5,7 +5,7 @@ export function Logo() {
         <path
           d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20"
           fill="none"
-          stroke="#F2701A"
+          stroke="#F2650D"
           strokeWidth="3.4"
           strokeLinejoin="round"
           strokeLinecap="round"
@@ -13,7 +13,7 @@ export function Logo() {
       </svg>
       <div>
         <div className="font-display text-2xl font-extrabold tracking-tight leading-none text-navy">
-          RAFTAAR<span className="text-orange">EXPRESS</span>
+          RAFTAAR<span className="text-danger">EXPRESS</span>
         </div>
         <div className="text-[0.62rem] tracking-[0.22em] text-muted-foreground font-semibold mt-0.5">
           COURIER SERVICES

@@ -118,7 +118,7 @@ export default function HomePage() {
             <path
               d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20"
               fill="none"
-              stroke="#F2701A"
+              stroke="#F2650D"
               strokeWidth="3.4"
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -609,16 +609,16 @@ export default function HomePage() {
  
       <style jsx global>{`
         :root {
-          --navy: #0f2648;
-          --navy-2: #173868;
-          --orange: #f2701a;
+          --navy: #0b2472;
+          --navy-2: #1d3c8f;
+          --orange: #f2650d;
           --orange-2: #ff8a3d;
           --text-dark: #16233d;
           --text-gray: #6b7686;
           --border: #e4e8f0;
           --bg-page: #f3f5f9;
           --success: #1e8e5a;
-          --danger: #d8432c;
+          --danger: #e6350f;
         }
         * {
           box-sizing: border-box;
@@ -688,7 +688,7 @@ export default function HomePage() {
           color: var(--navy);
         }
         .brand-name .fx {
-          color: var(--orange);
+          color: var(--danger);
         }
         .brand-sub {
           font-size: 0.6rem;
@@ -765,7 +765,7 @@ export default function HomePage() {
           font-weight: 700;
           color: var(--navy-2);
           background: rgba(255, 255, 255, 0.55);
-          border: 1px solid rgba(15, 38, 72, 0.12);
+          border: 1px solid rgba(11, 36, 114, 0.12);
           padding: 6px 14px;
           border-radius: 20px;
           margin-bottom: 20px;
@@ -792,7 +792,7 @@ export default function HomePage() {
         .track-card {
           background: #fff;
           border-radius: 18px;
-          box-shadow: 0 24px 60px -18px rgba(15, 38, 72, 0.28);
+          box-shadow: 0 24px 60px -18px rgba(11, 36, 114, 0.28);
           padding: 26px 26px 22px;
           width: 100%;
           max-width: 560px;
@@ -857,11 +857,11 @@ export default function HomePage() {
         input:focus {
           border-color: var(--orange);
           background: #fff;
-          box-shadow: 0 0 0 3px rgba(242, 112, 26, 0.13);
+          box-shadow: 0 0 0 3px rgba(242, 101, 13, 0.13);
         }
         input.invalid {
           border-color: var(--danger);
-          box-shadow: 0 0 0 3px rgba(216, 67, 44, 0.12);
+          box-shadow: 0 0 0 3px rgba(230, 53, 15, 0.12);
         }
         input::placeholder {
           color: #5b6472;
@@ -1226,7 +1226,7 @@ export default function HomePage() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          box-shadow: 0 8px 22px -10px rgba(15, 38, 72, 0.2);
+          box-shadow: 0 8px 22px -10px rgba(11, 36, 114, 0.2);
         }
         .about-stat-card .num {
           font-family: "Poppins", sans-serif;
@@ -1269,7 +1269,7 @@ export default function HomePage() {
         .modal-card {
           background: #fff;
           border-radius: 20px;
-          box-shadow: 0 30px 70px -20px rgba(15, 38, 72, 0.4);
+          box-shadow: 0 30px 70px -20px rgba(11, 36, 114, 0.4);
           padding: 32px 34px 30px;
           width: 100%;
           max-width: 420px;
