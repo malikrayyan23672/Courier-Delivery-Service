@@ -97,6 +97,9 @@ class OrderOut(BaseModel):
     created_at: Optional[datetime] = None
     proof_of_delivery_url: Optional[str] = None
     proof_of_delivery_recipient_name: Optional[str] = None
+    product_id: Optional[str] = None
+    quantity: Optional[int] = None
+    unit_price: Optional[float] = None
 
     class Config:
         from_attributes = True

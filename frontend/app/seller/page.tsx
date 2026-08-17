@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RoleGuard } from '@/components/RoleGuard';
-import { Logo } from '@/components/Logo';
+import { cn } from '@/lib/utils';
 import {
   ApiError,
   getSellerMe,
@@ -16,19 +16,69 @@ import {
   listSellerUploads,
   registerRNP,
   listSellerRNP,
+  listSellerProducts,
+  createSellerProduct,
+  updateSellerProduct,
+  listSellerMarketplaceOrders,
+  getSellerRatings,
   SellerMe,
   SellerSettlement,
   SellerUpload,
   WalletTransaction,
   RNP,
   SellerAnalytics,
+  Product,
+  SellerMarketplaceOrder,
+  RatingSummary,
 } from '@/lib/api';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { TrendLine } from '@/components/charts/TrendLine';
 import { StatusDonut } from '@/components/charts/StatusDonut';
 import { STATUS as STATUS_COLORS } from '@/components/charts/palette';
+import { Barcode } from '@/components/Barcode';
+import { StarDisplay } from '@/components/StarRating';
 
-type View = 'overview' | 'analytics' | 'settlements' | 'files' | 'rnp';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Activity, AlertTriangle, BarChart3, Bell, ChevronDown, ChevronRight, CircleDollarSign,
+  LayoutDashboard, LogOut, MapPin, Menu, Package, Printer, Settings, Store, Truck,
+  Upload, X,
+} from 'lucide-react';
+
+type View = 'overview' | 'analytics' | 'settlements' | 'files' | 'rnp' | 'marketplace';
+
+const NAV_SECTIONS: { label: string; items: { view: View; label: string; icon: React.ReactNode }[] }[] = [
+  { label: 'Command', items: [
+    { view: 'overview', label: 'Overview', icon: <LayoutDashboard className="h-4 w-4" /> },
+    { view: 'marketplace', label: 'Marketplace', icon: <Store className="h-4 w-4" /> },
+    { view: 'analytics', label: 'Analytics', icon: <BarChart3 className="h-4 w-4" /> },
+  ]},
+  { label: 'Financials', items: [
+    { view: 'settlements', label: 'COD Payouts', icon: <CircleDollarSign className="h-4 w-4" /> },
+  ]},
+  { label: 'Operations', items: [
+    { view: 'files', label: 'Bulk Orders', icon: <Upload className="h-4 w-4" /> },
+    { view: 'rnp', label: 'RNP Points', icon: <MapPin className="h-4 w-4" /> },
+  ]},
+];
+
+const PAGE_META: Record<View, { title: string; sub: string }> = {
+  overview: { title: 'Overview', sub: 'Your wallet, payouts and business at a glance' },
+  marketplace: { title: 'Marketplace', sub: 'Products, orders and buyer ratings' },
+  analytics: { title: 'Analytics', sub: 'Shipment volume and RTO rate' },
+  settlements: { title: 'COD Payouts', sub: 'Guaranteed next-morning (T+1) settlements' },
+  files: { title: 'Bulk Orders', sub: 'Upload a CSV, Excel or Word order list' },
+  rnp: { title: 'RNP Points', sub: 'Your neighbourhood drop / pick-up nodes' },
+};
 
 export default function SellerPage() {
   return (
@@ -42,55 +92,252 @@ function SellerContent() {
   const { token, setToken } = useAuth();
   const router = useRouter();
   const [view, setView] = useState<View>('overview');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const [me, setMe] = useState<SellerMe | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [mpOrders, setMpOrders] = useState<SellerMarketplaceOrder[]>([]);
+  const [syncing, setSyncing] = useState(true);
 
   function handleLogout() {
     setToken(null);
     router.push('/login');
   }
 
-  const NAV: { key: View; label: string }[] = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'analytics', label: 'Analytics' },
-    { key: 'settlements', label: 'COD Payouts' },
-    { key: 'files', label: 'Bulk Orders' },
-    { key: 'rnp', label: 'RNP Points' },
-  ];
+  useEffect(() => {
+    if (!token) return;
+    setSyncing(true);
+    Promise.all([getSellerMe(token), listSellerProducts(token), listSellerMarketplaceOrders(token)])
+      .then(([m, p, o]) => { setMe(m); setProducts(p); setMpOrders(o); })
+      .catch(() => {})
+      .finally(() => setSyncing(false));
+  }, [token]);
+
+  function switchView(v: View) {
+    setView(v);
+    setSidebarOpen(false);
+  }
+
+  const stats = useMemo(() => {
+    const pendingOrders = mpOrders.filter((o) => o.status === 'created').length;
+    const outOfStock = products.filter((p) => p.is_active && p.stock_quantity === 0).length;
+    return { pendingOrders, outOfStock, productCount: products.length };
+  }, [mpOrders, products]);
+
+  const alerts = useMemo(() => {
+    const list: { id: string; icon: React.ReactNode; tone: string; text: string }[] = [];
+    if (stats.pendingOrders > 0) list.push({ id: 'pending', icon: <Package className="h-3.5 w-3.5" />, tone: 'text-orange bg-[#FBF3EA]', text: `${stats.pendingOrders} order(s) awaiting packing` });
+    if (stats.outOfStock > 0) list.push({ id: 'stock', icon: <AlertTriangle className="h-3.5 w-3.5" />, tone: 'text-danger bg-[#FBE9E5]', text: `${stats.outOfStock} product(s) out of stock` });
+    if (me && !me.verified) list.push({ id: 'verify', icon: <AlertTriangle className="h-3.5 w-3.5" />, tone: 'text-orange bg-[#FBF3EA]', text: 'Phone number not verified yet' });
+    return list;
+  }, [stats, me]);
+
+  const initials = (me?.company_name || 'SP').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
 
   return (
-    <div className="min-h-screen bg-page">
-      <header className="bg-white border-b border-line px-6 md:px-10 py-4 flex items-center justify-between">
-        <Logo />
-        <div className="flex items-center gap-4">
-          <span className="text-xs font-semibold uppercase tracking-wide text-orange bg-[#FBF3EA] px-3 py-1 rounded-full">
-            Seller Portal
-          </span>
-          <button onClick={handleLogout} className="text-sm font-semibold text-muted-foreground hover:text-navy transition-colors">
-            Log out
+    <div className="min-h-screen bg-background">
+      {/* ============ SIDEBAR ============ */}
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-navy text-white transition-transform lg:translate-x-0',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        <div className="flex items-center justify-between px-6 pt-6 pb-5">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/90">
+              <Truck className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <div className="font-display text-base font-extrabold leading-none tracking-tight">
+                RAFTAAR<span className="text-primary">EXPRESS</span>
+              </div>
+              <div className="mt-1 text-[0.6rem] font-semibold uppercase tracking-[0.22em] text-white/50">
+                Seller Portal
+              </div>
+            </div>
+          </div>
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1.5 text-white/70 hover:text-white">
+            <X className="h-5 w-5" />
           </button>
         </div>
-      </header>
 
-      <main className="max-w-5xl mx-auto px-6 md:px-10 py-8">
-        <div className="flex gap-2 mb-6 border-b border-line overflow-x-auto">
-          {NAV.map((n) => (
-            <button
-              key={n.key}
-              onClick={() => setView(n.key)}
-              className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
-                view === n.key ? 'border-orange text-orange' : 'border-transparent text-muted-foreground hover:text-ink'
-              }`}
-            >
-              {n.label}
+        <Separator className="bg-white/10" />
+
+        <ScrollArea className="flex-1 px-3 py-4">
+          <nav className="flex flex-col gap-5">
+            {NAV_SECTIONS.map((section) => (
+              <div key={section.label}>
+                <div className="px-3 pb-1.5 text-[0.68rem] font-bold uppercase tracking-wider text-white/40">
+                  {section.label}
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  {section.items.map((item) => {
+                    const active = view === item.view;
+                    return (
+                      <button
+                        key={item.view}
+                        onClick={() => switchView(item.view)}
+                        className={cn(
+                          'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                          active
+                            ? 'bg-primary text-white shadow-sm'
+                            : 'text-white/70 hover:bg-white/5 hover:text-white'
+                        )}
+                      >
+                        <span className={cn(active ? 'text-white' : 'text-white/50 group-hover:text-white/80')}>
+                          {item.icon}
+                        </span>
+                        <span className="flex-1 text-left">{item.label}</span>
+                        {item.view === 'marketplace' && stats.pendingOrders > 0 && (
+                          <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[0.65rem] font-bold text-primary">
+                            {stats.pendingOrders}
+                          </span>
+                        )}
+                        {active && <ChevronRight className="h-3.5 w-3.5 opacity-70" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
+        </ScrollArea>
+
+        {/* ============ SIDEBAR PULSE ============ */}
+        <div className="border-t border-white/10 p-4">
+          <div className="rounded-xl bg-white/5 p-3.5">
+            <div className="flex items-center gap-2 pb-3">
+              <Activity className="h-4 w-4 text-primary" />
+              <span className="text-xs font-bold uppercase tracking-wide text-white/70">Store Pulse</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="rounded-lg bg-white/5 px-2.5 py-2">
+                <div className="text-[0.65rem] font-medium uppercase tracking-wide text-white/40">Products</div>
+                <div className="mt-0.5 text-lg font-bold leading-none">{syncing ? <Skeleton className="h-5 w-10 bg-white/10" /> : stats.productCount}</div>
+              </div>
+              <div className="rounded-lg bg-white/5 px-2.5 py-2">
+                <div className="text-[0.65rem] font-medium uppercase tracking-wide text-white/40">Awaiting pack</div>
+                <div className="mt-0.5 text-lg font-bold leading-none text-primary">{syncing ? <Skeleton className="h-5 w-10 bg-white/10" /> : stats.pendingOrders}</div>
+              </div>
+              <div className="rounded-lg bg-white/5 px-2.5 py-2">
+                <div className="text-[0.65rem] font-medium uppercase tracking-wide text-white/40">Wallet</div>
+                <div className="mt-0.5 text-lg font-bold leading-none text-success">{syncing ? <Skeleton className="h-5 w-10 bg-white/10" /> : `Rs ${(me?.wallet_balance || 0).toLocaleString()}`}</div>
+              </div>
+              <div className="rounded-lg bg-white/5 px-2.5 py-2">
+                <div className="text-[0.65rem] font-medium uppercase tracking-wide text-white/40">COD</div>
+                <div className="mt-0.5 text-lg font-bold leading-none">{syncing ? <Skeleton className="h-5 w-10 bg-white/10" /> : (me?.cod_service ? 'On' : 'Off')}</div>
+              </div>
+            </div>
+          </div>
+
+          {alerts.length > 0 && (
+            <div className="mt-3 flex flex-col gap-2">
+              {alerts.map((a) => (
+                <div key={a.id} className="flex items-center gap-2.5 rounded-lg bg-white/5 px-3 py-2">
+                  <span className={cn('flex h-6 w-6 items-center justify-center rounded-full', a.tone)}>{a.icon}</span>
+                  <span className="text-xs font-medium text-white/80">{a.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-3 flex items-center gap-3 rounded-xl bg-white/5 p-3">
+            <Avatar className="h-9 w-9">
+              <AvatarFallback className="bg-primary text-xs font-bold text-white">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold text-white">{me?.company_name ?? 'Seller'}</div>
+              <div className="truncate text-[0.7rem] text-white/50">{me?.email ?? '—'}</div>
+            </div>
+            <button onClick={handleLogout} title="Log out" className="p-1.5 text-white/50 hover:text-white transition-colors">
+              <LogOut className="h-4 w-4" />
             </button>
-          ))}
+          </div>
         </div>
+      </aside>
 
-        {view === 'overview' && <OverviewTab token={token!} onNavigate={setView} />}
-        {view === 'analytics' && <AnalyticsTab token={token!} />}
-        {view === 'settlements' && <SettlementsTab token={token!} />}
-        {view === 'files' && <FilesTab token={token!} />}
-        {view === 'rnp' && <RnpTab token={token!} />}
-      </main>
+      {sidebarOpen && <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+
+      {/* ============ MAIN ============ */}
+      <div className="lg:pl-72">
+        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/90 px-5 py-3.5 backdrop-blur md:px-8">
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 text-ink hover:bg-muted rounded-lg">
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span>Raftaar Express</span>
+              <ChevronRight className="h-3 w-3" />
+              <span className="font-semibold text-ink">{PAGE_META[view].title}</span>
+            </div>
+            <h1 className="truncate font-display text-lg font-bold text-ink leading-tight">{PAGE_META[view].title}</h1>
+            <p className="hidden truncate text-xs text-muted-foreground sm:block">{PAGE_META[view].sub}</p>
+          </div>
+
+          <TooltipProvider>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="relative">
+                      <Bell className="h-5 w-5" />
+                      {alerts.length > 0 && (
+                        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger ring-2 ring-background" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Notifications</TooltipContent>
+                </Tooltip>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {alerts.length === 0 ? (
+                  <div className="px-2 py-6 text-center text-sm text-muted-foreground">All clear — nothing needs attention.</div>
+                ) : (
+                  alerts.map((a) => (
+                    <DropdownMenuItem key={a.id} className="gap-3">
+                      <span className={cn('flex h-8 w-8 items-center justify-center rounded-full', a.tone)}>{a.icon}</span>
+                      <span className="text-sm">{a.text}</span>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </TooltipProvider>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="gap-2 px-2">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-navy text-xs font-bold text-white">{initials}</AvatarFallback>
+                </Avatar>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>{me?.company_name ?? 'Seller'}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => switchView('overview')}>
+                <Settings className="mr-2 h-4 w-4" /> Account overview
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                <LogOut className="mr-2 h-4 w-4" /> Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </header>
+
+        <main className="p-5 md:p-8">
+          {view === 'overview' && <OverviewTab token={token!} onNavigate={switchView} />}
+          {view === 'marketplace' && <MarketplaceTab token={token!} />}
+          {view === 'analytics' && <AnalyticsTab token={token!} />}
+          {view === 'settlements' && <SettlementsTab token={token!} />}
+          {view === 'files' && <FilesTab token={token!} />}
+          {view === 'rnp' && <RnpTab token={token!} />}
+        </main>
+      </div>
     </div>
   );
 }
@@ -443,6 +690,255 @@ function RnpTab({ token }: { token: string }) {
           </table>
         )}
       </div>
+    </div>
+  );
+}
+
+// ============================== MARKETPLACE ==============================
+
+const mpInputCls = 'text-sm py-2.5 px-3 rounded-[10px] border border-line bg-[#FBFCFE] outline-none focus:border-orange transition-colors';
+
+function MarketplaceTab({ token }: { token: string }) {
+  const [section, setSection] = useState<'products' | 'orders' | 'ratings'>('products');
+  const pills: { key: typeof section; label: string }[] = [
+    { key: 'products', label: 'My Products' },
+    { key: 'orders', label: 'Marketplace Orders' },
+    { key: 'ratings', label: 'Ratings' },
+  ];
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex gap-2">
+        {pills.map((p) => (
+          <button
+            key={p.key}
+            onClick={() => setSection(p.key)}
+            className={`text-sm font-semibold px-4 py-2 rounded-[10px] transition-colors ${
+              section === p.key ? 'bg-navy text-white' : 'bg-white text-muted-foreground border border-line hover:text-ink'
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      {section === 'products' && <ProductsSection token={token} />}
+      {section === 'orders' && <MarketplaceOrdersSection token={token} />}
+      {section === 'ratings' && <SellerRatingsSection token={token} />}
+    </div>
+  );
+}
+
+function ProductsSection({ token }: { token: string }) {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: '', description: '', category: '', price: '', stock_quantity: '', unit_weight_kg: '1', image_url: '' });
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState('');
+
+  function load() {
+    setLoading(true);
+    listSellerProducts(token).then(setProducts).catch(() => {}).finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(); }, [token]);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    try {
+      await createSellerProduct({
+        name: form.name,
+        description: form.description || null,
+        category: form.category || null,
+        price: Number(form.price),
+        stock_quantity: Number(form.stock_quantity) || 0,
+        unit_weight_kg: Number(form.unit_weight_kg) || 1,
+        image_url: form.image_url || null,
+        is_active: true,
+      }, token);
+      setForm({ name: '', description: '', category: '', price: '', stock_quantity: '', unit_weight_kg: '1', image_url: '' });
+      setShowForm(false);
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not create product.');
+    }
+  }
+
+  async function toggleActive(p: Product) {
+    setBusyId(p.id);
+    try {
+      await updateSellerProduct(p.id, { is_active: !p.is_active }, token);
+      load();
+    } catch { /* surfaced via row staying unchanged */ } finally {
+      setBusyId('');
+    }
+  }
+
+  async function adjustStock(p: Product, delta: number) {
+    const next = Math.max(0, p.stock_quantity + delta);
+    setBusyId(p.id);
+    try {
+      await updateSellerProduct(p.id, { stock_quantity: next }, token);
+      load();
+    } finally {
+      setBusyId('');
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      {!showForm ? (
+        <button onClick={() => setShowForm(true)} className="self-start text-sm font-bold px-4 py-2.5 rounded-[10px] bg-orange text-white hover:bg-orange-light transition-colors">
+          + List a product
+        </button>
+      ) : (
+        <div className="bg-white rounded-card shadow-card p-6">
+          <h3 className="font-bold text-ink mb-4">List a new product</h3>
+          <form onSubmit={handleCreate} className="grid gap-3 md:grid-cols-2">
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="Product name" className={`${mpInputCls} md:col-span-2`} />
+            <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Category" className={mpInputCls} />
+            <input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="Image URL (optional)" className={mpInputCls} />
+            <input value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required type="number" min="1" step="0.01" placeholder="Price (PKR)" className={mpInputCls} />
+            <input value={form.stock_quantity} onChange={(e) => setForm({ ...form, stock_quantity: e.target.value })} type="number" min="0" placeholder="Stock quantity" className={mpInputCls} />
+            <input value={form.unit_weight_kg} onChange={(e) => setForm({ ...form, unit_weight_kg: e.target.value })} type="number" min="0.1" step="0.1" placeholder="Weight per unit (kg)" className={mpInputCls} />
+            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Description" rows={3} className={`${mpInputCls} md:col-span-2`} />
+            {error && <p className="text-sm text-danger md:col-span-2">{error}</p>}
+            <div className="flex gap-3 md:col-span-2">
+              <button type="submit" className="text-sm font-bold px-5 py-2.5 rounded-[10px] bg-navy text-white hover:bg-navy-light transition-colors">List product</button>
+              <button type="button" onClick={() => setShowForm(false)} className="text-sm font-semibold px-5 py-2.5 rounded-[10px] text-muted-foreground hover:text-ink transition-colors">Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="bg-white rounded-card shadow-card overflow-hidden">
+        {loading ? (
+          <p className="p-6 text-sm text-muted-foreground">Loading…</p>
+        ) : products.length === 0 ? (
+          <p className="p-6 text-sm text-muted-foreground">No products listed yet — customers can't find you on the marketplace until you list one.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-left text-xs text-muted-foreground uppercase">
+                <th className="px-6 py-3 font-semibold">Product</th>
+                <th className="px-4 py-3 font-semibold">Price</th>
+                <th className="px-4 py-3 font-semibold">Stock</th>
+                <th className="px-4 py-3 font-semibold">Status</th>
+                <th className="px-6 py-3 font-semibold text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {products.map((p) => (
+                <tr key={p.id} className="border-b border-line last:border-0">
+                  <td className="px-6 py-3.5 font-semibold text-ink">{p.name}{p.category && <span className="block text-xs font-normal text-muted-foreground">{p.category}</span>}</td>
+                  <td className="px-4 py-3.5 text-ink">Rs {p.price.toLocaleString()}</td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-1.5">
+                      <button disabled={busyId === p.id} onClick={() => adjustStock(p, -1)} className="w-6 h-6 rounded-md border border-line hover:bg-page text-xs">−</button>
+                      <span className="w-8 text-center">{p.stock_quantity}</span>
+                      <button disabled={busyId === p.id} onClick={() => adjustStock(p, 1)} className="w-6 h-6 rounded-md border border-line hover:bg-page text-xs">+</button>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${p.is_active ? 'bg-[#EAF7EF] text-success' : 'bg-[#FBEAE7] text-danger'}`}>
+                      {p.is_active ? 'Active' : 'Hidden'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3.5 text-right">
+                    <button disabled={busyId === p.id} onClick={() => toggleActive(p)} className="text-xs font-bold text-navy hover:underline disabled:opacity-50">
+                      {p.is_active ? 'Hide' : 'Publish'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MarketplaceOrdersSection({ token }: { token: string }) {
+  const [orders, setOrders] = useState<SellerMarketplaceOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    listSellerMarketplaceOrders(token).then(setOrders).catch(() => {}).finally(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (orders.length === 0) return <div className="bg-white rounded-card shadow-card p-6 text-sm text-muted-foreground">No marketplace orders yet.</div>;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {orders.map((o) => (
+        <div key={o.id} className="bg-white rounded-card shadow-card overflow-hidden">
+          <div className="w-full flex items-center justify-between px-6 py-4">
+            <button onClick={() => setExpanded(expanded === o.id ? null : o.id)} className="flex-1 text-left min-w-0">
+              <p className="font-semibold text-ink text-sm">{o.quantity} × {o.product_name}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{o.buyer_name} · {o.buyer_phone} · {o.dropoff_city || '—'}</p>
+            </button>
+            <div className="flex items-center gap-3 flex-none">
+              <span className="text-sm font-bold text-navy">Rs {o.final_price.toLocaleString()}</span>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#FBF3EA] text-orange">{o.status.replace(/_/g, ' ')}</span>
+              <button
+                onClick={() => window.open(`/seller/print/order/${o.id}`, '_blank')}
+                title="Print packing slip"
+                className="p-2 rounded-lg border border-line text-muted-foreground hover:text-navy hover:border-navy transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          {expanded === o.id && (
+            <div className="border-t border-line px-6 py-5 flex flex-col items-center gap-3">
+              <p className="text-xs text-muted-foreground self-start">Attach this to the parcel for hub/rider pickup scanning.</p>
+              <Barcode value={o.tracking_number} />
+              <p className="font-mono text-xs text-muted-foreground">{o.tracking_number}</p>
+              <button
+                onClick={() => window.open(`/seller/print/order/${o.id}`, '_blank')}
+                className="text-sm font-bold px-4 py-2 rounded-[10px] bg-navy text-white hover:bg-navy-light transition-colors flex items-center gap-1.5"
+              >
+                <Printer className="w-3.5 h-3.5" /> Print packing slip
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SellerRatingsSection({ token }: { token: string }) {
+  const [summary, setSummary] = useState<RatingSummary | null>(null);
+
+  useEffect(() => {
+    getSellerRatings(token).then(setSummary).catch(() => {});
+  }, [token]);
+
+  if (!summary) return <p className="text-sm text-muted-foreground">Loading…</p>;
+
+  return (
+    <div className="bg-white rounded-card shadow-card p-6">
+      <div className="flex items-center gap-3 mb-5">
+        <StarDisplay value={summary.average} size={20} />
+        <span className="text-xs text-muted-foreground">({summary.count} review{summary.count === 1 ? '' : 's'})</span>
+      </div>
+      {summary.ratings.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No reviews yet.</p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {summary.ratings.map((r) => (
+            <div key={r.id} className="border-b border-line last:border-0 pb-4 last:pb-0">
+              <StarDisplay value={r.score} size={14} />
+              {r.comment && <p className="text-sm text-ink mt-1">{r.comment}</p>}
+              <p className="text-xs text-muted-foreground mt-1">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -32,6 +32,8 @@ from app.models.wallet import WalletTransaction, ReconciliationLog
 from app.models.seller_upload import SellerUpload
 from app.models.discount import Discount
 from app.models.dispute import Dispute
+from app.models.product import Product
+from app.models.rating import Rating
 
 __all__ = [
     "Role",
@@ -72,4 +74,6 @@ __all__ = [
     "SellerUpload",
     "Discount",
     "Dispute",
+    "Product",
+    "Rating",
 ]

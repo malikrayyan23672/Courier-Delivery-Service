@@ -997,6 +997,195 @@ export function getPublicDiscounts() {
   return request<Discount[]>('/discounts/public', { method: 'GET' });
 }
 
+// ---- Marketplace ----
+
+export interface Product {
+  id: string;
+  business_id: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  price: number;
+  stock_quantity: number;
+  unit_weight_kg: number;
+  image_url: string | null;
+  is_active: boolean;
+  created_at: string | null;
+}
+
+export interface ProductPublic extends Product {
+  seller_name: string;
+  seller_city: string | null;
+  seller_rating_avg: number | null;
+  seller_rating_count: number;
+}
+
+export type ProductCreate = Omit<Product, 'id' | 'business_id' | 'created_at'>;
+export type ProductUpdate = Partial<ProductCreate>;
+
+export function listMarketplaceProducts(params?: { q?: string; category?: string; business_id?: string }) {
+  const usp = new URLSearchParams();
+  if (params?.q) usp.set('q', params.q);
+  if (params?.category) usp.set('category', params.category);
+  if (params?.business_id) usp.set('business_id', params.business_id);
+  const qs = usp.toString();
+  return request<ProductPublic[]>(`/marketplace/products${qs ? `?${qs}` : ''}`, { method: 'GET' });
+}
+
+export function getMarketplaceProduct(productId: string) {
+  return request<ProductPublic>(`/marketplace/products/${productId}`, { method: 'GET' });
+}
+
+export function listMarketplaceCategories() {
+  return request<string[]>('/marketplace/categories', { method: 'GET' });
+}
+
+export interface MarketplaceCheckoutPayload {
+  product_id: string;
+  quantity: number;
+  dropoff_address: AddressInput;
+  payment_method: 'cash' | 'card' | 'online_gateway' | 'wallet';
+  discount_code?: string | null;
+  guest_full_name?: string;
+  guest_phone?: string;
+  guest_email?: string;
+}
+
+export interface MarketplaceOrder {
+  id: string;
+  tracking_number: string;
+  status: string;
+  product_id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  goods_amount: number;
+  delivery_fee: number;
+  discount_amount: number | null;
+  final_price: number | null;
+  seller_name: string;
+  dropoff_full_address: string;
+  created_at: string | null;
+}
+
+export function checkoutMarketplaceOrder(payload: MarketplaceCheckoutPayload, token?: string | null) {
+  return request<MarketplaceOrder>('/marketplace/checkout', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function getMarketplaceOrderByTracking(trackingNumber: string) {
+  return request<MarketplaceOrder>(`/marketplace/orders/${trackingNumber}`, { method: 'GET' });
+}
+
+export interface PublicTrackingInfo {
+  tracking_number: string;
+  status: string;
+  history: { status: string; note: string | null; timestamp: string }[];
+}
+
+export function trackPublicOrder(trackingNumber: string) {
+  return request<PublicTrackingInfo>(`/tracking/${trackingNumber}`, { method: 'GET' });
+}
+
+export interface RatingPayload {
+  order_id: string;
+  score: number;
+  comment?: string;
+  rater_phone?: string;
+}
+
+export interface Rating {
+  id: string;
+  order_id: string;
+  rater_role: 'customer' | 'seller';
+  target_type: 'seller' | 'customer';
+  score: number;
+  comment: string | null;
+  created_at: string | null;
+}
+
+export interface RatingSummary {
+  average: number | null;
+  count: number;
+  ratings: Rating[];
+}
+
+export function submitMarketplaceRating(payload: RatingPayload, token?: string | null) {
+  return request<Rating>('/marketplace/ratings', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function getSellerRatingSummary(businessId: string) {
+  return request<RatingSummary>(`/marketplace/sellers/${businessId}/ratings`, { method: 'GET' });
+}
+
+export function getCustomerRatingSummaryByPhone(phone: string) {
+  return request<RatingSummary>(`/marketplace/ratings/by-phone/${encodeURIComponent(phone)}`, { method: 'GET' });
+}
+
+// ---- Seller: marketplace products / orders / ratings ----
+
+export function listSellerProducts(token: string) {
+  return request<Product[]>('/seller/products', { method: 'GET' }, token);
+}
+
+export function createSellerProduct(payload: ProductCreate, token: string) {
+  return request<Product>('/seller/products', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function updateSellerProduct(productId: string, payload: ProductUpdate, token: string) {
+  return request<Product>(`/seller/products/${productId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
+export interface SellerMarketplaceOrder {
+  id: string;
+  tracking_number: string;
+  status: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  final_price: number;
+  buyer_name: string | null;
+  buyer_phone: string | null;
+  dropoff_city: string | null;
+  created_at: string | null;
+}
+
+export function listSellerMarketplaceOrders(token: string) {
+  return request<SellerMarketplaceOrder[]>('/seller/marketplace/orders', { method: 'GET' }, token);
+}
+
+export interface SellerMarketplaceOrderDetail {
+  id: string;
+  tracking_number: string;
+  status: string;
+  created_at: string | null;
+  product_name: string | null;
+  quantity: number | null;
+  unit_price: number | null;
+  goods_amount: number;
+  delivery_fee: number | null;
+  discount_amount: number | null;
+  final_price: number | null;
+  payment_method: string | null;
+  buyer_name: string | null;
+  buyer_phone: string | null;
+  seller_name: string;
+  seller_phone: string | null;
+  seller_address: string | null;
+  seller_city: string | null;
+  dropoff_full_address: string | null;
+  dropoff_city: string | null;
+  dropoff_contact_name: string | null;
+  dropoff_contact_phone: string | null;
+}
+
+export function getSellerMarketplaceOrder(orderId: string, token: string) {
+  return request<SellerMarketplaceOrderDetail>(`/seller/marketplace/orders/${orderId}`, { method: 'GET' }, token);
+}
+
+export function getSellerRatings(token: string) {
+  return request<RatingSummary>('/seller/ratings', { method: 'GET' }, token);
+}
+
 // ---- Hub Operations ----
 
 export interface HubOrderSummary {

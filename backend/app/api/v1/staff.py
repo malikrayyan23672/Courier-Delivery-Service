@@ -3,14 +3,11 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.core.permissions import require_roles
-from app.core.security import hash_password
 from app.models.user import User
-from app.models.role import Role
 from app.models.order import CreatedByType, BookingChannel
 from app.models.payment import PaymentMethod
 from app.schemas.order import StaffOrderCreateRequest, OrderOut
-from app.services.order_service import create_order, transition
-import secrets
+from app.services.order_service import create_order, get_or_create_guest_customer, transition
 
 router = APIRouter(prefix="/staff", tags=["Staff Panel"])
 
@@ -38,22 +35,9 @@ def book_walk_in_order(
                 detail="Provide either customer_id or guest_full_name + guest_phone",
             )
 
-        existing = db.query(User).filter(User.phone == payload.guest_phone).first()
-        if existing:
-            customer = existing
-        else:
-            customer_role = db.query(Role).filter(Role.name == "customer").first()
-            # Guest accounts get a random unusable password - they can "forgot password" later if they want online access
-            customer = User(
-                full_name=payload.guest_full_name,
-                phone=payload.guest_phone,
-                email=payload.guest_email or f"guest_{payload.guest_phone}@placeholder.local",
-                hashed_password=hash_password(secrets.token_urlsafe(16)),
-                role_id=customer_role.id,
-                is_verified=False,
-            )
-            db.add(customer)
-            db.flush()
+        customer = get_or_create_guest_customer(
+            db, full_name=payload.guest_full_name, phone=payload.guest_phone, email=payload.guest_email
+        )
 
     order = create_order(
         db=db,

@@ -2,13 +2,15 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.core.permissions import require_roles
 from app.models.user import User
 from app.models.business import Business
 from app.models.order import Order, OrderStatus
+from app.models.product import Product
+from app.models.rating import Rating
 from app.models.rnp import RNPPartner
 from app.models.seller_upload import SellerUpload
 from app.models.wallet import WalletTransaction
@@ -17,6 +19,7 @@ from app.utils.uploads import save_seller_upload
 from app.schemas.seller import SellerMeOut, SellerUploadOut
 from app.schemas.rnp import RNPCreateIn, RNPOut
 from app.schemas.wallet import WalletTransactionOut
+from app.schemas.marketplace import ProductIn, ProductUpdateIn, ProductOut, RatingOut, RatingSummaryOut
 
 router = APIRouter(prefix="/seller", tags=["Seller Portal"])
 
@@ -224,3 +227,141 @@ def seller_rnp_list(
         .all()
     )
     return [RNPOut.model_validate(p) for p in rows]
+
+
+# ============================== MARKETPLACE ==============================
+
+@router.get("/products", response_model=list[ProductOut])
+def seller_products(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("business")),
+):
+    business = _require_business(db, current_user)
+    rows = (
+        db.query(Product)
+        .filter(Product.business_id == business.id)
+        .order_by(Product.created_at.desc())
+        .all()
+    )
+    return [ProductOut.model_validate(p) for p in rows]
+
+
+@router.post("/products", response_model=ProductOut, status_code=201)
+def create_product(
+    payload: ProductIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("business")),
+):
+    business = _require_business(db, current_user)
+    product = Product(business_id=business.id, **payload.model_dump())
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+    return ProductOut.model_validate(product)
+
+
+@router.patch("/products/{product_id}", response_model=ProductOut)
+def update_product(
+    product_id: str,
+    payload: ProductUpdateIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("business")),
+):
+    business = _require_business(db, current_user)
+    product = db.query(Product).filter(Product.id == product_id, Product.business_id == business.id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(product, field, value)
+    db.commit()
+    db.refresh(product)
+    return ProductOut.model_validate(product)
+
+
+@router.get("/marketplace/orders")
+def seller_marketplace_orders(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("business")),
+):
+    """Orders placed against this seller's product listings - the pack-and-hand-to-rider queue."""
+    business = _require_business(db, current_user)
+    rows = (
+        db.query(Order)
+        .join(Product, Order.product_id == Product.id)
+        .options(joinedload(Order.dropoff_address), joinedload(Order.customer), joinedload(Order.product))
+        .filter(Product.business_id == business.id)
+        .order_by(Order.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": str(o.id),
+            "tracking_number": o.tracking_number,
+            "status": o.status.value if hasattr(o.status, "value") else o.status,
+            "product_name": o.product.name if o.product else None,
+            "quantity": o.quantity,
+            "unit_price": o.unit_price,
+            "final_price": o.final_price,
+            "buyer_name": o.customer.full_name if o.customer else None,
+            "buyer_phone": o.customer.phone if o.customer else None,
+            "dropoff_city": o.dropoff_address.city if o.dropoff_address else None,
+            "created_at": o.created_at,
+        }
+        for o in rows
+    ]
+
+
+@router.get("/marketplace/orders/{order_id}")
+def seller_marketplace_order_detail(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("business")),
+):
+    """Full detail for one marketplace order - drives the printable packing slip."""
+    business = _require_business(db, current_user)
+    order = (
+        db.query(Order)
+        .join(Product, Order.product_id == Product.id)
+        .options(joinedload(Order.dropoff_address), joinedload(Order.pickup_address), joinedload(Order.customer), joinedload(Order.product))
+        .filter(Order.id == order_id, Product.business_id == business.id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    return {
+        "id": str(order.id),
+        "tracking_number": order.tracking_number,
+        "status": order.status.value if hasattr(order.status, "value") else order.status,
+        "created_at": order.created_at,
+        "product_name": order.product.name if order.product else None,
+        "quantity": order.quantity,
+        "unit_price": order.unit_price,
+        "goods_amount": round((order.unit_price or 0.0) * (order.quantity or 1), 2),
+        "delivery_fee": order.estimated_price,
+        "discount_amount": order.discount_amount,
+        "final_price": order.final_price,
+        "payment_method": order.payment.method.value if order.payment and hasattr(order.payment.method, "value") else (order.payment.method if order.payment else None),
+        "buyer_name": order.customer.full_name if order.customer else None,
+        "buyer_phone": order.customer.phone if order.customer else None,
+        "seller_name": business.company_name,
+        "seller_phone": business.phone,
+        "seller_address": order.pickup_address.full_address if order.pickup_address else business.pickup_address,
+        "seller_city": order.pickup_address.city if order.pickup_address else business.city,
+        "dropoff_full_address": order.dropoff_address.full_address if order.dropoff_address else None,
+        "dropoff_city": order.dropoff_address.city if order.dropoff_address else None,
+        "dropoff_contact_name": order.dropoff_address.contact_name if order.dropoff_address else None,
+        "dropoff_contact_phone": order.dropoff_address.contact_phone if order.dropoff_address else None,
+    }
+
+
+@router.get("/ratings", response_model=RatingSummaryOut)
+def seller_ratings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("business")),
+):
+    business = _require_business(db, current_user)
+    q = db.query(Rating).filter(Rating.target_type == "seller", Rating.target_business_id == business.id)
+    avg = db.query(func.avg(Rating.score)).filter(Rating.target_type == "seller", Rating.target_business_id == business.id).scalar()
+    rows = q.order_by(Rating.created_at.desc()).limit(50).all()
+    return RatingSummaryOut(average=round(avg, 2) if avg is not None else None, count=q.count(), ratings=[RatingOut.model_validate(r) for r in rows])

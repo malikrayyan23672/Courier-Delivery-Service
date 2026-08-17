@@ -45,3 +45,4 @@ class Business(Base, TimestampMixin):
     reconciliations = relationship("ReconciliationLog", back_populates="business")
     settlements = relationship("Settlement", back_populates="business")
     uploads = relationship("SellerUpload", back_populates="business")
+    products = relationship("Product", back_populates="business")

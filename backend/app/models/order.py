@@ -2,7 +2,7 @@ import enum
 import random
 import string
 
-from sqlalchemy import Column, String, Float, Boolean, ForeignKey, Enum
+from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -89,6 +89,14 @@ class Order(Base, TimestampMixin):
     discount_id = Column(UUID_TYPE, ForeignKey("discounts.id"), nullable=True)
     discount_amount = Column(Float, nullable=True)
 
+    # Layer 5 - Marketplace. Only set when this order originated from a direct
+    # product purchase rather than a generic shipment booking. `unit_price` is
+    # a snapshot at purchase time, since the product's live price can move.
+    product_id = Column(UUID_TYPE, ForeignKey("products.id"), nullable=True)
+    product = relationship("Product", back_populates="orders")
+    quantity = Column(Integer, nullable=True)
+    unit_price = Column(Float, nullable=True)
+
     proof_of_delivery_url = Column(String(500), nullable=True)
     proof_of_delivery_recipient_name = Column(String(150), nullable=True)
 
@@ -101,3 +109,4 @@ class Order(Base, TimestampMixin):
     live_tracking = relationship("LiveTracking", back_populates="order")
     status_history = relationship("OrderStatusHistory", back_populates="order")
     rider_assignments = relationship("RiderAssignment", back_populates="order")
+    ratings = relationship("Rating", back_populates="order")

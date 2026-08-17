@@ -1,4 +1,5 @@
 import math
+import secrets
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -14,6 +15,8 @@ from app.models.branch import Branch
 from app.models.zone import Zone
 from app.models.discount import Discount
 from app.models.user import User
+from app.models.role import Role
+from app.core.security import hash_password
 from app.services.pricing_service import estimate_price
 from app.schemas.order import AddressInput
 from app.services import log_service
@@ -121,6 +124,10 @@ def create_order(
     payment_method: PaymentMethod = PaymentMethod.online_gateway,
     collected_by_staff_id: str | None = None,
     discount_code: str | None = None,
+    allow_discount: bool = True,
+    product_id: str | None = None,
+    quantity: int | None = None,
+    unit_price: float | None = None,
 ) -> Order:
     pickup_address = Address(**pickup.model_dump())
     dropoff_address = Address(**dropoff.model_dump())
@@ -128,6 +135,7 @@ def create_order(
     db.flush()  # get IDs without committing yet
 
     price = estimate_price(pickup_address, dropoff_address, package_weight_kg)
+    goods_amount = round(unit_price * quantity, 2) if unit_price is not None and quantity is not None else 0.0
 
     # Determine zone and branch
     zone_id = None
@@ -148,11 +156,13 @@ def create_order(
                 if branch:
                     branch_id = branch.id
 
-    discount_id, discount_amount = _apply_discount(
-        db,
-        customer_id=customer_id,
-        price=price,
-        code=discount_code,
+    # Discount is computed against the delivery fee only, before goods are
+    # added in - a guest checkout (allow_discount=False) never reaches
+    # `_apply_discount` at all, so an anonymous buyer can't claim it.
+    discount_id, discount_amount = (
+        _apply_discount(db, customer_id=customer_id, price=price, code=discount_code)
+        if allow_discount
+        else (None, None)
     )
 
     order = Order(
@@ -168,9 +178,12 @@ def create_order(
         estimated_price=price,
         discount_id=discount_id,
         discount_amount=discount_amount,
-        final_price=round(price - (discount_amount or 0.0), 2),
+        final_price=round(price - (discount_amount or 0.0) + goods_amount, 2),
         zone_id=zone_id,
         branch_id=branch_id,
+        product_id=product_id,
+        quantity=quantity,
+        unit_price=unit_price,
     )
     db.add(order)
     db.flush()
@@ -191,6 +204,33 @@ def create_order(
     db.commit()
     db.refresh(order)
     return order
+
+
+def get_or_create_guest_customer(db: Session, full_name: str, phone: str, email: str | None = None) -> User:
+    """
+    Same "lightweight customer record" pattern the staff walk-in booking flow
+    uses (see staff.book_walk_in_order) - a guest gets a real `User` row keyed
+    by phone, with a random unusable password, so the whole downstream order
+    pipeline (state machine, tracking, ratings) works unmodified. If that
+    phone has already ordered as a guest (or has a real account), reuse it
+    rather than erroring on the unique-phone constraint.
+    """
+    existing = db.query(User).filter(User.phone == phone).first()
+    if existing:
+        return existing
+
+    customer_role = db.query(Role).filter(Role.name == "customer").first()
+    guest = User(
+        full_name=full_name,
+        phone=phone,
+        email=email or f"guest_{phone}@placeholder.local",
+        hashed_password=hash_password(secrets.token_urlsafe(16)),
+        role_id=customer_role.id,
+        is_verified=False,
+    )
+    db.add(guest)
+    db.flush()
+    return guest
 
 
 def _apply_discount(
