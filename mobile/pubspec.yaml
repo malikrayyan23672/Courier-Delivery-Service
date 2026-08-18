@@ -23,6 +23,7 @@ dependencies:
   # Local cache / offline action queue
   shared_preferences: ^2.3.3
   connectivity_plus: ^6.1.0
+  path_provider: ^2.1.6
 
   # Location
   geolocator: ^13.0.2

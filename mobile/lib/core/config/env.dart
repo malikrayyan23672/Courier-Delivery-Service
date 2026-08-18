@@ -6,12 +6,12 @@
 class Env {
   Env._();
 
-  /// Defaults to the Android emulator's alias for the host machine's localhost.
-  /// Override with your LAN IP when running on a physical device, or with the
-  /// deployed API URL for a release build.
+  /// Defaults to the dev machine's LAN IP, for running on a physical device
+  /// over wireless debugging. Override with --dart-define for the emulator
+  /// (http://10.0.2.2:8000/api/v1) or the deployed API URL for a release build.
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000/api/v1',
+    defaultValue: 'http://172.16.16.46:8000/api/v1',
   );
 
   /// Server origin (no /api/v1 suffix) - used to resolve relative URLs the

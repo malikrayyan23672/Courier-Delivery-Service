@@ -133,6 +133,49 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+                Builder(
+                  builder: (context) {
+                    final dropped = context.watch<OfflineQueueService>().droppedMessages;
+                    if (dropped.isEmpty) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.error_outline, color: AppColors.danger, size: 18),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'Some saved actions could not be synced',
+                                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: AppColors.danger),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () => context.read<OfflineQueueService>().clearDroppedMessages(),
+                                  child: const Text('Dismiss'),
+                                ),
+                              ],
+                            ),
+                            for (final message in dropped)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(message, style: const TextStyle(fontSize: 11.5, color: AppColors.danger)),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 if (dashboard.hasPendingRequest) ...[
                   const SizedBox(height: 10),
                   Container(

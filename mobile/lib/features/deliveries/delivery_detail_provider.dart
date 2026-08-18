@@ -57,9 +57,30 @@ class DeliveryDetailProvider extends ChangeNotifier {
   }
 
   /// Requests to be released from this already-accepted delivery. Needs
-  /// staff/admin approval - order.rider_id doesn't change until then.
-  Future<bool> requestUnlock({String? reason}) {
-    return _runAction(() => _riderService.requestParcelUnlock(orderId, reason: reason));
+  /// staff/admin approval - order.rider_id doesn't change until then. Falls
+  /// back to the offline queue if there's no connectivity right now.
+  Future<ActionResult> requestUnlock({String? reason}) async {
+    isActing = true;
+    actionError = null;
+    actionErrorNeedsLocationSettings = false;
+    notifyListeners();
+
+    try {
+      final outcome = await _offlineQueueService.submitParcelUnlockRequest(orderId, reason: reason);
+      if (outcome == QueuedActionOutcome.sent) {
+        await load();
+        return ActionResult.success;
+      } else {
+        isActing = false;
+        notifyListeners();
+        return ActionResult.queued;
+      }
+    } catch (e) {
+      actionError = e.toString();
+      isActing = false;
+      notifyListeners();
+      return ActionResult.failed;
+    }
   }
 
   Future<bool> _runAction(Future<void> Function() action) async {
@@ -103,7 +124,7 @@ class DeliveryDetailProvider extends ChangeNotifier {
         lat: lat,
         lng: lng,
       );
-      if (outcome == StatusUpdateOutcome.sent) {
+      if (outcome == QueuedActionOutcome.sent) {
         await load();
         return ActionResult.success;
       } else {

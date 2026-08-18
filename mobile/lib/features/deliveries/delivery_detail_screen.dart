@@ -125,12 +125,14 @@ class _DeliveryDetailView extends StatelessWidget {
     if (confirmed != true || !context.mounted) return;
 
     final reason = reasonController.text.trim().isEmpty ? null : reasonController.text.trim();
-    final success = await context.read<DeliveryDetailProvider>().requestUnlock(reason: reason);
+    final result = await context.read<DeliveryDetailProvider>().requestUnlock(reason: reason);
     if (!context.mounted) return;
 
-    final message = success
-        ? 'Unlock request submitted - waiting on approval'
-        : context.read<DeliveryDetailProvider>().actionError ?? 'Could not submit request';
+    final message = switch (result) {
+      ActionResult.success => 'Unlock request submitted - waiting on approval',
+      ActionResult.queued => 'No connection - saved and will submit automatically',
+      ActionResult.failed => context.read<DeliveryDetailProvider>().actionError ?? 'Could not submit request',
+    };
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 

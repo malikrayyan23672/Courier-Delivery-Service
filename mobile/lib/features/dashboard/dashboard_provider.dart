@@ -2,15 +2,17 @@ import 'package:flutter/foundation.dart';
 
 import '../../models/rider_profile.dart';
 import '../../services/location_service.dart';
+import '../../services/offline_queue_service.dart';
 import '../../services/rider_service.dart';
 
 class DashboardProvider extends ChangeNotifier {
-  DashboardProvider(this._riderService, this._locationService) {
+  DashboardProvider(this._riderService, this._locationService, this._offlineQueueService) {
     load();
   }
 
   final RiderService _riderService;
   final LocationService _locationService;
+  final OfflineQueueService _offlineQueueService;
 
   RiderProfile? profile;
   bool isLoading = true;
@@ -57,7 +59,11 @@ class DashboardProvider extends ChangeNotifier {
 
   /// Submits a request to change availability - is_available itself does not
   /// change until a staff/admin approver approves it. Call `load()` again
-  /// (e.g. pull-to-refresh) to pick up the outcome once it's resolved.
+  /// (e.g. pull-to-refresh) to pick up the outcome once it's resolved. Falls
+  /// back to the offline queue if there's no connectivity right now - the
+  /// pending-request banner is shown optimistically either way since it
+  /// reflects the rider's intent, and `load()` will reconcile it against the
+  /// server once the request actually goes through.
   Future<void> requestAvailabilityChange(bool value) async {
     if (profile == null) return;
     isTogglingAvailability = true;
@@ -65,7 +71,7 @@ class DashboardProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _riderService.requestAvailabilityChange(value);
+      await _offlineQueueService.submitAvailabilityChange(value);
       hasPendingRequest = true;
       pendingRequestedValue = value;
     } catch (e) {

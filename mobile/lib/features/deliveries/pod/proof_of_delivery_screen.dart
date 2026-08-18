@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../services/location_service.dart';
+import '../../../services/offline_queue_service.dart';
 import '../../../services/rider_service.dart';
 
 /// Closes out the currently unlocked parcel: OTP + photo + GPS, all required -
@@ -76,8 +77,8 @@ class _ProofOfDeliveryScreenState extends State<ProofOfDeliveryScreen> {
 
     try {
       final position = await context.read<LocationService>().getCurrentPosition();
-      await context.read<RiderService>().submitProofOfDelivery(
-            widget.orderId,
+      final outcome = await context.read<OfflineQueueService>().submitProofOfDelivery(
+            orderId: widget.orderId,
             photo: _photo!,
             otpCode: _otpController.text.trim(),
             lat: position.latitude,
@@ -86,6 +87,11 @@ class _ProofOfDeliveryScreenState extends State<ProofOfDeliveryScreen> {
             note: _noteController.text.trim(),
           );
       if (mounted) {
+        if (outcome == QueuedActionOutcome.queued) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No connection - delivery saved and will sync automatically')),
+          );
+        }
         Navigator.of(context)
           ..pop()
           ..pop();

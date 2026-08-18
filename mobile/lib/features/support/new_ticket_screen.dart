@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../../services/rider_service.dart';
+import '../../services/offline_queue_service.dart';
 import 'ticket_detail_screen.dart';
 
 class NewTicketScreen extends StatefulWidget {
@@ -11,7 +12,6 @@ class NewTicketScreen extends StatefulWidget {
 }
 
 class _NewTicketScreenState extends State<NewTicketScreen> {
-  final _riderService = RiderService();
   final _subjectController = TextEditingController();
   final _messageController = TextEditingController();
   bool _submitting = false;
@@ -27,14 +27,21 @@ class _NewTicketScreenState extends State<NewTicketScreen> {
       _error = null;
     });
     try {
-      final ticket = await _riderService.createSupportTicket(
-        subject: _subjectController.text.trim(),
-        message: _messageController.text.trim(),
-      );
+      final (outcome, ticket) = await context.read<OfflineQueueService>().submitSupportTicketCreate(
+            subject: _subjectController.text.trim(),
+            message: _messageController.text.trim(),
+          );
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => TicketDetailScreen(ticketId: ticket.id)),
-      );
+      if (outcome == QueuedActionOutcome.queued) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No connection - ticket saved and will be submitted automatically')),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => TicketDetailScreen(ticketId: ticket!.id)),
+        );
+      }
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

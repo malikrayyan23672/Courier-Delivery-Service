@@ -21,7 +21,7 @@ class _RiderShellState extends State<RiderShell> {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => DashboardProvider(context.read(), context.read()),
+      create: (context) => DashboardProvider(context.read(), context.read(), context.read()),
       child: Scaffold(
         body: IndexedStack(
           index: _index,

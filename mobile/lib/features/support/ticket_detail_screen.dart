@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/async_state_view.dart';
 import '../../models/support_ticket.dart';
+import '../../services/offline_queue_service.dart';
 import '../../services/rider_service.dart';
 
 class TicketDetailScreen extends StatefulWidget {
@@ -50,9 +52,20 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     if (body.isEmpty) return;
     setState(() => _sending = true);
     try {
-      final ticket = await _riderService.replyToSupportTicket(widget.ticketId, body);
+      final outcome = await context.read<OfflineQueueService>().submitSupportTicketReply(
+            ticketId: widget.ticketId,
+            body: body,
+          );
       _replyController.clear();
-      setState(() => _ticket = ticket);
+      if (outcome == QueuedActionOutcome.queued) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No connection - reply saved and will send automatically')),
+        );
+      } else {
+        final ticket = await _riderService.getSupportTicketDetail(widget.ticketId);
+        if (mounted) setState(() => _ticket = ticket);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
