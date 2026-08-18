@@ -11,7 +11,7 @@ class Env {
   /// (http://10.0.2.2:8000/api/v1) or the deployed API URL for a release build.
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://172.16.16.46:8000/api/v1',
+    defaultValue: 'http://172.16.16.15:8000/api/v1',
   );
 
   /// Server origin (no /api/v1 suffix) - used to resolve relative URLs the

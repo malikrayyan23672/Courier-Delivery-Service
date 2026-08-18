@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -6,8 +6,11 @@ from app.core.permissions import require_roles
 from app.models.user import User
 from app.models.order import CreatedByType, BookingChannel
 from app.models.payment import PaymentMethod
+from app.models.invoice import Invoice
 from app.schemas.order import StaffOrderCreateRequest, OrderOut
 from app.services.order_service import create_order, get_or_create_guest_customer, transition
+from app.services import notification_service
+from app.services.invoice_pdf_service import generate_invoice_pdf
 
 router = APIRouter(prefix="/staff", tags=["Staff Panel"])
 
@@ -74,6 +77,7 @@ from app.schemas.rider import (
     SupportTicketMessageOut,
     SupportTicketMessageCreate,
     SupportTicketStatusUpdate,
+    RiderLocationOut,
 )
 from app.services.settlement_service import rider_wallet_limit, rider_wallet_warning_at
 
@@ -88,6 +92,32 @@ def list_branch_orders(
         raise HTTPException(status_code=400, detail="You must belong to a branch to list branch orders")
     
     return db.query(Order).filter(Order.branch_id == staff_profile.branch_id).order_by(Order.created_at.desc()).all()
+
+
+@router.get("/orders/{order_id}/invoice.pdf")
+def get_order_invoice_pdf(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
+):
+    staff_profile = current_user.staff_profile
+    if not staff_profile or not staff_profile.branch_id:
+        raise HTTPException(status_code=400, detail="You must belong to a branch to view order invoices")
+
+    order = db.query(Order).filter(Order.id == order_id, Order.branch_id == staff_profile.branch_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    invoice = db.query(Invoice).filter(Invoice.order_id == order.id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="No invoice exists for this order")
+
+    pdf_bytes = generate_invoice_pdf(invoice, order)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={invoice.invoice_number}.pdf"},
+    )
 
 
 @router.get("/riders")
@@ -123,6 +153,47 @@ def list_branch_zone_riders(
             "wallet_limit": rider_wallet_limit(r),
             "wallet_warning_at": rider_wallet_warning_at(r),
         }
+        for r in riders
+    ]
+
+
+@router.get("/riders/locations", response_model=list[RiderLocationOut])
+def list_branch_zone_rider_locations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
+):
+    """Live rider positions for the staff Live Map - scoped to the staff
+    member's own branch zone, mirroring list_branch_zone_riders above."""
+    staff_profile = current_user.staff_profile
+    if not staff_profile or not staff_profile.branch_id or not staff_profile.branch:
+        raise HTTPException(status_code=400, detail="You must belong to a branch to view rider locations")
+
+    zone_id = staff_profile.branch.zone_id
+    if not zone_id:
+        raise HTTPException(status_code=400, detail="Your branch must belong to a zone to view rider locations")
+
+    riders = (
+        db.query(RiderProfile)
+        .join(Branch, RiderProfile.branch_id == Branch.id)
+        .filter(
+            RiderProfile.status == RiderStatus.active,
+            Branch.zone_id == zone_id,
+            RiderProfile.current_lat.isnot(None),
+            RiderProfile.current_lng.isnot(None),
+        )
+        .all()
+    )
+
+    return [
+        RiderLocationOut(
+            rider_id=str(r.id),
+            full_name=r.user.full_name,
+            lat=r.current_lat,
+            lng=r.current_lng,
+            is_available=r.is_available or False,
+            vehicle_type=r.vehicle_type,
+            rating=r.rating,
+        )
         for r in riders
     ]
 
@@ -173,6 +244,13 @@ def staff_assign_rider(
         OrderStatus.assigned,
         actor=current_user,
         note=f"Manually assigned by staff {current_user.full_name} at branch {staff_profile.branch.name}",
+    )
+    notification_service.notify(
+        db,
+        user_id=rider.user_id,
+        title="New pickup offer",
+        message=f"Order {order.tracking_number} assigned to you",
+        order_id=order.id,
     )
     db.commit()
 

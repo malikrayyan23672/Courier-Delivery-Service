@@ -159,6 +159,21 @@ class SupportTicketStatusUpdate(BaseModel):
     status: str = Field(..., pattern="^(open|in_progress|resolved|closed)$")
 
 
+# --- Live location (staff/admin Live Map) ---
+
+class RiderLocationOut(BaseModel):
+    rider_id: str
+    full_name: str
+    lat: float
+    lng: float
+    is_available: bool
+    vehicle_type: Optional[str] = None
+    rating: float
+
+    class Config:
+        from_attributes = True
+
+
 # --- Earnings ---
 
 class EarningsDayOut(BaseModel):

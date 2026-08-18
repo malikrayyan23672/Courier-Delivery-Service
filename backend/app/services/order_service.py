@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from app.models.address import Address
 from app.models.order import Order, CreatedByType, BookingChannel, OrderStatus
 from app.models.payment import Payment, PaymentMethod, PaymentStatus
+from app.models.invoice import Invoice
 from app.models.rider import RiderProfile, RiderStatus
 from app.models.tracking_event import TrackingEvent
 from app.models.staff import StaffProfile
@@ -20,6 +21,7 @@ from app.core.security import hash_password
 from app.services.pricing_service import estimate_price
 from app.schemas.order import AddressInput
 from app.services import log_service
+from app.services import notification_service
 
 
 # The 8-state parcel journey (+ `assigned`/`cancelled`, see OrderStatus docstring).
@@ -199,6 +201,23 @@ def create_order(
     )
     db.add(payment)
 
+    invoice = Invoice(
+        order_id=order.id,
+        invoice_number=f"INV-{order.tracking_number}",
+        subtotal=price,
+        discount_amount=discount_amount,
+        tax_amount=0.0,
+        total_amount=order.final_price if order.final_price is not None else price,
+        status="paid" if payment.status == PaymentStatus.paid else "unpaid",
+    )
+    db.add(invoice)
+
+    # A real customer email/SMS confirmation would trigger here via
+    # notification_tasks.send_order_confirmation.delay(...) once Twilio/SendGrid
+    # credentials exist (currently empty-string placeholders in app/config.py) -
+    # not wired yet since there's no Celery worker running in this environment
+    # to consume it, and an unconsumed .delay() would silently no-op forever.
+
     db.commit()
     db.refresh(order)
 
@@ -312,4 +331,11 @@ def _auto_assign_rider(db: Session, order: Order) -> RiderProfile | None:
     order.rider_id = rider.id
     order.rider_accepted = None
     transition(db, order, OrderStatus.assigned, note=f"Auto-assigned to rider {rider.user.full_name}")
+    notification_service.notify(
+        db,
+        user_id=rider.user_id,
+        title="New pickup offer",
+        message=f"Order {order.tracking_number} assigned to you",
+        order_id=order.id,
+    )
     return rider

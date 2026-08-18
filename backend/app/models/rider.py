@@ -46,4 +46,3 @@ class RiderProfile(Base, TimestampMixin):
 
     user = relationship("User", back_populates="rider_profile")
     deliveries = relationship("Order", back_populates="rider")
-    rider_assignments = relationship("RiderAssignment", back_populates="rider")

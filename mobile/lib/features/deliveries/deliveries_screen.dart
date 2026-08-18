@@ -13,7 +13,7 @@ class DeliveriesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => DeliveriesProvider(context.read()),
+      create: (context) => DeliveriesProvider(context.read(), context.read()),
       child: const _DeliveriesView(),
     );
   }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import {
   LayoutGrid, Package, Truck, Box, Warehouse, Bike, Users, MapPin, Map, BarChart3,
   Bell, Search, Menu, LogOut, Plus, Building2, AlertTriangle, CheckCircle2, Clock,
@@ -49,7 +50,9 @@ import {
   BusSchedule,
   BusOperator,
   VendorScore,
+  RiderLocation,
 } from '@/lib/api';
+import { useRiderLocations } from '@/lib/useRiderLocations';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { TrendLine } from '@/components/charts/TrendLine';
 import { ComparisonBars } from '@/components/charts/ComparisonBars';
@@ -60,6 +63,10 @@ import {
 import { Pill, AvatarChip, KpiCard, StatStrip, Toasts } from './branch-ui';
 import { CameraScanButton } from '@/components/CameraScanner';
 import { RequestsView } from './RequestsView';
+
+// Leaflet touches window/document at import time - must load client-only,
+// never during SSR.
+const RiderMap = dynamic(() => import('./RiderMap'), { ssr: false });
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -259,6 +266,13 @@ export function BranchConsole() {
   const [managerProfile, setManagerProfile] = useState<ManagerProfile>();
   const [branchDetails, setBranchDetails] = useState<BranchDetails>();
 
+  const isAdminScope = role === 'admin' || role === 'super_admin';
+  const {
+    locations: riderLocations,
+    loading: riderLocationsLoading,
+    error: riderLocationsError,
+  } = useRiderLocations(token, { isAdmin: isAdminScope }, view === 'map');
+
   const [pickups, setPickups] = useState<Pickup[]>(INITIAL_PICKUPS);
   const [deliveries, setDeliveries] = useState<Delivery[]>(INITIAL_DELIVERIES);
   const [scanInput, setScanInput] = useState('');
@@ -302,7 +316,6 @@ export function BranchConsole() {
     setSyncing(true);
     setSyncError('');
 
-    const isAdminScope = role === 'admin' || role === 'super_admin';
     const ordersRequest = isAdminScope ? listAllOrders(token) : listStaffOrders(token);
     const ridersRequest = isAdminScope ? listRiders(token) : listStaffRiders(token);
 
@@ -807,7 +820,14 @@ export function BranchConsole() {
 
           {view === 'servicearea' && <ServiceAreaView />}
 
-          {view === 'map' && <MapView riders={riders} />}
+          {view === 'map' && (
+            <MapView
+              riderLocations={riderLocations}
+              loading={riderLocationsLoading}
+              error={riderLocationsError}
+              branchDetails={branchDetails}
+            />
+          )}
 
           {view === 'reports' && <ReportsView riders={riders} hubAnalytics={hubAnalytics} hubLoading={hubLoading} />}
 
@@ -1978,45 +1998,44 @@ function ServiceAreaView() {
 // ============================================================
 // VIEW: MAP
 // ============================================================
-function MapView({ riders }: { riders: RiderCard[] }) {
-  const activeRiders = riders.filter((r) => r.status !== 'offline').slice(0, 7).map((r, i) => ({
-    x: 15 + (i * 11) % 80, y: 15 + (i * 23) % 75, busy: r.status === 'busy', name: r.name,
-  }));
-  const pickupPins = [{ x: 22, y: 30, label: 'PK-70233' }, { x: 70, y: 20, label: 'PK-70234' }];
-  const deliveryPins = [{ x: 35, y: 70, label: 'FX-582012' }, { x: 80, y: 60, label: 'FX-582015' }, { x: 55, y: 85, label: 'FX-582020' }];
+function MapView({ riderLocations, loading, error, branchDetails }: {
+  riderLocations: RiderLocation[]; loading: boolean; error: string; branchDetails?: BranchDetails;
+}) {
+  const branchLat = branchDetails?.latitude ? parseFloat(branchDetails.latitude) : NaN;
+  const branchLng = branchDetails?.longitude ? parseFloat(branchDetails.longitude) : NaN;
+  const branchCenter: [number, number] | undefined =
+    !isNaN(branchLat) && !isNaN(branchLng) ? [branchLat, branchLng] : undefined;
+
+  const availableCount = riderLocations.filter((r) => r.is_available).length;
 
   return (
     <Card className="p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
           <CardTitle className="text-base">Live Operations Map</CardTitle>
-          <CardDescription>Branch, riders, pickups and deliveries in real time</CardDescription>
+          <CardDescription>Real-time rider positions across the branch coverage area</CardDescription>
         </div>
-        <Badge variant="warning">Moderate traffic</Badge>
+        <Badge variant={riderLocations.length ? 'success' : 'warning'}>
+          {loading && riderLocations.length === 0 ? 'Loading…' : `${riderLocations.length} rider${riderLocations.length === 1 ? '' : 's'} on map`}
+        </Badge>
       </div>
-      <div className="relative w-full aspect-[16/9] bg-page rounded-xl overflow-hidden border border-line">
-        <MapDot x={50} y={50} color="#0B2472" label="Lahore Central" />
-        {activeRiders.map((r) => <MapDot key={r.name} x={r.x} y={r.y} color={r.busy ? '#2563EB' : '#B7BEC9'} label={r.name.split(' ')[0]} />)}
-        {pickupPins.map((p) => <MapDot key={p.label} x={p.x} y={p.y} color="#F2A93B" label={p.label} />)}
-        {deliveryPins.map((d) => <MapDot key={d.label} x={d.x} y={d.y} color="#1E8E5A" label={d.label} />)}
+
+      {error && (
+        <div className="mb-3 rounded-lg bg-[#FBEAE7] border border-danger/30 text-[#db2203] text-xs px-3 py-2">
+          {error}
+        </div>
+      )}
+
+      <div className="w-full h-[520px] rounded-xl overflow-hidden border border-line">
+        <RiderMap riders={riderLocations} center={branchCenter} />
       </div>
+
       <div className="flex flex-wrap gap-4 mt-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-navy" />Branch</span>
-        <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-[#2563EB]" />Rider (active)</span>
-        <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-[#B7BEC9]" />Rider (idle)</span>
-        <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-[#F2A93B]" />Pickup</span>
-        <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-success" />Delivery</span>
+        <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-[#2563EB]" />Rider marker (tap for details)</span>
+        <span>{availableCount} available / {riderLocations.length - availableCount} unavailable</span>
+        <span>Refreshes every 12s while this tab is open</span>
       </div>
     </Card>
-  );
-}
-
-function MapDot({ x, y, color, label }: { x: number; y: number; color: string; label: string }) {
-  return (
-    <div className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1" style={{ left: `${x}%`, top: `${y}%` }}>
-      <div className="w-3 h-3 rounded-full border-2 border-white shadow" style={{ background: color }} />
-      <span className="text-[0.62rem] font-semibold text-ink bg-white/90 px-1.5 py-0.5 rounded whitespace-nowrap">{label}</span>
-    </div>
   );
 }
 

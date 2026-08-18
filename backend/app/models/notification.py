@@ -9,6 +9,8 @@ class Notification(Base, TimestampMixin):
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
     user_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=False)
     user = relationship("User", back_populates="notifications")
+    order_id = Column(UUID_TYPE, ForeignKey("orders.id"), nullable=True)
+    order = relationship("Order")
     title = Column(String(100), nullable=False)
     type = Column(String(50), nullable=False)  # e.g., "info", "warning", "error"
     message = Column(String(255), nullable=False)

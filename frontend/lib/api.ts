@@ -391,6 +391,27 @@ export function listStaffRiders(token: string) {
   return request<StaffRider[]>('/staff/riders', { method: 'GET' }, token);
 }
 
+// ---- Rider live locations (Live Map) ----
+
+export interface RiderLocation {
+  rider_id: string;
+  full_name: string;
+  lat: number;
+  lng: number;
+  is_available: boolean;
+  vehicle_type: string | null;
+  rating: number;
+}
+
+/** Staff gets a zone-scoped view; admin/super_admin get an unscoped view with an optional zone filter. */
+export function listRiderLocations(token: string, params: { isAdmin: boolean; zoneId?: string }) {
+  if (params.isAdmin) {
+    const qs = params.zoneId ? `?zone_id=${encodeURIComponent(params.zoneId)}` : '';
+    return request<RiderLocation[]>(`/admin/riders/locations${qs}`, { method: 'GET' }, token);
+  }
+  return request<RiderLocation[]>('/staff/riders/locations', { method: 'GET' }, token);
+}
+
 export function staffAssignRider(orderId: string, riderId: string, token: string) {
   return request<{ message: string }>(
     `/staff/orders/${orderId}/assign-rider/${riderId}`,

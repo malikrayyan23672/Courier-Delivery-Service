@@ -22,8 +22,11 @@ from app.schemas.auth import AdminCreateUserRequest
 from app.schemas.user import UserOut
 from app.schemas.zone import ZoneOut
 from app.schemas.zone import ZoneCreateRequest
+from app.schemas.rider import RiderLocationOut
 from app.services.order_service import transition
 from app.services.settlement_service import pending_cod_amount, rider_wallet_limit, rider_wallet_warning_at
+from app.services import log_service
+from app.services import notification_service
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -55,9 +58,32 @@ def assign_rider(
     if rider.cod_wallet_locked and order.payment and order.payment.method.value == "cash":
         raise HTTPException(status_code=400, detail="This rider's COD wallet is locked and cannot accept new COD parcels")
 
+    # Unlike staff_assign_rider (which is scoped to the staff member's own
+    # branch/zone), admin/super_admin can assign across zones by design -
+    # this is the escalation path for when a zone has no available rider.
+    # That's deliberate, but it should never be silent, so a cross-zone
+    # assignment is audited here instead of being blocked.
+    rider_zone_id = rider.branch.zone_id if rider.branch else None
+    if order.zone_id and rider_zone_id and rider_zone_id != order.zone_id:
+        log_service.create_log(
+            db,
+            action="admin_cross_zone_rider_assign",
+            user_id=str(current_user.id),
+            entity_type="Order",
+            entity_id=str(order.id),
+            details=f"Rider {rider.id} (zone {rider_zone_id}) assigned to order in zone {order.zone_id} - cross-zone admin override",
+        )
+
     order.rider_id = rider.id
     order.rider_accepted = None
     transition(db, order, OrderStatus.assigned, actor=current_user, note=f"Assigned to rider {rider_id}")
+    notification_service.notify(
+        db,
+        user_id=rider.user_id,
+        title="New pickup offer",
+        message=f"Order {order.tracking_number} assigned to you",
+        order_id=order.id,
+    )
     db.commit()
 
     return {"message": "Rider assigned successfully"}
@@ -83,6 +109,42 @@ def list_riders(
             "wallet_limit": rider_wallet_limit(r),
             "wallet_warning_at": rider_wallet_warning_at(r),
         }
+        for r in riders
+    ]
+
+
+@router.get("/riders/locations", response_model=list[RiderLocationOut])
+def list_all_rider_locations(
+    zone_id: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    """Live rider positions for the admin Live Map - unscoped by default
+    (admin is deliberately cross-zone by design), with an optional
+    ?zone_id= filter to narrow to a single zone."""
+    query = (
+        db.query(RiderProfile)
+        .filter(
+            RiderProfile.status == RiderStatus.active,
+            RiderProfile.current_lat.isnot(None),
+            RiderProfile.current_lng.isnot(None),
+        )
+    )
+    if zone_id:
+        query = query.join(Branch, RiderProfile.branch_id == Branch.id).filter(Branch.zone_id == zone_id)
+
+    riders = query.all()
+
+    return [
+        RiderLocationOut(
+            rider_id=str(r.id),
+            full_name=r.user.full_name,
+            lat=r.current_lat,
+            lng=r.current_lng,
+            is_available=r.is_available or False,
+            vehicle_type=r.vehicle_type,
+            rating=r.rating,
+        )
         for r in riders
     ]
 

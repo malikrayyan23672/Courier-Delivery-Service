@@ -1,14 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../models/order.dart';
 import '../../services/rider_service.dart';
+import '../../services/rider_ws_service.dart';
 
 class DeliveriesProvider extends ChangeNotifier {
-  DeliveriesProvider(this._riderService) {
+  DeliveriesProvider(this._riderService, RiderWsService riderWsService) {
     load();
+    _wsSubscription = riderWsService.events.listen((_) => load());
   }
 
   final RiderService _riderService;
+  late final StreamSubscription _wsSubscription;
 
   List<Order> orders = [];
   bool isLoading = true;
@@ -38,5 +43,11 @@ class DeliveriesProvider extends ChangeNotifier {
       isLoading = false;
       notifyListeners();
     }
+  }
+
+  @override
+  void dispose() {
+    _wsSubscription.cancel();
+    super.dispose();
   }
 }

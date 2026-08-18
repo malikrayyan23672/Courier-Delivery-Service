@@ -18,10 +18,7 @@ from app.models.business import Business
 from app.models.customer import Customer
 from app.models.delivery_attempt import DeliveryAttempt
 from app.models.invoice import Invoice
-from app.models.live_tracking import LiveTracking
 from app.models.notification import Notification
-from app.models.order_status_history import OrderStatusHistory
-from app.models.rider_assignment import RiderAssignment
 from app.models.route import Route
 from app.models.status import Status
 from app.models.system_setting import SystemSetting
@@ -59,10 +56,7 @@ __all__ = [
     "Customer",
     "DeliveryAttempt",
     "Invoice",
-    "LiveTracking",
     "Notification",
-    "OrderStatusHistory",
-    "RiderAssignment",
     "Route",
     "Status",
     "SystemSetting",

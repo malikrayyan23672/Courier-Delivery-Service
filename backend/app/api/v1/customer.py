@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.core.permissions import require_roles
 from app.models.user import User
 from app.models.order import CreatedByType, BookingChannel, Order
+from app.models.invoice import Invoice
 from app.schemas.order import (
     OrderCreateRequest,
     OrderOut,
@@ -16,6 +17,7 @@ from app.schemas.order import (
 )
 from app.schemas.user import UserOut
 from app.services.order_service import create_order
+from app.services.invoice_pdf_service import generate_invoice_pdf
 
 router = APIRouter(prefix="/customer", tags=["Customer"])
 
@@ -106,4 +108,27 @@ def get_my_order(
         tracking_events=[TrackingEventOut.model_validate(e) for e in order.tracking_events],
         payment=PaymentOut.model_validate(order.payment) if order.payment else None,
         rider=rider_contact,
+    )
+
+
+@router.get("/orders/{order_id}/invoice.pdf")
+def get_my_order_invoice_pdf(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("customer")),
+):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order or order.customer_id != current_user.id:
+        # 404 rather than 403 - don't confirm to a customer that some other order_id exists
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    invoice = db.query(Invoice).filter(Invoice.order_id == order.id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="No invoice exists for this order")
+
+    pdf_bytes = generate_invoice_pdf(invoice, order)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={invoice.invoice_number}.pdf"},
     )

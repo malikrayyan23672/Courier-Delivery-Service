@@ -11,6 +11,7 @@ import '../models/parcel_unlock_request.dart';
 import '../models/manifest_item.dart';
 import '../models/support_ticket.dart';
 import '../models/earnings.dart';
+import '../models/notification.dart';
 
 class RiderService {
   final Dio _dio = ApiClient.instance.dio;
@@ -255,6 +256,23 @@ class RiderService {
       });
       final response = await _dio.post('/rider/deliveries/$orderId/proof-of-delivery', data: formData);
       return Order.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<List<AppNotification>> getNotifications() async {
+    try {
+      final response = await _dio.get('/rider/notifications');
+      return (response.data as List).map((e) => AppNotification.fromJson(e as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<void> markNotificationRead(String notificationId) async {
+    try {
+      await _dio.patch('/rider/notifications/$notificationId/read');
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

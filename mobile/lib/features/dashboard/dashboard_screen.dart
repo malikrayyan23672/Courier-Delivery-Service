@@ -7,6 +7,7 @@ import '../auth/auth_provider.dart';
 import '../deliveries/deliveries_screen.dart';
 import '../earnings/earnings_screen.dart';
 import '../manifest/manifest_scan_screen.dart';
+import '../notifications/notifications_screen.dart';
 import '../parcels/nearby_parcels_screen.dart';
 import '../support/tickets_list_screen.dart';
 import '../wallet/wallet_screen.dart';
@@ -278,6 +279,13 @@ class DashboardScreen extends StatelessWidget {
                       label: 'Nearby Parcels',
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const NearbyParcelsScreen()),
+                      ),
+                    ),
+                    _QuickAction(
+                      icon: Icons.notifications_outlined,
+                      label: 'Notifications',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const NotificationsScreen()),
                       ),
                     ),
                   ],

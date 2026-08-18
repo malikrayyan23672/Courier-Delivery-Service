@@ -7,6 +7,7 @@ import 'services/auth_service.dart';
 import 'services/location_service.dart';
 import 'services/offline_queue_service.dart';
 import 'services/rider_service.dart';
+import 'services/rider_ws_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +28,10 @@ class _RiderAppRoot extends StatelessWidget {
         Provider<RiderService>(create: (_) => RiderService()),
         Provider<LocationService>(create: (context) => LocationService(context.read())),
         ChangeNotifierProvider<OfflineQueueService>(create: (context) => OfflineQueueService(context.read())),
+        Provider<RiderWsService>(
+          create: (_) => RiderWsService(),
+          dispose: (_, service) => service.dispose(),
+        ),
         ChangeNotifierProvider<AuthProvider>(create: (context) => AuthProvider(context.read())),
       ],
       child: const RiderApp(),

@@ -15,7 +15,9 @@ from app.models.bus_network import ManifestItem, ScanStatus
 from app.models.rider_status_request import RiderStatusRequest, RequestStatus
 from app.models.parcel_unlock_request import ParcelUnlockRequest
 from app.models.support_ticket import SupportTicket, SupportTicketMessage, SupportTicketStatus
+from app.models.notification import Notification
 from app.schemas.order import OrderOut, OrderDetailOut, AddressOut, TrackingEventOut, PaymentOut
+from app.schemas.notification import NotificationOut
 from app.utils.uploads import save_pod_photo
 from app.services import otp_service
 from app.services.order_service import haversine_meters
@@ -120,6 +122,38 @@ def my_profile(
         cod_wallet_limit=WALLET_LOCK_THRESHOLD,
         cod_wallet_warning_at=WALLET_WARNING_THRESHOLD,
     )
+
+
+@router.get("/notifications", response_model=list[NotificationOut])
+def my_notifications(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    return (
+        db.query(Notification)
+        .filter(Notification.user_id == current_user.id)
+        .order_by(Notification.created_at.desc())
+        .all()
+    )
+
+
+@router.patch("/notifications/{notification_id}/read", response_model=NotificationOut)
+def mark_notification_read(
+    notification_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    notification = (
+        db.query(Notification)
+        .filter(Notification.id == notification_id, Notification.user_id == current_user.id)
+        .first()
+    )
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    notification.is_read = True
+    db.commit()
+    db.refresh(notification)
+    return notification
 
 
 @router.patch("/availability", response_model=AvailabilityOut)

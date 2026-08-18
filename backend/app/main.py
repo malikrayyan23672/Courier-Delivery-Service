@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 from fastapi import FastAPI
@@ -6,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.api.v1.router import api_router
+from app.core.ws_manager import set_main_loop
 
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
@@ -25,6 +27,14 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+
+
+@app.on_event("startup")
+async def _capture_main_loop() -> None:
+    # See core/ws_manager.py - route handlers that push a WebSocket
+    # notification run in a worker thread, so they need a reference to this
+    # loop to schedule the send correctly via run_coroutine_threadsafe.
+    set_main_loop(asyncio.get_running_loop())
 
 # Serves proof-of-delivery photos and any other locally-stored uploads.
 # In production this should move to S3/CloudFront rather than local disk.

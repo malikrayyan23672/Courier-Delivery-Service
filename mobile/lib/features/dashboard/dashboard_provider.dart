@@ -1,18 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../models/rider_profile.dart';
 import '../../services/location_service.dart';
 import '../../services/offline_queue_service.dart';
 import '../../services/rider_service.dart';
+import '../../services/rider_ws_service.dart';
 
 class DashboardProvider extends ChangeNotifier {
-  DashboardProvider(this._riderService, this._locationService, this._offlineQueueService) {
+  DashboardProvider(this._riderService, this._locationService, this._offlineQueueService, RiderWsService riderWsService) {
     load();
+    _wsSubscription = riderWsService.events.listen((_) => load());
   }
 
   final RiderService _riderService;
   final LocationService _locationService;
   final OfflineQueueService _offlineQueueService;
+  late final StreamSubscription _wsSubscription;
 
   RiderProfile? profile;
   bool isLoading = true;
@@ -84,6 +89,7 @@ class DashboardProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _wsSubscription.cancel();
     _locationService.dispose();
     super.dispose();
   }
