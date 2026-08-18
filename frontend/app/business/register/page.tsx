@@ -403,15 +403,17 @@ export default function BusinessSignupPage() {
     <div className="flex flex-col lg:flex-row min-h-screen">
       {/* ============ HERO ============ */}
       <div className="lg:flex-[1.05] relative overflow-hidden px-7 md:px-14 pt-9 md:pt-13 flex flex-col bg-hero-gradient text-navy min-h-[280px] lg:min-h-screen">
+        
+        <a href="/">
+        
         <div className="flex items-center gap-2.5 mb-10">
-          <svg width="34" height="34" viewBox="0 0 40 40" fill="none">
-            <path d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20" fill="none" stroke="#F2650D" strokeWidth="3.4" strokeLinejoin="round" strokeLinecap="round" />
-          </svg>
+          <img src="/icon.jpeg" alt="" width={45} height={45} /> 
           <div>
             <div className="font-display text-2xl font-extrabold tracking-tight leading-none text-navy">RAFTAAR<span className="text-[#db2203]">EXPRESS</span></div>
             <div className="text-[0.62rem] tracking-[0.22em] text-muted-foreground font-semibold mt-0.5">COURIER SERVICES</div>
           </div>
         </div>
+        </a>
 
         <h1 className="font-display text-3xl md:text-4xl font-extrabold leading-tight mb-4 max-w-[480px]">
           Fast. Reliable.<br /><span className="text-[#db2203]">Delivered</span> with Care.

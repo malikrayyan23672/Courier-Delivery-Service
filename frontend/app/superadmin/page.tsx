@@ -292,15 +292,17 @@ function AdminDashboardContent() {
     <div className="min-h-screen flex bg-page">
       {/* SIDEBAR */}
       <aside className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-navy text-white flex flex-col p-4 gap-1 overflow-y-auto transition-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+
+        <a href="/">
         <div className="flex items-center gap-2.5 mb-6 px-1">
-          <svg width="30" height="30" viewBox="0 0 40 40" fill="none">
-            <path d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20" fill="none" stroke="#F2650D" strokeWidth="3.4" strokeLinejoin="round" strokeLinecap="round" />
-          </svg>
+          <img src="icon.jpeg" alt="" width={45} height={45} /> 
+          
           <div>
             <div className="font-display text-lg font-extrabold leading-none">RAFTAAR<span className="text-[#db2203]">EXPRESS</span></div>
             <div className="text-[0.6rem] tracking-[0.2em] text-white/50 font-semibold mt-0.5">SUPER ADMIN</div>
           </div>
         </div>
+        </a>
 
         {NAV_SECTIONS.map((section) => (
           <div key={section.label} className="mb-3">

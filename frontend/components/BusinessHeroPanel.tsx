@@ -90,21 +90,11 @@ export default function BusinessHeroPanel() {
       {/* Logo */}
 
       <div>
+
+        <a href="/">
         <div className="flex items-center gap-3 mb-12">
 
-          <svg
-            className="w-10 h-10"
-            viewBox="0 0 40 40"
-            fill="none"
-          >
-            <path
-              d="M2 20L24 20L18 12L34 20L18 28L24 20"
-              stroke="#F2650D"
-              strokeWidth="3.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+         <img src="icon.jpeg" alt="" width={45} height={45} /> 
 
           <div>
             <h2 className="text-3xl font-extrabold tracking-tight">
@@ -117,6 +107,7 @@ export default function BusinessHeroPanel() {
           </div>
 
         </div>
+        </a>
 
         {/* Heading */}
 

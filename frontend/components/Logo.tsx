@@ -1,16 +1,11 @@
 export function Logo() {
   return (
+    <a href="/">
+
+
     <div className="flex items-center gap-2.5 mb-10 md:mb-12">
-      <svg width="34" height="34" viewBox="0 0 40 40" fill="none">
-        <path
-          d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20"
-          fill="none"
-          stroke="#F2650D"
-          strokeWidth="3.4"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-      </svg>
+
+      <img src="icon.jpeg" alt="" width={45} height={45} /> 
       <div>
         <div className="font-display text-2xl font-extrabold tracking-tight leading-none text-navy">
           RAFTAAR<span className="text-[#db2203]">EXPRESS</span>
@@ -20,5 +15,6 @@ export function Logo() {
         </div>
       </div>
     </div>
+    </a>
   );
 }
