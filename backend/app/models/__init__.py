@@ -34,6 +34,7 @@ from app.models.rating import Rating
 from app.models.rider_status_request import RiderStatusRequest
 from app.models.parcel_unlock_request import ParcelUnlockRequest
 from app.models.support_ticket import SupportTicket, SupportTicketMessage
+from app.models.messaging import AssignmentRule, MessageTemplate
 
 __all__ = [
     "Role",
@@ -77,4 +78,6 @@ __all__ = [
     "ParcelUnlockRequest",
     "SupportTicket",
     "SupportTicketMessage",
+    "AssignmentRule",
+    "MessageTemplate",
 ]

@@ -31,6 +31,8 @@ import {
   RnpTab,
   DiscountsTab,
 } from './components';
+import { NotificationBell } from '@/components/NotificationBell';
+import { AnnouncementsPanel } from '@/components/AnnouncementsPanel';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { TrendLine } from '@/components/charts/TrendLine';
 import { ComparisonBars } from '@/components/charts/ComparisonBars';
@@ -55,7 +57,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  Activity, AlertTriangle, BarChart3, Bell, Building2, Bus, ChevronDown, ChevronRight,
+  Activity, AlertTriangle, BarChart3, Building2, Bus, ChevronDown, ChevronRight,
   CircleDollarSign, Landmark, LayoutDashboard, LogOut, MapPin, Menu, Package, Percent,
   Search, Settings, Shield, Tags, TrendingDown, TrendingUp, Truck, Users, Wallet, X,
 } from 'lucide-react';
@@ -354,37 +356,7 @@ function AdminContent() {
             </div>
           )}
 
-          <TooltipProvider>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="relative">
-                      <Bell className="h-5 w-5" />
-                      {alerts.length > 0 && (
-                        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger ring-2 ring-background" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Notifications</TooltipContent>
-                </Tooltip>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80">
-                <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {alerts.length === 0 ? (
-                  <div className="px-2 py-6 text-center text-sm text-muted-foreground">All clear — no pending alerts.</div>
-                ) : (
-                  alerts.map((a) => (
-                    <DropdownMenuItem key={a.id} className="gap-3">
-                      <span className={cn('flex h-8 w-8 items-center justify-center rounded-full', a.tone)}>{a.icon}</span>
-                      <span className="text-sm">{a.text}</span>
-                    </DropdownMenuItem>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </TooltipProvider>
+          <NotificationBell token={token!} />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -903,21 +875,25 @@ function AnalyticsTab({ token }: { token: string }) {
 // ============================================================
 function SettingsTab({ token }: { token: string }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>System settings</CardTitle>
-        <CardDescription>Configuration for the Raftaar network</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-          <div>
-            <div className="text-sm font-semibold text-ink">Guaranteed T+1 COD settlement</div>
-            <div className="text-xs text-muted-foreground">Automatic next-morning payouts for delivered COD orders</div>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>System settings</CardTitle>
+          <CardDescription>Configuration for the Raftaar network</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+            <div>
+              <div className="text-sm font-semibold text-ink">Guaranteed T+1 COD settlement</div>
+              <div className="text-xs text-muted-foreground">Automatic next-morning payouts for delivered COD orders</div>
+            </div>
+            <Badge variant="success">Enabled</Badge>
           </div>
-          <Badge variant="success">Enabled</Badge>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <AnnouncementsPanel token={token} admin />
+    </div>
   );
 }
 

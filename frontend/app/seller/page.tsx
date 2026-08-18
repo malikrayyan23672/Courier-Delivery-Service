@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RoleGuard } from '@/components/RoleGuard';
+import { NotificationBell } from '@/components/NotificationBell';
 import { cn } from '@/lib/utils';
 import {
   ApiError,
@@ -300,37 +301,7 @@ function SellerContent() {
             <p className="hidden truncate text-xs text-muted-foreground sm:block">{PAGE_META[view].sub}</p>
           </div>
 
-          <TooltipProvider>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="relative">
-                      <Bell className="h-5 w-5" />
-                      {alerts.length > 0 && (
-                        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger ring-2 ring-background" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Notifications</TooltipContent>
-                </Tooltip>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80">
-                <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {alerts.length === 0 ? (
-                  <div className="px-2 py-6 text-center text-sm text-muted-foreground">All clear — nothing needs attention.</div>
-                ) : (
-                  alerts.map((a) => (
-                    <DropdownMenuItem key={a.id} className="gap-3">
-                      <span className={cn('flex h-8 w-8 items-center justify-center rounded-full', a.tone)}>{a.icon}</span>
-                      <span className="text-sm">{a.text}</span>
-                    </DropdownMenuItem>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </TooltipProvider>
+          <NotificationBell token={token!} />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

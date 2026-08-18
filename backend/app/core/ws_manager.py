@@ -50,7 +50,7 @@ class ConnectionManager:
         for ws in dead:
             sockets.discard(ws)
         if not sockets:
-            self.active.pop(rider_id, None)
+            self.active.pop(user_id, None)
 
 
 manager = ConnectionManager()

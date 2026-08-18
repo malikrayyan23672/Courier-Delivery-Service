@@ -17,6 +17,8 @@ from app.models.audit_log import AuditLog
 from app.models.branch import Branch
 from app.models.order import Order, OrderStatus
 from app.services import log_service
+from app.models.messaging import AssignmentRule, MessageTemplate
+from app.services import notification_service
 
 router = APIRouter(prefix="/admin", tags=["Admin - Network"])
 
@@ -434,6 +436,17 @@ def _set_seller_status(db: Session, business_id: str, status: str, current_user:
     )
     db.commit()
     db.refresh(business)
+    owner = db.query(User).filter(User.business_id == business.id).first()
+    if owner:
+        status_labels = {"active": "approved", "rejected": "rejected", "suspended": "suspended"}
+        notification_service.notify(
+            db,
+            user_id=str(owner.id),
+            title="Seller account status update",
+            message=f"Your seller account ({business.company_name}) has been {status_labels.get(status, status)}.",
+            type="info",
+        )
+        db.commit()
     return {"business_id": str(business.id), "company_name": business.company_name, "status": business.status, "is_active": business.is_active}
 
 
@@ -471,3 +484,164 @@ def activate_seller(
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
     return _set_seller_status(db, business_id, "active", current_user, "seller_activated", "Seller reactivated by admin")
+
+
+# ---------------------------------------------------------------
+# ASSIGNMENT RULES - rider auto-assignment configuration
+# ---------------------------------------------------------------
+class AssignmentRuleIn(BaseModel):
+    name: str
+    rule_type: str
+    radius_km: Optional[float] = None
+    active: bool = True
+    description: Optional[str] = None
+    priority: int = 0
+
+
+@router.get("/assignment-rules", response_model=list[dict])
+def list_assignment_rules(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    rules = db.query(AssignmentRule).order_by(AssignmentRule.priority.asc(), AssignmentRule.created_at.asc()).all()
+    return [
+        {
+            "id": str(r.id),
+            "name": r.name,
+            "rule_type": r.rule_type,
+            "radius_km": r.radius_km,
+            "active": r.active,
+            "description": r.description,
+            "priority": r.priority,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rules
+    ]
+
+
+@router.post("/assignment-rules", status_code=201)
+def create_assignment_rule(
+    payload: AssignmentRuleIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    if payload.rule_type not in ("proximity", "load_balance", "manual_only", "branch_priority"):
+        raise HTTPException(status_code=400, detail="Invalid rule_type")
+    rule = AssignmentRule(**payload.model_dump())
+    db.add(rule)
+    db.commit()
+    db.refresh(rule)
+    return {"id": str(rule.id), "name": rule.name, "rule_type": rule.rule_type,
+            "radius_km": rule.radius_km, "active": rule.active, "priority": rule.priority}
+
+
+@router.patch("/assignment-rules/{rule_id}")
+def update_assignment_rule(
+    rule_id: str,
+    payload: AssignmentRuleIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    rule = db.query(AssignmentRule).filter(AssignmentRule.id == rule_id).first()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Assignment rule not found")
+    if payload.rule_type not in ("proximity", "load_balance", "manual_only", "branch_priority"):
+        raise HTTPException(status_code=400, detail="Invalid rule_type")
+    for field, value in payload.model_dump().items():
+        setattr(rule, field, value)
+    db.commit()
+    db.refresh(rule)
+    return {"id": str(rule.id), "name": rule.name, "active": rule.active, "priority": rule.priority}
+
+
+@router.delete("/assignment-rules/{rule_id}", status_code=204)
+def delete_assignment_rule(
+    rule_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    rule = db.query(AssignmentRule).filter(AssignmentRule.id == rule_id).first()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Assignment rule not found")
+    db.delete(rule)
+    db.commit()
+
+
+# ---------------------------------------------------------------
+# MESSAGE TEMPLATES - outbound notification copy bank
+# ---------------------------------------------------------------
+class MessageTemplateIn(BaseModel):
+    trigger: str
+    channel: str
+    body: str
+    subject: Optional[str] = None
+    active: bool = True
+
+
+@router.get("/message-templates", response_model=list[dict])
+def list_message_templates(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    templates = db.query(MessageTemplate).order_by(MessageTemplate.channel.asc(), MessageTemplate.trigger.asc()).all()
+    return [
+        {
+            "id": str(t.id),
+            "trigger": t.trigger,
+            "channel": t.channel,
+            "body": t.body,
+            "subject": t.subject,
+            "active": t.active,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+        }
+        for t in templates
+    ]
+
+
+@router.post("/message-templates", status_code=201)
+def create_message_template(
+    payload: MessageTemplateIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    if payload.channel not in ("SMS", "WhatsApp", "Email", "Push"):
+        raise HTTPException(status_code=400, detail="Invalid channel")
+    template = MessageTemplate(**payload.model_dump())
+    db.add(template)
+    db.commit()
+    db.refresh(template)
+    return {"id": str(template.id), "trigger": template.trigger, "channel": template.channel,
+            "body": template.body, "active": template.active}
+
+
+@router.patch("/message-templates/{template_id}")
+def update_message_template(
+    template_id: str,
+    payload: MessageTemplateIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    template = db.query(MessageTemplate).filter(MessageTemplate.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Message template not found")
+    if payload.channel not in ("SMS", "WhatsApp", "Email", "Push"):
+        raise HTTPException(status_code=400, detail="Invalid channel")
+    for field, value in payload.model_dump().items():
+        setattr(template, field, value)
+    db.commit()
+    db.refresh(template)
+    return {"id": str(template.id), "trigger": template.trigger, "channel": template.channel,
+            "body": template.body, "active": template.active}
+
+
+@router.delete("/message-templates/{template_id}", status_code=204)
+def delete_message_template(
+    template_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    template = db.query(MessageTemplate).filter(MessageTemplate.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Message template not found")
+    db.delete(template)
+    db.commit()

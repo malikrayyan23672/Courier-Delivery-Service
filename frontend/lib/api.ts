@@ -1992,3 +1992,152 @@ export function activateSeller(businessId: string, token: string) {
     `/admin/sellers/${businessId}/activate`, { method: 'POST' }, token
   );
 }
+
+// ---- Notifications (any role) ----
+
+export interface NotificationItem {
+  id: string;
+  title: string;
+  type: string;
+  message: string;
+  is_read: boolean;
+  order_id?: string | null;
+  created_at: string;
+}
+
+export interface MyNotifications {
+  notifications: NotificationItem[];
+  unread: number;
+}
+
+export function listMyNotifications(token: string) {
+  return request<MyNotifications>('/notifications', { method: 'GET' }, token);
+}
+
+export function markNotificationRead(id: string, token: string) {
+  return request<NotificationItem>(`/notifications/${id}/read`, { method: 'PATCH' }, token);
+}
+
+export function readAllNotifications(token: string) {
+  return request<{ message: string }>('/notifications/read-all', { method: 'POST' }, token);
+}
+
+// ---- Announcements ----
+
+export interface AnnouncementItem {
+  id: string;
+  title: string;
+  body: string;
+  branch_id?: string | null;
+  branch_name?: string | null;
+  is_active?: boolean;
+  created_at: string;
+  created_by?: string | null;
+}
+
+export function listVisibleAnnouncements(token: string) {
+  return request<AnnouncementItem[]>('/notifications/announcements', { method: 'GET' }, token);
+}
+
+export function listAdminAnnouncements(token: string) {
+  return request<AnnouncementItem[]>('/admin/announcements', { method: 'GET' }, token);
+}
+
+export function createAnnouncement(payload: { title: string; body: string; branch_id?: string | null; expires_at?: string | null }, token: string) {
+  return request<AnnouncementItem>('/admin/announcements', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function toggleAnnouncement(id: string, payload: { is_active?: boolean; title?: string; body?: string }, token: string) {
+  return request<AnnouncementItem>(`/admin/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
+export function deleteAnnouncement(id: string, token: string) {
+  return request<undefined>(`/admin/announcements/${id}`, { method: 'DELETE' }, token);
+}
+
+// ---- Send notification (admin oversight) ----
+
+export interface NotificationTarget {
+  scope: 'user' | 'role' | 'branch' | 'all';
+  user_id?: string;
+  role?: string;
+  branch_id?: string;
+}
+
+export function sendNotification(payload: { title: string; message: string; type?: string; target: NotificationTarget }, token: string) {
+  return request<{ message: string }>('/admin/notifications/send', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+// ---- Activity feed (audit trail) ----
+
+export interface ActivityItem {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  details: string | null;
+  created_at: string;
+  user: string | null;
+  user_role: string | null;
+}
+
+export function listActivityFeed(token: string) {
+  return request<ActivityItem[]>('/notifications/activity', { method: 'GET' }, token);
+}
+
+// ---- Admin: Assignment rules ----
+
+export interface AssignmentRule {
+  id: string;
+  name: string;
+  rule_type: 'proximity' | 'load_balance' | 'manual_only' | 'branch_priority';
+  radius_km: number | null;
+  active: boolean;
+  description: string | null;
+  priority: number;
+  created_at: string | null;
+}
+
+export function listAssignmentRules(token: string) {
+  return request<AssignmentRule[]>('/admin/assignment-rules', { method: 'GET' }, token);
+}
+
+export function createAssignmentRule(payload: Partial<AssignmentRule>, token: string) {
+  return request<AssignmentRule>('/admin/assignment-rules', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function updateAssignmentRule(id: string, payload: Partial<AssignmentRule>, token: string) {
+  return request<AssignmentRule>(`/admin/assignment-rules/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
+export function deleteAssignmentRule(id: string, token: string) {
+  return request<undefined>(`/admin/assignment-rules/${id}`, { method: 'DELETE' }, token);
+}
+
+// ---- Admin: Message templates ----
+
+export interface MessageTemplate {
+  id: string;
+  trigger: string;
+  channel: 'SMS' | 'WhatsApp' | 'Email' | 'Push';
+  body: string;
+  subject: string | null;
+  active: boolean;
+  created_at: string | null;
+}
+
+export function listMessageTemplates(token: string) {
+  return request<MessageTemplate[]>('/admin/message-templates', { method: 'GET' }, token);
+}
+
+export function createMessageTemplate(payload: Partial<MessageTemplate>, token: string) {
+  return request<MessageTemplate>('/admin/message-templates', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function updateMessageTemplate(id: string, payload: Partial<MessageTemplate>, token: string) {
+  return request<MessageTemplate>(`/admin/message-templates/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
+export function deleteMessageTemplate(id: string, token: string) {
+  return request<undefined>(`/admin/message-templates/${id}`, { method: 'DELETE' }, token);
+}

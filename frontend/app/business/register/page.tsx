@@ -275,6 +275,7 @@ export default function BusinessSignupPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [refNum, setRefNum] = useState('');
+  const [registeredUserId, setRegisteredUserId] = useState('');
 
   const [otpValue, setOtpValue] = useState('');
   const [otpError, setOtpError] = useState('');
