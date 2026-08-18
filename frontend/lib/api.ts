@@ -1,5 +1,3 @@
-import { json } from "stream/consumers";
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 const API_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
 
@@ -805,24 +803,6 @@ export interface AdminAnalytics {
 
 export function getAdminAnalytics(token: string) {
   return request<AdminAnalytics>('/admin/analytics', { method: 'GET' }, token);
-}
-
-// ---- Public tracking ----
-
-export interface TrackingEvent {
-  status: string;
-  note: string | null;
-  timestamp: string;
-}
-
-export interface TrackingResult {
-  tracking_number: string;
-  status: string;
-  history: TrackingEvent[];
-}
-
-export function trackOrder(trackingNumber: string) {
-  return request<TrackingResult>(`/tracking/${trackingNumber}`);
 }
 
 // ---- COD Settlements (Layer 1: T+1 payout) ----

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models.order import Order
+from app.models.rider import RiderProfile
 
 router = APIRouter(prefix="/tracking", tags=["Tracking"])
 
@@ -19,7 +20,7 @@ def track_order(tracking_number: str, db: Session = Depends(get_db)):
     order = (
         db.query(Order)
         .options(
-            joinedload(Order.rider).joinedload("user"),
+            joinedload(Order.rider).joinedload(RiderProfile.user),
             joinedload(Order.pickup_address),
             joinedload(Order.dropoff_address),
         )

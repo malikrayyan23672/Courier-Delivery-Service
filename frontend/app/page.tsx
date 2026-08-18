@@ -4,9 +4,35 @@ import { useEffect } from 'react';
 import { useState, useRef, FormEvent } from "react";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Phone, Bike } from 'lucide-react';
 import { useAuth, panelPathForRole } from '@/context/AuthContext';
+import { ApiError, trackPublicOrder, PublicTrackingInfo } from '@/lib/api';
+import { GoogleMap, MapPinData } from '@/components/GoogleMap';
 
 type ModalMode = "login" | "forgot" | "success";
+
+const HOME_STEP_LABELS = ['Picked up', 'In transit', 'Out for delivery', 'Delivered'];
+
+function homeStepIndex(status: string): number {
+  switch (status) {
+    case 'in_hub':
+    case 'in_transit':
+    case 'dest_hub':
+      return 1;
+    case 'out_for_delivery':
+      return 2;
+    case 'delivered':
+      return 3;
+    default:
+      return 0;
+  }
+}
+
+function titleCase(s: string) {
+  return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const RIDER_POLL_MS = 15000;
 export default function HomePage() {
   const { token, role, isLoading } = useAuth();
   const router = useRouter();
@@ -32,8 +58,10 @@ export default function HomePage() {
   const [trackingId, setTrackingId] = useState("");
   const [trackInvalid, setTrackInvalid] = useState(false);
   const [trackResultActive, setTrackResultActive] = useState(false);
-  const [trResultId, setTrResultId] = useState("FX-482913");
- 
+  const [trackData, setTrackData] = useState<PublicTrackingInfo | null>(null);
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [trackErrorMsg, setTrackErrorMsg] = useState("");
+
   const loginEmailRef = useRef<HTMLInputElement>(null);
   const loginPasswordRef = useRef<HTMLInputElement>(null);
   const forgotEmailRef = useRef<HTMLInputElement>(null);
@@ -81,26 +109,50 @@ export default function HomePage() {
     setFpSent(true);
   }
  
-  function runTrack() {
+  async function runTrack() {
     const val = trackingId.trim();
     const ok = val.length > 0;
     setTrackInvalid(!ok);
     if (!ok) {
       setTrackResultActive(false);
+      setTrackData(null);
       return;
     }
-    setTrResultId(val.toUpperCase().startsWith("FX") ? val.toUpperCase() : "FX-" + val);
-    setTrackResultActive(true);
+    setTrackErrorMsg("");
+    setTrackLoading(true);
+    try {
+      const data = await trackPublicOrder(val);
+      setTrackData(data);
+      setTrackResultActive(true);
+    } catch (err) {
+      setTrackData(null);
+      setTrackResultActive(false);
+      setTrackErrorMsg(err instanceof ApiError ? err.message : 'Tracking number not found.');
+    } finally {
+      setTrackLoading(false);
+    }
   }
- 
+
   function handleTrackKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") runTrack();
   }
- 
+
   function handleTrackInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     setTrackingId(e.target.value);
     setTrackInvalid(false);
+    setTrackErrorMsg("");
   }
+
+  // Live rider location: while the parcel is out for delivery, poll for updated
+  // coordinates so the customer sees the rider move on the map in real time.
+  useEffect(() => {
+    if (!trackData || trackData.status !== 'out_for_delivery') return;
+    const number = trackData.tracking_number;
+    const interval = setInterval(() => {
+      trackPublicOrder(number).then(setTrackData).catch(() => {});
+    }, RIDER_POLL_MS);
+    return () => clearInterval(interval);
+  }, [trackData?.status, trackData?.tracking_number]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -218,42 +270,84 @@ export default function HomePage() {
                 onKeyDown={handleTrackKeyDown}
               />
             </div>
-            <button type="button" className="btn-track" onClick={runTrack}>
-              Track
+            <button type="button" className="btn-track" onClick={runTrack} disabled={trackLoading}>
+              {trackLoading ? 'Tracking…' : 'Track'}
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M5 12h14M13 6l6 6-6 6" />
               </svg>
             </button>
           </div>
           <div className={`track-err${trackInvalid ? " active" : ""}`}>Enter a tracking ID to continue.</div>
- 
-          <div className={`track-result${trackResultActive ? " active" : ""}`}>
-            <div className="tr-head">
-              <span className="tr-id">{trResultId}</span>
-              <span className="tr-badge">In Transit</span>
+          <div className={`track-err${trackErrorMsg ? " active" : ""}`}>{trackErrorMsg}</div>
+
+          {trackData && (
+            <div className={`track-result${trackResultActive ? " active" : ""}`}>
+              <div className="tr-head">
+                <span className="tr-id">{trackData.tracking_number}</span>
+                <span className="tr-badge">{titleCase(trackData.status)}</span>
+              </div>
+              <div className="tr-eta">
+                {trackData.pickup_city || '—'} <span>→</span> {trackData.dropoff_city || '—'}
+              </div>
+              <div
+                className="tr-steps"
+                style={{ '--progress': `${(homeStepIndex(trackData.status) / (HOME_STEP_LABELS.length - 1)) * 100}%` } as React.CSSProperties}
+              >
+                {HOME_STEP_LABELS.map((label, i) => {
+                  const done = homeStepIndex(trackData.status) >= i;
+                  return (
+                    <div key={label} className={`tr-step${done ? "" : " pending"}`}>
+                      <div className="tr-dot">{done ? "✓" : i + 1}</div>
+                      <div className="tr-step-label">{label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {trackData.status === 'out_for_delivery' && trackData.rider && (
+                <div className="tr-rider">
+                  <div className="tr-rider-head">
+                    <Bike size={16} />
+                    <span>Your rider is on the way</span>
+                  </div>
+                  <div className="tr-rider-info">
+                    <div>
+                      <div className="tr-rider-name">{trackData.rider.full_name || 'Rider assigned'}</div>
+                      {trackData.rider.vehicle_type && (
+                        <div className="tr-rider-vehicle">{titleCase(trackData.rider.vehicle_type)}</div>
+                      )}
+                    </div>
+                    {trackData.rider.phone && (
+                      <a href={`tel:${trackData.rider.phone}`} className="tr-rider-call">
+                        <Phone size={14} /> Call
+                      </a>
+                    )}
+                  </div>
+                  {trackData.rider.latitude != null && trackData.rider.longitude != null ? (
+                    <GoogleMap
+                      pins={[{
+                        id: 'rider',
+                        lat: trackData.rider.latitude,
+                        lng: trackData.rider.longitude,
+                        label: trackData.rider.full_name || 'Your rider',
+                        sublabel: trackData.rider.vehicle_type ? titleCase(trackData.rider.vehicle_type) : 'On the way',
+                        color: '#F2650D',
+                      } as MapPinData]}
+                      center={{ lat: trackData.rider.latitude, lng: trackData.rider.longitude }}
+                      zoom={13}
+                      height={240}
+                    />
+                  ) : (
+                    <p className="tr-rider-waiting">Waiting for the rider&apos;s live location…</p>
+                  )}
+                </div>
+              )}
+
+              <div className="tr-more">
+                <Link href={`/track/${encodeURIComponent(trackData.tracking_number)}`}>View full tracking timeline →</Link>
+              </div>
             </div>
-            <div className="tr-eta">
-              Estimated delivery: <b>Tomorrow, by 6:00 PM</b>
-            </div>
-            <div className="tr-steps">
-              <div className="tr-step">
-                <div className="tr-dot">✓</div>
-                <div className="tr-step-label">Picked up</div>
-              </div>
-              <div className="tr-step">
-                <div className="tr-dot">✓</div>
-                <div className="tr-step-label">In transit</div>
-              </div>
-              <div className="tr-step pending">
-                <div className="tr-dot">3</div>
-                <div className="tr-step-label">Out for delivery</div>
-              </div>
-              <div className="tr-step pending">
-                <div className="tr-dot">4</div>
-                <div className="tr-step-label">Delivered</div>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
  
         <div className="hero-stats">
@@ -982,10 +1076,11 @@ export default function HomePage() {
           position: absolute;
           top: 11px;
           left: 11px;
-          width: 64%;
+          width: var(--progress, 0%);
           height: 2px;
           background: var(--orange);
           z-index: 0;
+          transition: width 0.2s ease;
         }
         .tr-step {
           position: relative;
@@ -1020,7 +1115,65 @@ export default function HomePage() {
           text-align: center;
           max-width: 60px;
         }
- 
+
+        .tr-rider {
+          margin-top: 18px;
+          padding-top: 16px;
+          border-top: 1px solid var(--border);
+        }
+        .tr-rider-head {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 0.8rem;
+          font-weight: 700;
+          color: var(--navy);
+          margin-bottom: 10px;
+        }
+        .tr-rider-info {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+        .tr-rider-name {
+          font-size: 0.82rem;
+          font-weight: 700;
+          color: var(--navy);
+        }
+        .tr-rider-vehicle {
+          font-size: 0.7rem;
+          color: var(--text-gray);
+        }
+        .tr-rider-call {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 0.72rem;
+          font-weight: 700;
+          color: #fff;
+          background: var(--navy);
+          padding: 6px 12px;
+          border-radius: 8px;
+          text-decoration: none;
+          white-space: nowrap;
+        }
+        .tr-rider-waiting {
+          font-size: 0.78rem;
+          color: var(--text-gray);
+        }
+        .tr-more {
+          margin: 14px 0 10px;
+          text-align: right;
+        }
+        .tr-more a {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: var(--orange);
+          text-decoration: none;
+        }
+
         .hero-stats {
           display: flex;
           gap: 36px;
