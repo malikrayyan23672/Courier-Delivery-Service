@@ -6,6 +6,7 @@ import {
   LayoutGrid, Package, Truck, Box, Warehouse, Bike, Users, MapPin, Map, BarChart3,
   Bell, Search, Menu, LogOut, Plus, Building2, AlertTriangle, CheckCircle2, Clock,
   ArrowUpRight, Activity, PackageCheck, RefreshCw, ChevronRight, Bus, Undo2, Star, Printer,
+  Inbox,
 } from 'lucide-react';
 
 import { useAuth } from '@/context/AuthContext';
@@ -58,6 +59,7 @@ import {
 } from './branch-data';
 import { Pill, AvatarChip, KpiCard, StatStrip, Toasts } from './branch-ui';
 import { CameraScanButton } from '@/components/CameraScanner';
+import { RequestsView } from './RequestsView';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -75,7 +77,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type View = 'overview' | 'pickups' | 'deliveries' | 'parcelops' | 'manifests' | 'returns' | 'vendors' | 'warehouse' | 'riders' | 'staff' | 'servicearea' | 'map' | 'reports' | 'alerts';
+type View = 'overview' | 'pickups' | 'deliveries' | 'parcelops' | 'manifests' | 'returns' | 'vendors' | 'warehouse' | 'riders' | 'staff' | 'requests' | 'servicearea' | 'map' | 'reports' | 'alerts';
 
 const NAV_SECTIONS: { label: string; items: { view: View; label: string; icon: React.ElementType }[] }[] = [
   { label: 'Operations', items: [
@@ -93,6 +95,7 @@ const NAV_SECTIONS: { label: string; items: { view: View; label: string; icon: R
   { label: 'Team', items: [
     { view: 'riders', label: 'Riders', icon: Bike },
     { view: 'staff', label: 'Staff', icon: Users },
+    { view: 'requests', label: 'Rider Requests', icon: Inbox },
   ]},
   { label: 'Coverage', items: [
     { view: 'servicearea', label: 'Service Area', icon: MapPin },
@@ -115,6 +118,7 @@ const PAGE_META: Record<View, { title: string; sub: string }> = {
   warehouse: { title: 'Warehouse Management', sub: 'storage capacity and inventory movement' },
   riders: { title: 'Rider Management', sub: 'availability, location and performance' },
   staff: { title: 'Branch Staff', sub: 'roles, attendance and permissions' },
+  requests: { title: 'Rider Requests', sub: 'availability changes, parcel unlocks and support tickets' },
   servicearea: { title: 'Service Area Management', sub: 'zones, postal codes and delivery capabilities' },
   map: { title: 'Live Operations Map', sub: 'real-time positions across the branch coverage area' },
   reports: { title: 'Reports & Analytics', sub: 'performance trends and branch comparisons' },
@@ -798,6 +802,8 @@ export function BranchConsole() {
           )}
 
           {view === 'staff' && <StaffView />}
+
+          {view === 'requests' && <RequestsView />}
 
           {view === 'servicearea' && <ServiceAreaView />}
 

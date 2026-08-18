@@ -399,6 +399,127 @@ export function staffAssignRider(orderId: string, riderId: string, token: string
   );
 }
 
+// ---- Staff/Admin/Manager: rider request review ----
+
+export interface RiderAvailabilityRequest {
+  id: string;
+  rider_id: string;
+  rider_name: string | null;
+  requested_by_id: string;
+  requested_is_available: boolean;
+  note: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  resolution_note: string | null;
+  resolved_at: string | null;
+  created_at: string | null;
+}
+
+/** Pass status='all' explicitly to bypass the backend's default pending-only filter. */
+export function listAvailabilityRequests(token: string, status?: string) {
+  return request<RiderAvailabilityRequest[]>(
+    `/staff/availability-requests${status ? `?status=${status}` : ''}`,
+    { method: 'GET' },
+    token
+  );
+}
+
+export function resolveAvailabilityRequest(
+  requestId: string,
+  approve: boolean,
+  resolutionNote: string | undefined,
+  token: string
+) {
+  return request<RiderAvailabilityRequest>(
+    `/staff/availability-requests/${requestId}/resolve`,
+    { method: 'PATCH', body: JSON.stringify({ approve, resolution_note: resolutionNote || undefined }) },
+    token
+  );
+}
+
+export interface RiderUnlockRequest {
+  id: string;
+  order_id: string;
+  tracking_number: string | null;
+  rider_id: string;
+  rider_name: string | null;
+  requested_by_id: string;
+  reason: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  resolution_note: string | null;
+  resolved_at: string | null;
+  created_at: string | null;
+}
+
+export function listUnlockRequests(token: string, status?: string) {
+  return request<RiderUnlockRequest[]>(
+    `/staff/unlock-requests${status ? `?status=${status}` : ''}`,
+    { method: 'GET' },
+    token
+  );
+}
+
+export function resolveUnlockRequest(
+  requestId: string,
+  approve: boolean,
+  resolutionNote: string | undefined,
+  token: string
+) {
+  return request<RiderUnlockRequest>(
+    `/staff/unlock-requests/${requestId}/resolve`,
+    { method: 'PATCH', body: JSON.stringify({ approve, resolution_note: resolutionNote || undefined }) },
+    token
+  );
+}
+
+export interface StaffSupportTicketMessage {
+  id: string;
+  sender_id: string;
+  sender_name: string | null;
+  body: string;
+  created_at: string | null;
+}
+
+export interface StaffSupportTicket {
+  id: string;
+  raised_by_id: string;
+  raised_by_name: string | null;
+  subject: string;
+  order_id: string | null;
+  tracking_number: string | null;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  resolved_at: string | null;
+  created_at: string | null;
+  messages: StaffSupportTicketMessage[];
+}
+
+export function listSupportTicketsStaff(token: string, status?: string) {
+  return request<StaffSupportTicket[]>(
+    `/staff/support-tickets${status ? `?status=${status}` : ''}`,
+    { method: 'GET' },
+    token
+  );
+}
+
+export function getSupportTicketStaff(ticketId: string, token: string) {
+  return request<StaffSupportTicket>(`/staff/support-tickets/${ticketId}`, { method: 'GET' }, token);
+}
+
+export function replySupportTicketStaff(ticketId: string, body: string, token: string) {
+  return request<StaffSupportTicket>(
+    `/staff/support-tickets/${ticketId}/messages`,
+    { method: 'POST', body: JSON.stringify({ body }) },
+    token
+  );
+}
+
+export function updateSupportTicketStatus(ticketId: string, status: string, token: string) {
+  return request<StaffSupportTicket>(
+    `/staff/support-tickets/${ticketId}/status`,
+    { method: 'PATCH', body: JSON.stringify({ status }) },
+    token
+  );
+}
+
 export function deleteUserbyAdmin(user_id: string, token: string){
   return request<{message: string}>(
     `/admin/users/delete/${user_id}`, {method: 'DELETE'}, token
