@@ -1,0 +1,10 @@
+<!--
+  Debug-only manifest override, merged on top of the main manifest for debug builds
+  (flutter run / flutter run debug mode). targetSdk 28+ blocks plaintext HTTP by default;
+  the local dev backend runs on http://10.0.2.2:8000 (or a LAN IP), so cleartext traffic
+  needs to be allowed here. Deliberately NOT set in the main manifest, so release builds
+  stay HTTPS-only.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:usesCleartextTraffic="true" />
+</manifest>

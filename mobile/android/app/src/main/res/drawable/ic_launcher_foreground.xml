@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive icon foreground - RAFTAAR EXPRESS forward-arrow mark (matches
+     frontend/components/Logo.tsx), kept inside the ~66dp safe zone of the
+     108x108 canvas so it isn't clipped by round/squircle/square icon masks. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M26,54 L62,54 M48,38 L82,54 L48,70"
+        android:strokeColor="#F2701A"
+        android:strokeWidth="10"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+</vector>
