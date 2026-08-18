@@ -57,10 +57,24 @@ def book_walk_in_order(
 
 
 from app.models.staff import StaffProfile
+from datetime import datetime, timezone
+
 from app.models.rider import RiderProfile, RiderStatus
 from app.models.order import Order, OrderStatus
 from app.models.tracking_event import TrackingEvent
 from app.models.branch import Branch
+from app.models.rider_status_request import RiderStatusRequest, RequestStatus
+from app.models.parcel_unlock_request import ParcelUnlockRequest
+from app.models.support_ticket import SupportTicket, SupportTicketMessage, SupportTicketStatus
+from app.schemas.rider import (
+    ResolveRequestPayload,
+    RiderStatusRequestOut,
+    ParcelUnlockRequestOut,
+    SupportTicketOut,
+    SupportTicketMessageOut,
+    SupportTicketMessageCreate,
+    SupportTicketStatusUpdate,
+)
 from app.services.settlement_service import rider_wallet_limit, rider_wallet_warning_at
 
 
@@ -163,3 +177,243 @@ def staff_assign_rider(
     db.commit()
 
     return {"message": "Rider assigned successfully"}
+
+
+@router.get("/availability-requests", response_model=list[RiderStatusRequestOut])
+def list_availability_requests(
+    status: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
+):
+    query = db.query(RiderStatusRequest)
+    if status == "all":
+        pass
+    elif status:
+        query = query.filter(RiderStatusRequest.status == status)
+    else:
+        query = query.filter(RiderStatusRequest.status == RequestStatus.pending)
+
+    requests = query.order_by(RiderStatusRequest.created_at.asc()).all()
+    return [
+        RiderStatusRequestOut(
+            id=r.id,
+            rider_id=r.rider_id,
+            rider_name=r.rider.user.full_name if r.rider and r.rider.user else None,
+            requested_by_id=r.requested_by_id,
+            requested_is_available=r.requested_is_available,
+            note=r.note,
+            status=r.status.value if hasattr(r.status, "value") else r.status,
+            resolution_note=r.resolution_note,
+            resolved_at=r.resolved_at,
+            created_at=r.created_at,
+        )
+        for r in requests
+    ]
+
+
+@router.patch("/availability-requests/{request_id}/resolve", response_model=RiderStatusRequestOut)
+def resolve_availability_request(
+    request_id: str,
+    payload: ResolveRequestPayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
+):
+    request = db.query(RiderStatusRequest).filter(RiderStatusRequest.id == request_id).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Availability request not found")
+    if request.status != RequestStatus.pending:
+        raise HTTPException(status_code=400, detail="This request has already been resolved")
+
+    request.status = RequestStatus.approved if payload.approve else RequestStatus.rejected
+    request.resolution_note = payload.resolution_note
+    request.resolved_by_id = current_user.id
+    request.resolved_at = datetime.now(timezone.utc)
+
+    if payload.approve:
+        rider_profile = request.rider
+        if rider_profile.status == RiderStatus.pending_verification and request.requested_is_available:
+            rider_profile.status = RiderStatus.active
+        rider_profile.is_available = request.requested_is_available
+
+    db.commit()
+    db.refresh(request)
+    return RiderStatusRequestOut(
+        id=request.id,
+        rider_id=request.rider_id,
+        rider_name=request.rider.user.full_name if request.rider and request.rider.user else None,
+        requested_by_id=request.requested_by_id,
+        requested_is_available=request.requested_is_available,
+        note=request.note,
+        status=request.status.value if hasattr(request.status, "value") else request.status,
+        resolution_note=request.resolution_note,
+        resolved_at=request.resolved_at,
+        created_at=request.created_at,
+    )
+
+
+@router.get("/unlock-requests", response_model=list[ParcelUnlockRequestOut])
+def list_unlock_requests(
+    status: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
+):
+    query = db.query(ParcelUnlockRequest)
+    if status == "all":
+        pass
+    elif status:
+        query = query.filter(ParcelUnlockRequest.status == status)
+    else:
+        query = query.filter(ParcelUnlockRequest.status == RequestStatus.pending)
+
+    requests = query.order_by(ParcelUnlockRequest.created_at.asc()).all()
+    return [
+        ParcelUnlockRequestOut(
+            id=r.id,
+            order_id=r.order_id,
+            tracking_number=r.order.tracking_number if r.order else None,
+            rider_id=r.rider_id,
+            rider_name=r.rider.user.full_name if r.rider and r.rider.user else None,
+            requested_by_id=r.requested_by_id,
+            reason=r.reason,
+            status=r.status.value if hasattr(r.status, "value") else r.status,
+            resolution_note=r.resolution_note,
+            resolved_at=r.resolved_at,
+            created_at=r.created_at,
+        )
+        for r in requests
+    ]
+
+
+@router.patch("/unlock-requests/{request_id}/resolve", response_model=ParcelUnlockRequestOut)
+def resolve_unlock_request(
+    request_id: str,
+    payload: ResolveRequestPayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
+):
+    request = db.query(ParcelUnlockRequest).filter(ParcelUnlockRequest.id == request_id).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Unlock request not found")
+    if request.status != RequestStatus.pending:
+        raise HTTPException(status_code=400, detail="This request has already been resolved")
+
+    request.status = RequestStatus.approved if payload.approve else RequestStatus.rejected
+    request.resolution_note = payload.resolution_note
+    request.resolved_by_id = current_user.id
+    request.resolved_at = datetime.now(timezone.utc)
+
+    if payload.approve:
+        order = request.order
+        if order.status == OrderStatus.assigned and order.rider_id == request.rider_id:
+            order.rider_id = None
+            order.rider_accepted = None
+            transition(db, order, OrderStatus.created, actor=current_user, note="Unlock request approved by staff")
+
+    db.commit()
+    db.refresh(request)
+    return ParcelUnlockRequestOut(
+        id=request.id,
+        order_id=request.order_id,
+        tracking_number=request.order.tracking_number if request.order else None,
+        rider_id=request.rider_id,
+        rider_name=request.rider.user.full_name if request.rider and request.rider.user else None,
+        requested_by_id=request.requested_by_id,
+        reason=request.reason,
+        status=request.status.value if hasattr(request.status, "value") else request.status,
+        resolution_note=request.resolution_note,
+        resolved_at=request.resolved_at,
+        created_at=request.created_at,
+    )
+
+
+# --- Support tickets (staff/admin/manager view of all riders' tickets) ---
+
+def _support_ticket_out(ticket: SupportTicket) -> SupportTicketOut:
+    return SupportTicketOut(
+        id=ticket.id,
+        raised_by_id=ticket.raised_by_id,
+        raised_by_name=ticket.raised_by.full_name if ticket.raised_by else None,
+        subject=ticket.subject,
+        order_id=ticket.order_id,
+        tracking_number=ticket.order.tracking_number if ticket.order else None,
+        status=ticket.status.value if hasattr(ticket.status, "value") else ticket.status,
+        resolved_at=ticket.resolved_at,
+        created_at=ticket.created_at,
+        messages=[
+            SupportTicketMessageOut(
+                id=m.id,
+                sender_id=m.sender_id,
+                sender_name=m.sender.full_name if m.sender else None,
+                body=m.body,
+                created_at=m.created_at,
+            )
+            for m in ticket.messages
+        ],
+    )
+
+
+@router.get("/support-tickets", response_model=list[SupportTicketOut])
+def list_support_tickets(
+    status: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
+):
+    query = db.query(SupportTicket)
+    if status and status != "all":
+        query = query.filter(SupportTicket.status == status)
+
+    tickets = query.order_by(SupportTicket.created_at.desc()).all()
+    return [_support_ticket_out(t) for t in tickets]
+
+
+@router.get("/support-tickets/{ticket_id}", response_model=SupportTicketOut)
+def support_ticket_detail(
+    ticket_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
+):
+    ticket = db.query(SupportTicket).filter(SupportTicket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Support ticket not found")
+    return _support_ticket_out(ticket)
+
+
+@router.post("/support-tickets/{ticket_id}/messages", response_model=SupportTicketOut)
+def reply_to_support_ticket(
+    ticket_id: str,
+    payload: SupportTicketMessageCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
+):
+    ticket = db.query(SupportTicket).filter(SupportTicket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Support ticket not found")
+
+    db.add(SupportTicketMessage(ticket_id=ticket.id, sender_id=current_user.id, body=payload.body.strip()))
+    # A staff reply on a fresh ticket counts as picking it up. Resolved/closed
+    # tickets are NOT auto-reopened by a reply - staff use the status endpoint
+    # explicitly for that so a closing note doesn't accidentally reopen a ticket.
+    if ticket.status == SupportTicketStatus.open:
+        ticket.status = SupportTicketStatus.in_progress
+    db.commit()
+    db.refresh(ticket)
+    return _support_ticket_out(ticket)
+
+
+@router.patch("/support-tickets/{ticket_id}/status", response_model=SupportTicketOut)
+def update_support_ticket_status(
+    ticket_id: str,
+    payload: SupportTicketStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager")),
+):
+    ticket = db.query(SupportTicket).filter(SupportTicket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Support ticket not found")
+
+    new_status = SupportTicketStatus(payload.status)
+    ticket.status = new_status
+    ticket.resolved_at = datetime.now(timezone.utc) if new_status in (SupportTicketStatus.resolved, SupportTicketStatus.closed) else None
+    db.commit()
+    db.refresh(ticket)
+    return _support_ticket_out(ticket)

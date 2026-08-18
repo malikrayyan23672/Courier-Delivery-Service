@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import func
@@ -10,9 +10,15 @@ from app.models.user import User
 from app.models.rider import RiderProfile, RiderStatus
 from app.models.order import Order, OrderStatus
 from app.models.delivery_attempt import DeliveryAttempt
-from app.schemas.order import OrderOut
+from app.models.branch import Branch
+from app.models.bus_network import ManifestItem, ScanStatus
+from app.models.rider_status_request import RiderStatusRequest, RequestStatus
+from app.models.parcel_unlock_request import ParcelUnlockRequest
+from app.models.support_ticket import SupportTicket, SupportTicketMessage, SupportTicketStatus
+from app.schemas.order import OrderOut, OrderDetailOut, AddressOut, TrackingEventOut, PaymentOut
 from app.utils.uploads import save_pod_photo
 from app.services import otp_service
+from app.services.order_service import haversine_meters
 from app.services.settlement_service import (
     create_cod_settlement,
     WALLET_LOCK_THRESHOLD,
@@ -26,7 +32,19 @@ from app.schemas.rider import (
     AvailabilityOut,
     OfferResponse,
     LocationUpdate,
+    ReturnToHubRequest,
     DeliveryOtpOut,
+    AvailabilityRequestCreate,
+    RiderStatusRequestOut,
+    ParcelUnlockRequestCreate,
+    ParcelUnlockRequestOut,
+    RiderManifestItemOut,
+    SupportTicketCreate,
+    SupportTicketMessageCreate,
+    SupportTicketOut,
+    SupportTicketMessageOut,
+    EarningsDayOut,
+    EarningsBreakdownOut,
 )
 
 router = APIRouter(prefix="/rider", tags=["Rider"])
@@ -124,6 +142,60 @@ def update_availability(
     return AvailabilityOut(is_available=rider_profile.is_available)
 
 
+def _status_request_out(req: RiderStatusRequest) -> RiderStatusRequestOut:
+    return RiderStatusRequestOut(
+        id=req.id,
+        rider_id=req.rider_id,
+        rider_name=req.rider.user.full_name if req.rider and req.rider.user else None,
+        requested_by_id=req.requested_by_id,
+        requested_is_available=req.requested_is_available,
+        note=req.note,
+        status=req.status.value if hasattr(req.status, "value") else req.status,
+        resolution_note=req.resolution_note,
+        resolved_at=req.resolved_at,
+        created_at=req.created_at,
+    )
+
+
+@router.post("/availability-requests", response_model=RiderStatusRequestOut)
+def request_availability_change(
+    payload: AvailabilityRequestCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    """
+    Submits a request to change is_available - does NOT flip the flag itself.
+    A staff/admin approver must resolve it first
+    (PATCH /staff/availability-requests/{id}/resolve).
+    """
+    rider_profile = _rider_profile(db, current_user)
+    request = RiderStatusRequest(
+        rider_id=rider_profile.id,
+        requested_by_id=current_user.id,
+        requested_is_available=payload.requested_is_available,
+        note=payload.note,
+    )
+    db.add(request)
+    db.commit()
+    db.refresh(request)
+    return _status_request_out(request)
+
+
+@router.get("/availability-requests", response_model=list[RiderStatusRequestOut])
+def my_availability_requests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    rider_profile = _rider_profile(db, current_user)
+    requests = (
+        db.query(RiderStatusRequest)
+        .filter(RiderStatusRequest.rider_id == rider_profile.id)
+        .order_by(RiderStatusRequest.created_at.desc())
+        .all()
+    )
+    return [_status_request_out(r) for r in requests]
+
+
 @router.patch("/location", response_model=LocationUpdate)
 def update_location(
     payload: LocationUpdate,
@@ -154,6 +226,260 @@ def my_deliveries(
         .order_by(Order.created_at.desc())
         .all()
     )
+
+
+@router.get("/deliveries/{order_id}", response_model=OrderDetailOut)
+def my_delivery_detail(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    rider_profile = _rider_profile(db, current_user)
+    order = (
+        db.query(Order)
+        .options(
+            joinedload(Order.pickup_address),
+            joinedload(Order.dropoff_address),
+            joinedload(Order.tracking_events),
+            joinedload(Order.payment),
+        )
+        .filter(Order.id == order_id, Order.rider_id == rider_profile.id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+
+    # Built field-by-field rather than OrderDetailOut.model_validate(order) - see the
+    # same note in customer.get_my_order: RiderProfile doesn't carry full_name/phone
+    # directly, so the ORM's attribute-based auto-mapping can't resolve `rider` alone.
+    return OrderDetailOut(
+        id=str(order.id),
+        tracking_number=order.tracking_number,
+        status=order.status,
+        booking_channel=order.booking_channel,
+        pickup_address=AddressOut.model_validate(order.pickup_address) if order.pickup_address else None,
+        dropoff_address=AddressOut.model_validate(order.dropoff_address) if order.dropoff_address else None,
+        package_weight_kg=order.package_weight_kg,
+        package_description=order.package_description,
+        estimated_price=order.estimated_price,
+        final_price=order.final_price,
+        discount_id=str(order.discount_id) if order.discount_id else None,
+        discount_amount=order.discount_amount,
+        rider_accepted=order.rider_accepted,
+        created_at=order.created_at,
+        proof_of_delivery_url=order.proof_of_delivery_url,
+        proof_of_delivery_recipient_name=order.proof_of_delivery_recipient_name,
+        product_id=str(order.product_id) if order.product_id else None,
+        quantity=order.quantity,
+        unit_price=order.unit_price,
+        tracking_events=[TrackingEventOut.model_validate(e) for e in order.tracking_events],
+        payment=PaymentOut.model_validate(order.payment) if order.payment else None,
+        rider=None,
+    )
+
+
+@router.get("/parcels/nearby", response_model=list[OrderOut])
+def nearby_parcels(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    """Unassigned parcels in the rider's zone available for self-claim, sorted
+    by distance from the rider's last known location where possible."""
+    rider_profile = _rider_profile(db, current_user)
+
+    query = db.query(Order).options(
+        joinedload(Order.pickup_address), joinedload(Order.dropoff_address)
+    ).filter(Order.status == OrderStatus.created, Order.rider_id.is_(None))
+
+    if rider_profile.branch_id:
+        branch = db.query(Branch).filter(Branch.id == rider_profile.branch_id).first()
+        if branch and branch.zone_id:
+            query = query.filter(Order.zone_id == branch.zone_id)
+
+    orders = query.order_by(Order.created_at.asc()).all()
+
+    if rider_profile.current_lat is not None and rider_profile.current_lng is not None:
+        def distance(order: Order) -> float:
+            addr = order.pickup_address
+            if not addr or addr.lat is None or addr.lng is None:
+                return float("inf")
+            return haversine_meters(rider_profile.current_lat, rider_profile.current_lng, addr.lat, addr.lng)
+
+        orders = sorted(orders, key=distance)
+
+    return orders
+
+
+@router.post("/parcels/{order_id}/lock", response_model=OrderOut)
+def lock_parcel(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    rider_profile = _rider_profile(db, current_user)
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Parcel not found")
+    if order.status != OrderStatus.created or order.rider_id is not None:
+        raise HTTPException(status_code=400, detail="This parcel is no longer available to claim")
+
+    order.rider_id = rider_profile.id
+    order.rider_accepted = True
+    transition(db, order, OrderStatus.assigned, actor=current_user, note="Rider self-claimed parcel")
+    db.commit()
+    db.refresh(order)
+    return order
+
+
+def _unlock_request_out(req: ParcelUnlockRequest) -> ParcelUnlockRequestOut:
+    return ParcelUnlockRequestOut(
+        id=req.id,
+        order_id=req.order_id,
+        tracking_number=req.order.tracking_number if req.order else None,
+        rider_id=req.rider_id,
+        rider_name=req.rider.user.full_name if req.rider and req.rider.user else None,
+        requested_by_id=req.requested_by_id,
+        reason=req.reason,
+        status=req.status.value if hasattr(req.status, "value") else req.status,
+        resolution_note=req.resolution_note,
+        resolved_at=req.resolved_at,
+        created_at=req.created_at,
+    )
+
+
+@router.post("/deliveries/{order_id}/unlock-requests", response_model=ParcelUnlockRequestOut)
+def request_parcel_unlock(
+    order_id: str,
+    payload: ParcelUnlockRequestCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    """Requests to be released from an already-claimed delivery - needs
+    staff/admin approval before the parcel actually unlocks and goes back
+    to the pool. Only possible before pickup (order still `assigned`)."""
+    rider_profile = _rider_profile(db, current_user)
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order or order.rider_id != rider_profile.id:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    if order.status != OrderStatus.assigned:
+        raise HTTPException(
+            status_code=400,
+            detail="A parcel can only be unlock-requested before pickup.",
+        )
+
+    request = ParcelUnlockRequest(
+        order_id=order.id,
+        rider_id=rider_profile.id,
+        requested_by_id=current_user.id,
+        reason=payload.reason,
+    )
+    db.add(request)
+    db.commit()
+    db.refresh(request)
+    return _unlock_request_out(request)
+
+
+@router.get("/deliveries/{order_id}/unlock-requests", response_model=list[ParcelUnlockRequestOut])
+def my_unlock_requests(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    rider_profile = _rider_profile(db, current_user)
+    requests = (
+        db.query(ParcelUnlockRequest)
+        .filter(ParcelUnlockRequest.order_id == order_id, ParcelUnlockRequest.rider_id == rider_profile.id)
+        .order_by(ParcelUnlockRequest.created_at.desc())
+        .all()
+    )
+    return [_unlock_request_out(r) for r in requests]
+
+
+@router.get("/manifest-items/arrived", response_model=list[RiderManifestItemOut])
+def arrived_manifest_items(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    """Crates arrived at the destination hub and assigned to this rider for
+    last-mile delivery, ready to be scanned as physically picked up."""
+    rider_profile = _rider_profile(db, current_user)
+    items = (
+        db.query(ManifestItem)
+        .join(Order, ManifestItem.order_id == Order.id)
+        .options(joinedload(ManifestItem.order))
+        .filter(
+            ManifestItem.scan_status == ScanStatus.arrived,
+            Order.rider_id == rider_profile.id,
+            Order.status.in_([OrderStatus.dest_hub, OrderStatus.out_for_delivery]),
+        )
+        .order_by(ManifestItem.scanned_at.asc().nullsfirst())
+        .all()
+    )
+    return [
+        RiderManifestItemOut(
+            id=item.id,
+            order_id=item.order_id,
+            tracking_number=item.order.tracking_number if item.order else None,
+            crate_label=item.crate_label,
+            scan_status=item.scan_status.value if hasattr(item.scan_status, "value") else item.scan_status,
+            scanned_at=item.scanned_at,
+        )
+        for item in items
+    ]
+
+
+@router.post("/manifest-items/{item_id}/scan-pickup", response_model=RiderManifestItemOut)
+def scan_manifest_item_pickup(
+    item_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    rider_profile = _rider_profile(db, current_user)
+    item = (
+        db.query(ManifestItem)
+        .options(joinedload(ManifestItem.order))
+        .filter(ManifestItem.id == item_id)
+        .first()
+    )
+    if not item or not item.order or item.order.rider_id != rider_profile.id:
+        raise HTTPException(status_code=404, detail="Manifest item not found")
+    if item.scan_status != ScanStatus.arrived:
+        raise HTTPException(status_code=400, detail="This crate is not awaiting pickup")
+
+    item.scan(ScanStatus.delivered)
+    db.commit()
+    db.refresh(item)
+    return RiderManifestItemOut(
+        id=item.id,
+        order_id=item.order_id,
+        tracking_number=item.order.tracking_number if item.order else None,
+        crate_label=item.crate_label,
+        scan_status=item.scan_status.value if hasattr(item.scan_status, "value") else item.scan_status,
+        scanned_at=item.scanned_at,
+    )
+
+
+@router.post("/deliveries/{order_id}/return-to-hub", response_model=OrderOut)
+def return_to_hub(
+    order_id: str,
+    payload: ReturnToHubRequest = ReturnToHubRequest(),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    """Rider physically drops an RTO parcel back at the hub. `rto` is a
+    terminal state, so this just logs the handover as a tracking event
+    rather than transitioning status."""
+    rider_profile = _rider_profile(db, current_user)
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order or order.rider_id != rider_profile.id:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    if order.status != OrderStatus.rto:
+        raise HTTPException(status_code=400, detail="Only RTO parcels can be returned to hub")
+
+    transition(db, order, order.status, actor=current_user, note="Returned to hub", lat=payload.lat, lng=payload.lng)
+    db.commit()
+    db.refresh(order)
+    return order
 
 
 @router.patch("/deliveries/{order_id}/respond")
@@ -309,3 +635,148 @@ def submit_proof_of_delivery(
     db.refresh(order)
 
     return order
+
+
+# --- Support tickets ---
+
+def _support_ticket_out(ticket: SupportTicket) -> SupportTicketOut:
+    return SupportTicketOut(
+        id=ticket.id,
+        raised_by_id=ticket.raised_by_id,
+        raised_by_name=ticket.raised_by.full_name if ticket.raised_by else None,
+        subject=ticket.subject,
+        order_id=ticket.order_id,
+        tracking_number=ticket.order.tracking_number if ticket.order else None,
+        status=ticket.status.value if hasattr(ticket.status, "value") else ticket.status,
+        resolved_at=ticket.resolved_at,
+        created_at=ticket.created_at,
+        messages=[
+            SupportTicketMessageOut(
+                id=m.id,
+                sender_id=m.sender_id,
+                sender_name=m.sender.full_name if m.sender else None,
+                body=m.body,
+                created_at=m.created_at,
+            )
+            for m in ticket.messages
+        ],
+    )
+
+
+@router.post("/support-tickets", response_model=SupportTicketOut)
+def create_support_ticket(
+    payload: SupportTicketCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    if payload.order_id:
+        order = db.query(Order).filter(Order.id == payload.order_id).first()
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+
+    ticket = SupportTicket(
+        raised_by_id=current_user.id,
+        subject=payload.subject.strip(),
+        order_id=payload.order_id,
+    )
+    db.add(ticket)
+    db.flush()
+    db.add(SupportTicketMessage(ticket_id=ticket.id, sender_id=current_user.id, body=payload.message.strip()))
+    db.commit()
+    db.refresh(ticket)
+    return _support_ticket_out(ticket)
+
+
+@router.get("/support-tickets", response_model=list[SupportTicketOut])
+def my_support_tickets(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    tickets = (
+        db.query(SupportTicket)
+        .filter(SupportTicket.raised_by_id == current_user.id)
+        .order_by(SupportTicket.created_at.desc())
+        .all()
+    )
+    return [_support_ticket_out(t) for t in tickets]
+
+
+@router.get("/support-tickets/{ticket_id}", response_model=SupportTicketOut)
+def support_ticket_detail(
+    ticket_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    ticket = (
+        db.query(SupportTicket)
+        .filter(SupportTicket.id == ticket_id, SupportTicket.raised_by_id == current_user.id)
+        .first()
+    )
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Support ticket not found")
+    return _support_ticket_out(ticket)
+
+
+@router.post("/support-tickets/{ticket_id}/messages", response_model=SupportTicketOut)
+def reply_to_support_ticket(
+    ticket_id: str,
+    payload: SupportTicketMessageCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    ticket = (
+        db.query(SupportTicket)
+        .filter(SupportTicket.id == ticket_id, SupportTicket.raised_by_id == current_user.id)
+        .first()
+    )
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Support ticket not found")
+
+    db.add(SupportTicketMessage(ticket_id=ticket.id, sender_id=current_user.id, body=payload.body.strip()))
+    if ticket.status in (SupportTicketStatus.resolved, SupportTicketStatus.closed):
+        ticket.status = SupportTicketStatus.in_progress
+    db.commit()
+    db.refresh(ticket)
+    return _support_ticket_out(ticket)
+
+
+# --- Earnings ---
+
+@router.get("/earnings", response_model=EarningsBreakdownOut)
+def my_earnings(
+    days: int = 7,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    rider_profile = _rider_profile(db, current_user)
+    days = max(1, min(days, 90))
+    window_start = datetime.now(timezone.utc) - timedelta(days=days - 1)
+    window_start = window_start.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    delivered_orders = (
+        db.query(Order)
+        .filter(
+            Order.rider_id == rider_profile.id,
+            Order.status == OrderStatus.delivered,
+            Order.created_at >= window_start,
+        )
+        .all()
+    )
+
+    by_date: dict[str, dict[str, float]] = {}
+    for order in delivered_orders:
+        key = order.created_at.date().isoformat()
+        bucket = by_date.setdefault(key, {"earnings": 0.0, "deliveries": 0})
+        bucket["earnings"] += order.final_price or 0.0
+        bucket["deliveries"] += 1
+
+    daily = [
+        EarningsDayOut(date=key, earnings=round(val["earnings"], 2), deliveries=int(val["deliveries"]))
+        for key, val in sorted(by_date.items())
+    ]
+
+    return EarningsBreakdownOut(
+        total_earnings=round(sum(d.earnings for d in daily), 2),
+        total_deliveries=sum(d.deliveries for d in daily),
+        daily=daily,
+    )

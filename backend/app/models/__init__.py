@@ -34,6 +34,9 @@ from app.models.discount import Discount
 from app.models.dispute import Dispute
 from app.models.product import Product
 from app.models.rating import Rating
+from app.models.rider_status_request import RiderStatusRequest
+from app.models.parcel_unlock_request import ParcelUnlockRequest
+from app.models.support_ticket import SupportTicket, SupportTicketMessage
 
 __all__ = [
     "Role",
@@ -76,4 +79,8 @@ __all__ = [
     "Dispute",
     "Product",
     "Rating",
+    "RiderStatusRequest",
+    "ParcelUnlockRequest",
+    "SupportTicket",
+    "SupportTicketMessage",
 ]
