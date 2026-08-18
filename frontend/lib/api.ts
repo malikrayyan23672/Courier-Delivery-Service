@@ -788,6 +788,17 @@ export function editUser(userId: string, payload: { full_name?: string; phone?: 
   );
 }
 
+export interface NetworkPeriodStats {
+  delivery_success_rate: number;
+  on_time_pickup_rate: number;
+  rider_utilization: number;
+}
+
+export interface NetworkComparison {
+  this_week: NetworkPeriodStats;
+  last_week: NetworkPeriodStats;
+}
+
 export interface AdminAnalytics {
   total_orders: number;
   total_revenue: number;
@@ -799,6 +810,7 @@ export interface AdminAnalytics {
   cod_collected_total: number;
   cod_pending_total: number;
   avg_delivery_hours: number | null;
+  network_comparison: NetworkComparison;
 }
 
 export function getAdminAnalytics(token: string) {
@@ -1606,10 +1618,68 @@ export interface HubSnapshot {
   rto: number;
 }
 
+export interface HubReports {
+  delivery_success_rate: number;
+  network_delivery_success_rate: number;
+  on_time_pickup_rate: number;
+  network_on_time_pickup_rate: number;
+  avg_delivery_hours: number | null;
+  cod_collected_today: number;
+  complaints_7d: number;
+  network_rank: number | null;
+  network_branch_count: number;
+}
+
 export interface HubAnalytics {
   daily: { date: string; parcels_in: number; parcels_out: number }[];
   vendor_scores: VendorScore[];
   snapshot: HubSnapshot;
+  reports: HubReports;
+}
+
+export interface BranchStaffMember {
+  id: string;
+  full_name: string;
+  designation: string | null;
+  employee_code: string | null;
+  phone: string | null;
+  attendance_status: 'present' | 'on_leave' | 'absent';
+}
+
+export function listBranchStaff(token: string, branchId?: string) {
+  return request<BranchStaffMember[]>(`/hub/staff${branchQuery(branchId)}`, { method: 'GET' }, token);
+}
+
+export function updateStaffAttendance(staffProfileId: string, status: BranchStaffMember['attendance_status'], token: string) {
+  return request<BranchStaffMember>(`/hub/staff/${staffProfileId}/attendance`, { method: 'PATCH', body: JSON.stringify({ status }) }, token);
+}
+
+export interface BranchServiceArea {
+  id: string;
+  branch_id: string;
+  zone_name: string;
+  postal_codes: string | null;
+  radius_km: number | null;
+  same_day: boolean;
+  express: boolean;
+}
+
+export type BranchServiceAreaInput = Omit<BranchServiceArea, 'id' | 'branch_id'>;
+
+export function listServiceAreas(token: string, branchId?: string) {
+  return request<BranchServiceArea[]>(`/hub/service-areas${branchQuery(branchId)}`, { method: 'GET' }, token);
+}
+
+export function createServiceArea(payload: BranchServiceAreaInput, token: string) {
+  return request<BranchServiceArea>('/hub/service-areas', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function updateServiceArea(id: string, payload: BranchServiceAreaInput, token: string) {
+  return request<BranchServiceArea>(`/hub/service-areas/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
+export function deleteServiceArea(id: string, token: string) {
+  return request<undefined>(`/hub/service-areas/${id}`, { method: 'DELETE' }, token);
 }
 
 function branchQuery(branchId?: string) {

@@ -47,22 +47,37 @@ import {
   HubManifestItem,
   HubAnalytics,
   HubSnapshot,
+  HubReports,
   BusSchedule,
   BusOperator,
   VendorScore,
   RiderLocation,
+  listMyNotifications,
+  NotificationItem,
+  listActivityFeed,
+  ActivityItem as AuditActivityItem,
+  listBranchStaff,
+  updateStaffAttendance,
+  BranchStaffMember,
+  listServiceAreas,
+  createServiceArea,
+  updateServiceArea,
+  deleteServiceArea,
+  BranchServiceArea,
+  BranchServiceAreaInput,
 } from '@/lib/api';
 import { useRiderLocations } from '@/lib/useRiderLocations';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { TrendLine } from '@/components/charts/TrendLine';
 import { ComparisonBars } from '@/components/charts/ComparisonBars';
 import {
-  INITIAL_PICKUPS, INITIAL_DELIVERIES, STAFF, ZONES, ACTIVITY, ALERTS,
+  INITIAL_PICKUPS, INITIAL_DELIVERIES,
   Pickup, Delivery,
 } from './branch-data';
 import { Pill, AvatarChip, KpiCard, StatStrip, Toasts } from './branch-ui';
 import { CameraScanButton } from '@/components/CameraScanner';
 import { RequestsView } from './RequestsView';
+import { NotificationBell } from '@/components/NotificationBell';
 
 // Leaflet touches window/document at import time - must load client-only,
 // never during SSR.
@@ -136,6 +151,34 @@ function titleStatus(status: string) {
   return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function relativeTime(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+function notificationToAlert(n: NotificationItem): { sev: 'high' | 'medium' | 'low'; title: string; msg: string; time: string } {
+  const sev: 'high' | 'medium' | 'low' = n.type === 'error' ? 'high' : n.type === 'warning' ? 'medium' : 'low';
+  return { sev, title: n.title, msg: n.message, time: relativeTime(n.created_at) };
+}
+
+function activityIcon(a: AuditActivityItem): { icon: 'box' | 'rider' | 'truck' | 'check' | 'alert' | 'return'; color: string } {
+  const key = `${a.action} ${a.entity_type}`.toLowerCase();
+  if (key.includes('deliver')) return { icon: 'check', color: '#1E8E5A' };
+  if (key.includes('rto') || key.includes('return')) return { icon: 'return', color: '#F2A93B' };
+  if (key.includes('fail') || key.includes('reject') || key.includes('dispute')) return { icon: 'alert', color: '#E6350F' };
+  if (key.includes('rider')) return { icon: 'rider', color: '#1E8E5A' };
+  if (key.includes('transit') || key.includes('dispatch') || key.includes('manifest')) return { icon: 'truck', color: '#2563EB' };
+  return { icon: 'box', color: '#2563EB' };
+}
+
+function activityText(a: AuditActivityItem): string {
+  return a.details || `${a.user ?? 'System'} ${a.action.replace(/_/g, ' ')}${a.entity_type ? ` — ${a.entity_type}` : ''}`;
+}
+
 function deliveryProgress(status: string) {
   if (status === 'delivered') return 100;
   if (status === 'in_transit') return 65;
@@ -204,8 +247,9 @@ const selectCls =
 // ============================================================
 // SIDEBAR ANALYTICS WIDGET
 // ============================================================
-function BranchPulse({ onlineRiders, totalRiders, pendingPickups, deliveredCount, totalDeliveries }: {
+function BranchPulse({ onlineRiders, totalRiders, pendingPickups, deliveredCount, totalDeliveries, notifications }: {
   onlineRiders: number; totalRiders: number; pendingPickups: number; deliveredCount: number; totalDeliveries: number;
+  notifications: NotificationItem[];
 }) {
   const successRate = totalDeliveries ? Math.round((deliveredCount / totalDeliveries) * 100) : 91;
   const ridersPct = totalRiders ? Math.round((onlineRiders / totalRiders) * 100) : 0;
@@ -238,12 +282,19 @@ function BranchPulse({ onlineRiders, totalRiders, pendingPickups, deliveredCount
       </div>
       <Separator className="my-3 bg-white/10" />
       <div className="flex flex-col gap-1.5">
-        {ALERTS.slice(0, 2).map((a, i) => (
-          <div key={i} className="flex items-start gap-2 text-[0.68rem]">
-            <AlertTriangle className={`w-3 h-3 mt-0.5 flex-none ${a.sev === 'high' ? 'text-[#db2203]' : a.sev === 'medium' ? 'text-[#F2A93B]' : 'text-white/40'}`} />
-            <span className="text-white/70 leading-snug">{a.title}</span>
-          </div>
-        ))}
+        {notifications.length === 0 ? (
+          <span className="text-[0.68rem] text-white/40">No alerts right now.</span>
+        ) : (
+          notifications.slice(0, 2).map((n) => {
+            const a = notificationToAlert(n);
+            return (
+              <div key={n.id} className="flex items-start gap-2 text-[0.68rem]">
+                <AlertTriangle className={`w-3 h-3 mt-0.5 flex-none ${a.sev === 'high' ? 'text-[#db2203]' : a.sev === 'medium' ? 'text-[#F2A93B]' : 'text-white/40'}`} />
+                <span className="text-white/70 leading-snug">{a.title}</span>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
@@ -275,6 +326,15 @@ export function BranchConsole() {
 
   const [pickups, setPickups] = useState<Pickup[]>(INITIAL_PICKUPS);
   const [deliveries, setDeliveries] = useState<Delivery[]>(INITIAL_DELIVERIES);
+  const [orders, setOrders] = useState<ApiOrder[]>([]);
+
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [activity, setActivity] = useState<AuditActivityItem[]>([]);
+  const [staffRoster, setStaffRoster] = useState<BranchStaffMember[]>([]);
+  const [staffRosterLoading, setStaffRosterLoading] = useState(false);
+  const [serviceAreas, setServiceAreas] = useState<BranchServiceArea[]>([]);
+  const [serviceAreasLoading, setServiceAreasLoading] = useState(false);
+
   const [scanInput, setScanInput] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scanAction, setScanAction] = useState<HubScanAction>('in');
@@ -321,6 +381,7 @@ export function BranchConsole() {
 
     Promise.all([ordersRequest, ridersRequest])
       .then(([ordersData, ridersData]) => {
+        setOrders(ordersData);
         setPickups(mapOrdersToPickups(ordersData));
         setDeliveries(mapOrdersToDeliveries(ordersData));
         setRiders(mapApiRiders(ridersData));
@@ -347,6 +408,38 @@ export function BranchConsole() {
   }, [token]);
 
   const branchId = branchDetails?.id;
+
+  // Notifications + audit activity feed - shared real data behind the bell,
+  // Overview's Priority Alerts / Recent Activity, and the Alerts view.
+  useEffect(() => {
+    if (!token) return;
+    listMyNotifications(token).then((d) => setNotifications(d.notifications)).catch(() => {});
+    listActivityFeed(token).then(setActivity).catch(() => {});
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || view !== 'staff') return;
+    setStaffRosterLoading(true);
+    listBranchStaff(token, isAdminScope ? branchId : undefined)
+      .then(setStaffRoster)
+      .catch(() => {})
+      .finally(() => setStaffRosterLoading(false));
+  }, [token, view, isAdminScope, branchId]);
+
+  function loadServiceAreas() {
+    if (!token) return;
+    setServiceAreasLoading(true);
+    listServiceAreas(token, isAdminScope ? branchId : undefined)
+      .then(setServiceAreas)
+      .catch(() => {})
+      .finally(() => setServiceAreasLoading(false));
+  }
+
+  useEffect(() => {
+    if (!token || view !== 'servicearea') return;
+    loadServiceAreas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, view, isAdminScope, branchId]);
 
   function loadHubData() {
     if (!token) return;
@@ -480,6 +573,10 @@ export function BranchConsole() {
   const outForDelivery = deliveries.filter((d) => d.status === 'Out for Delivery').length;
   const deliveredCount = deliveries.filter((d) => d.status === 'Delivered').length;
   const failedDeliveries = deliveries.filter((d) => d.status === 'Failed').length;
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const totalShipmentsToday = orders.filter((o) => o.created_at && new Date(o.created_at) >= todayStart).length;
 
   const filteredPickups = useMemo(() => pickups.filter((p) => {
     if (pickupStatusFilter && p.status !== pickupStatusFilter) return false;
@@ -623,8 +720,8 @@ export function BranchConsole() {
                       {item.view === 'riders' && (
                         <span className="text-[0.66rem] font-bold px-1.5 py-0.5 rounded-full bg-white/15 text-white">{onlineRiders + busyRiders}</span>
                       )}
-                      {item.view === 'alerts' && (
-                        <span className="text-[0.66rem] font-bold px-1.5 py-0.5 rounded-full bg-danger text-white">{ALERTS.length}</span>
+                      {item.view === 'alerts' && notifications.filter((n) => !n.is_read).length > 0 && (
+                        <span className="text-[0.66rem] font-bold px-1.5 py-0.5 rounded-full bg-danger text-white">{notifications.filter((n) => !n.is_read).length}</span>
                       )}
                     </button>
                   );
@@ -641,6 +738,7 @@ export function BranchConsole() {
             pendingPickups={pendingPickups}
             deliveredCount={deliveredCount}
             totalDeliveries={deliveries.length}
+            notifications={notifications}
           />
           <div className="text-[0.66rem] text-white/50 px-1">
             {branchDetails?.address}
@@ -678,29 +776,7 @@ export function BranchConsole() {
             </div>
           )}
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative text-ink">
-                <Bell className="w-4.5 h-4.5" />
-                {ALERTS.length > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-danger text-white text-[0.6rem] font-bold flex items-center justify-center">{ALERTS.length}</span>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 max-h-[420px] overflow-y-auto">
-              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {ALERTS.slice(0, 5).map((a, i) => (
-                <DropdownMenuItem key={i} className="items-start gap-2 py-2" onClick={() => switchView('alerts')}>
-                  <AlertTriangle className={`w-4 h-4 mt-0.5 flex-none ${a.sev === 'high' ? 'text-[#db2203]' : a.sev === 'medium' ? 'text-[#F2A93B]' : 'text-muted-foreground'}`} />
-                  <span>
-                    <span className="block text-sm font-semibold text-ink">{a.title}</span>
-                    <span className="block text-xs text-muted-foreground mt-0.5">{a.time}</span>
-                  </span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <NotificationBell token={token!} className="text-ink" />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -749,7 +825,8 @@ export function BranchConsole() {
             <OverviewView managerProfile={managerProfile} branchDetails={branchDetails} pendingPickups={pendingPickups} pickedUpCount={pickedUpCount}
               outForDelivery={outForDelivery} deliveredCount={deliveredCount} failedDeliveries={failedDeliveries}
               onlineRiders={onlineRiders} busyRiders={busyRiders} switchView={switchView} toast={toast}
-              hubAnalytics={hubAnalytics} inboundQueue={inboundQueue} rtoQueue={rtoQueue} hubLoading={hubLoading} />
+              hubAnalytics={hubAnalytics} inboundQueue={inboundQueue} rtoQueue={rtoQueue} hubLoading={hubLoading}
+              totalShipmentsToday={totalShipmentsToday} activity={activity} notifications={notifications} />
           )}
 
           {view === 'pickups' && (
@@ -814,11 +891,29 @@ export function BranchConsole() {
             />
           )}
 
-          {view === 'staff' && <StaffView />}
+          {view === 'staff' && (
+            <StaffView
+              staff={staffRoster}
+              loading={staffRosterLoading}
+              canManage={role === 'manager' || role === 'admin' || role === 'super_admin'}
+              token={token!}
+              onChanged={setStaffRoster}
+              toast={toast}
+            />
+          )}
 
           {view === 'requests' && <RequestsView />}
 
-          {view === 'servicearea' && <ServiceAreaView />}
+          {view === 'servicearea' && (
+            <ServiceAreaView
+              areas={serviceAreas}
+              loading={serviceAreasLoading}
+              canManage={role === 'manager' || role === 'admin' || role === 'super_admin'}
+              token={token!}
+              onChanged={loadServiceAreas}
+              toast={toast}
+            />
+          )}
 
           {view === 'map' && (
             <MapView
@@ -831,7 +926,7 @@ export function BranchConsole() {
 
           {view === 'reports' && <ReportsView riders={riders} hubAnalytics={hubAnalytics} hubLoading={hubLoading} />}
 
-          {view === 'alerts' && <AlertsView />}
+          {view === 'alerts' && <AlertsView notifications={notifications} />}
         </div>
       </div>
 
@@ -843,9 +938,9 @@ export function BranchConsole() {
 // ============================================================
 // VIEW: OVERVIEW
 // ============================================================
-function OverviewView({ managerProfile, branchDetails, pendingPickups, pickedUpCount, outForDelivery, deliveredCount, failedDeliveries, onlineRiders, busyRiders, switchView, toast, hubAnalytics, inboundQueue, rtoQueue, hubLoading }: any) {
+function OverviewView({ managerProfile, branchDetails, pendingPickups, pickedUpCount, outForDelivery, deliveredCount, failedDeliveries, onlineRiders, busyRiders, switchView, toast, hubAnalytics, inboundQueue, rtoQueue, hubLoading, totalShipmentsToday, activity, notifications }: any) {
   const kpis = [
-    { icon: <Package className="w-4.5 h-4.5" />, bg: '#2563EB', label: 'Total Shipments Today', num: 412, trend: '+8% vs yesterday', trendColor: '#1E8E5A' },
+    { icon: <Package className="w-4.5 h-4.5" />, bg: '#2563EB', label: 'Total Shipments Today', num: totalShipmentsToday, trend: 'orders created today', trendColor: '#1E8E5A' },
     { icon: <Clock className="w-4.5 h-4.5" />, bg: '#F2A93B', label: 'Pending Pickups', num: pendingPickups, trend: 'Needs assignment', trendColor: '#B8710A' },
     { icon: <PackageCheck className="w-4.5 h-4.5" />, bg: '#1E8E5A', label: 'Picked Up Parcels', num: pickedUpCount, trend: 'On schedule', trendColor: '#1E8E5A' },
     { icon: <Truck className="w-4.5 h-4.5" />, bg: '#F2A93B', label: 'Out for Delivery', num: outForDelivery, trend: 'Riders en route', trendColor: '#B8710A' },
@@ -930,20 +1025,27 @@ function OverviewView({ managerProfile, branchDetails, pendingPickups, pickedUpC
         <Card className="p-5">
           <CardHeader className="p-0 mb-4">
             <CardTitle className="text-base">Recent Activity</CardTitle>
-            <CardDescription>Real-time events across the branch</CardDescription>
+            <CardDescription>Real-time events across the network</CardDescription>
           </CardHeader>
           <div className="flex flex-col gap-3">
-            {ACTIVITY.map((a, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-none text-white" style={{ background: a.color }}>
-                  {a.icon === 'box' ? <Box className="w-3.5 h-3.5" /> : a.icon === 'rider' ? <Bike className="w-3.5 h-3.5" /> : a.icon === 'truck' ? <Truck className="w-3.5 h-3.5" /> : a.icon === 'check' ? <CheckCircle2 className="w-3.5 h-3.5" /> : a.icon === 'alert' ? <AlertTriangle className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-ink">{a.text}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{a.time}</div>
-                </div>
-              </div>
-            ))}
+            {activity.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No recent activity yet.</p>
+            ) : (
+              activity.slice(0, 8).map((a: AuditActivityItem) => {
+                const { icon, color } = activityIcon(a);
+                return (
+                  <div key={a.id} className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center flex-none text-white" style={{ background: color }}>
+                      {icon === 'box' ? <Box className="w-3.5 h-3.5" /> : icon === 'rider' ? <Bike className="w-3.5 h-3.5" /> : icon === 'truck' ? <Truck className="w-3.5 h-3.5" /> : icon === 'check' ? <CheckCircle2 className="w-3.5 h-3.5" /> : icon === 'alert' ? <AlertTriangle className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-ink">{activityText(a)}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{relativeTime(a.created_at)}</div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </Card>
 
@@ -977,7 +1079,11 @@ function OverviewView({ managerProfile, branchDetails, pendingPickups, pickedUpC
           </Button>
         </div>
         <div className="flex flex-col gap-2.5">
-          {ALERTS.slice(0, 3).map((a, i) => <AlertCard key={i} alert={a} />)}
+          {notifications.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nothing flagged right now.</p>
+          ) : (
+            notifications.slice(0, 3).map((n: NotificationItem) => <AlertCard key={n.id} alert={notificationToAlert(n)} />)
+          )}
         </div>
       </Card>
     </>
@@ -1931,32 +2037,69 @@ function RidersView({ riders, onlineRiders, busyRiders, offlineRiders, staffRide
 // ============================================================
 // VIEW: STAFF
 // ============================================================
-function StaffView() {
+function StaffView({ staff, loading, canManage, token, onChanged, toast }: {
+  staff: BranchStaffMember[]; loading: boolean; canManage: boolean; token: string;
+  onChanged: React.Dispatch<React.SetStateAction<BranchStaffMember[]>>;
+  toast: (msg: string) => void;
+}) {
+  async function handleAttendanceChange(member: BranchStaffMember, status: BranchStaffMember['attendance_status']) {
+    try {
+      const updated = await updateStaffAttendance(member.id, status, token);
+      onChanged((prev) => prev.map((s) => (s.id === member.id ? updated : s)));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update attendance.');
+    }
+  }
+
   return (
     <Card className="p-5">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div>
           <CardTitle className="text-base">Branch Staff</CardTitle>
-          <CardDescription>Roles, attendance and permissions</CardDescription>
+          <CardDescription>Roster and attendance for this branch</CardDescription>
         </div>
-        <Button variant="navy" size="sm"><Plus className="w-4 h-4 mr-1" /> Add Staff</Button>
+        {canManage && (
+          <Button variant="navy" size="sm" disabled title="Staff accounts are created from the admin panel">
+            <Plus className="w-4 h-4 mr-1" /> Add Staff
+          </Button>
+        )}
       </div>
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/30">
-            <TableHead>Name</TableHead><TableHead>Role</TableHead><TableHead>Attendance</TableHead><TableHead>Contact</TableHead><TableHead>Permissions</TableHead>
+            <TableHead>Name</TableHead><TableHead>Role</TableHead><TableHead>Attendance</TableHead><TableHead>Contact</TableHead><TableHead>Employee Code</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {STAFF.map((s) => (
-            <TableRow key={s.name}>
-              <TableCell><AvatarChip name={s.name} /></TableCell>
-              <TableCell>{s.role}</TableCell>
-              <TableCell><Pill status={s.attendance} /></TableCell>
-              <TableCell className="text-muted-foreground">{s.contact}</TableCell>
-              <TableCell><Pill status="blue" label={s.perm} /></TableCell>
-            </TableRow>
-          ))}
+          {loading ? (
+            <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">Loading staff roster…</TableCell></TableRow>
+          ) : staff.length === 0 ? (
+            <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">No staff assigned to this branch yet.</TableCell></TableRow>
+          ) : (
+            staff.map((s) => (
+              <TableRow key={s.id}>
+                <TableCell><AvatarChip name={s.full_name} /></TableCell>
+                <TableCell>{s.designation || '—'}</TableCell>
+                <TableCell>
+                  {canManage ? (
+                    <select
+                      className={selectCls}
+                      value={s.attendance_status}
+                      onChange={(e) => handleAttendanceChange(s, e.target.value as BranchStaffMember['attendance_status'])}
+                    >
+                      <option value="present">Present</option>
+                      <option value="on_leave">On Leave</option>
+                      <option value="absent">Absent</option>
+                    </select>
+                  ) : (
+                    <Pill status={s.attendance_status} label={titleStatus(s.attendance_status)} />
+                  )}
+                </TableCell>
+                <TableCell className="text-muted-foreground">{s.phone || '—'}</TableCell>
+                <TableCell className="text-muted-foreground font-mono text-xs">{s.employee_code || '—'}</TableCell>
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
     </Card>
@@ -1966,29 +2109,98 @@ function StaffView() {
 // ============================================================
 // VIEW: SERVICE AREA
 // ============================================================
-function ServiceAreaView() {
+function ServiceAreaView({ areas, loading, canManage, token, onChanged, toast }: {
+  areas: BranchServiceArea[]; loading: boolean; canManage: boolean; token: string;
+  onChanged: () => void; toast: (msg: string) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState<BranchServiceAreaInput>({
+    zone_name: '', postal_codes: '', radius_km: null, same_day: false, express: false,
+  });
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.zone_name.trim()) return;
+    setBusy(true);
+    try {
+      await createServiceArea(form, token);
+      setForm({ zone_name: '', postal_codes: '', radius_km: null, same_day: false, express: false });
+      setShowForm(false);
+      onChanged();
+      toast('Coverage zone added.');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not add coverage zone.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete(area: BranchServiceArea) {
+    try {
+      await deleteServiceArea(area.id, token);
+      onChanged();
+      toast(`${area.zone_name} removed.`);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not remove coverage zone.');
+    }
+  }
+
   return (
     <Card className="p-5">
-      <CardHeader className="p-0 mb-4">
-        <CardTitle className="text-base">Coverage Zones</CardTitle>
-        <CardDescription>Cities, postal codes and delivery capabilities served by this branch</CardDescription>
-      </CardHeader>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div>
+          <CardTitle className="text-base">Coverage Zones</CardTitle>
+          <CardDescription>Neighbourhoods, postal codes and delivery capabilities served by this branch</CardDescription>
+        </div>
+        {canManage && (
+          <Button variant="navy" size="sm" onClick={() => setShowForm((s) => !s)}>
+            <Plus className="w-4 h-4 mr-1" /> Add Zone
+          </Button>
+        )}
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="grid sm:grid-cols-2 md:grid-cols-5 gap-2.5 mb-4 p-3.5 rounded-xl border border-line bg-page">
+          <Input placeholder="Zone name" required value={form.zone_name} onChange={(e) => setForm({ ...form, zone_name: e.target.value })} className="md:col-span-2" />
+          <Input placeholder="Postal codes" value={form.postal_codes ?? ''} onChange={(e) => setForm({ ...form, postal_codes: e.target.value })} />
+          <Input type="number" step="0.1" placeholder="Radius (km)" value={form.radius_km ?? ''} onChange={(e) => setForm({ ...form, radius_km: e.target.value ? parseFloat(e.target.value) : null })} />
+          <div className="flex items-center gap-3 text-xs font-semibold text-ink">
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={form.same_day} onChange={(e) => setForm({ ...form, same_day: e.target.checked })} /> Same-day</label>
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={form.express} onChange={(e) => setForm({ ...form, express: e.target.checked })} /> Express</label>
+          </div>
+          <Button type="submit" size="sm" disabled={busy} className="md:col-span-5 w-fit">{busy ? 'Adding…' : 'Add Zone'}</Button>
+        </form>
+      )}
+
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/30">
             <TableHead>Zone</TableHead><TableHead>Postal Codes</TableHead><TableHead>Delivery Radius</TableHead><TableHead>Same-Day</TableHead><TableHead>Express</TableHead>
+            {canManage && <TableHead />}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {ZONES.map((z) => (
-            <TableRow key={z.zone}>
-              <TableCell className="font-bold text-ink">{z.zone}</TableCell>
-              <TableCell className="font-mono text-xs text-muted-foreground">{z.codes}</TableCell>
-              <TableCell>{z.radius}</TableCell>
-              <TableCell><Pill status={z.sameDay ? 'green' : 'gray'} label={z.sameDay ? 'Available' : 'Not available'} /></TableCell>
-              <TableCell><Pill status={z.express ? 'blue' : 'gray'} label={z.express ? 'Available' : 'Not available'} /></TableCell>
-            </TableRow>
-          ))}
+          {loading ? (
+            <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">Loading coverage zones…</TableCell></TableRow>
+          ) : areas.length === 0 ? (
+            <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">No coverage zones set up for this branch yet.</TableCell></TableRow>
+          ) : (
+            areas.map((z) => (
+              <TableRow key={z.id}>
+                <TableCell className="font-bold text-ink">{z.zone_name}</TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">{z.postal_codes || '—'}</TableCell>
+                <TableCell>{z.radius_km != null ? `${z.radius_km} km` : '—'}</TableCell>
+                <TableCell><Pill status={z.same_day ? 'green' : 'gray'} label={z.same_day ? 'Available' : 'Not available'} /></TableCell>
+                <TableCell><Pill status={z.express ? 'blue' : 'gray'} label={z.express ? 'Available' : 'Not available'} /></TableCell>
+                {canManage && (
+                  <TableCell>
+                    <Button variant="ghost" size="sm" className="text-[#db2203]" onClick={() => handleDelete(z)}>Remove</Button>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
     </Card>
@@ -2044,11 +2256,11 @@ function MapView({ riderLocations, loading, error, branchDetails }: {
 // ============================================================
 function ReportsView({ riders, hubAnalytics, hubLoading }: { riders: RiderCard[]; hubAnalytics: HubAnalytics | null; hubLoading: boolean }) {
   const topRiders = [...riders].sort((a, b) => b.deliveries - a.deliveries).slice(0, 6);
-  const comparisons = [
-    { label: 'Delivery Success Rate', branch: 91, network: 87 },
-    { label: 'On-Time Pickup Rate', branch: 88, network: 84 },
-    { label: 'Avg. Delivery Time (lower is better)', branch: 74, network: 80 },
-  ];
+  const reports = hubAnalytics?.reports;
+  const comparisons = reports ? [
+    { label: 'Delivery Success Rate', branch: reports.delivery_success_rate, network: reports.network_delivery_success_rate },
+    { label: 'On-Time Pickup Rate', branch: reports.on_time_pickup_rate, network: reports.network_on_time_pickup_rate },
+  ] : [];
   const vendorScoreData = (hubAnalytics?.vendor_scores ?? []).map((v) => ({ label: v.operator_name, on_time_pct: v.on_time_pct }));
 
   return (
@@ -2111,11 +2323,10 @@ function ReportsView({ riders, hubAnalytics, hubLoading }: { riders: RiderCard[]
           <CardTitle className="text-base">Summary Metrics</CardTitle>
         </CardHeader>
         <StatStrip items={[
-          { num: '28 min', label: 'Avg Delivery Time' },
-          { num: '89%', label: 'Pickup Efficiency' },
-          { num: 'Rs 486,300', label: 'COD Collected Today' },
-          { num: 6, label: 'Customer Complaints (7d)' },
-          { num: '#2', label: 'Network Rank of 8' },
+          { num: reports?.avg_delivery_hours != null ? `${reports.avg_delivery_hours} hrs` : '—', label: 'Avg Delivery Time' },
+          { num: reports ? `Rs ${reports.cod_collected_today.toLocaleString()}` : '—', label: 'COD Collected Today' },
+          { num: reports?.complaints_7d ?? 0, label: 'Customer Complaints (7d)' },
+          { num: reports?.network_rank ? `#${reports.network_rank} of ${reports.network_branch_count}` : '—', label: 'Network Rank' },
         ]} />
       </Card>
     </>
@@ -2125,7 +2336,7 @@ function ReportsView({ riders, hubAnalytics, hubLoading }: { riders: RiderCard[]
 // ============================================================
 // VIEW: ALERTS
 // ============================================================
-function AlertsView() {
+function AlertsView({ notifications }: { notifications: NotificationItem[] }) {
   return (
     <Card className="p-5">
       <CardHeader className="p-0 mb-4">
@@ -2133,7 +2344,11 @@ function AlertsView() {
         <CardDescription>Everything flagged for branch manager review</CardDescription>
       </CardHeader>
       <div className="flex flex-col gap-2.5">
-        {ALERTS.map((a, i) => <AlertCard key={i} alert={a} />)}
+        {notifications.length === 0 ? (
+          <p className="text-sm text-muted-foreground">You're all caught up — nothing flagged.</p>
+        ) : (
+          notifications.map((n) => <AlertCard key={n.id} alert={notificationToAlert(n)} />)
+        )}
       </div>
     </Card>
   );

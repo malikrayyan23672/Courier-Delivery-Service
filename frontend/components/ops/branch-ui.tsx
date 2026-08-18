@@ -28,6 +28,8 @@ const STATUS_TO_COLOR: Record<string, string> = {
   active: 'green', inactive: 'gray',
   // Dispute statuses (finance)
   open: 'amber', resolved: 'green', rejected: 'red',
+  // Staff attendance statuses (real /hub/staff roster)
+  present: 'green', on_leave: 'amber', absent: 'red',
 };
 
 export function Pill({ status, label }: { status: string; label?: string }) {

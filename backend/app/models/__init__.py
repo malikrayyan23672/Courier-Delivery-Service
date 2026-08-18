@@ -35,6 +35,7 @@ from app.models.rider_status_request import RiderStatusRequest
 from app.models.parcel_unlock_request import ParcelUnlockRequest
 from app.models.support_ticket import SupportTicket, SupportTicketMessage
 from app.models.messaging import AssignmentRule, MessageTemplate
+from app.models.branch_service_area import BranchServiceArea
 
 __all__ = [
     "Role",
@@ -80,4 +81,5 @@ __all__ = [
     "SupportTicketMessage",
     "AssignmentRule",
     "MessageTemplate",
+    "BranchServiceArea",
 ]

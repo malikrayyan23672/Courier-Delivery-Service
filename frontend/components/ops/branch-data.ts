@@ -1,5 +1,5 @@
-// Mock data for the branch console. Replace each block with a real API call
-// once the corresponding backend endpoints exist.
+// Initial-render seed data for the branch console, shown only until the real
+// synced data (listStaffOrders/listAllOrders/listStaffRiders) arrives.
 
 export interface Rider {
   name: string;
@@ -30,36 +30,6 @@ export interface Delivery {
   progress: number;
   status: 'Ready' | 'Out for Delivery' | 'Delivered' | 'Failed' | 'Rescheduled';
   proof: string;
-}
-
-export interface StaffMember {
-  name: string;
-  role: string;
-  attendance: 'Present' | 'On Leave' | 'Absent';
-  contact: string;
-  perm: string;
-}
-
-export interface ZoneCoverage {
-  zone: string;
-  codes: string;
-  radius: string;
-  sameDay: boolean;
-  express: boolean;
-}
-
-export interface ActivityItem {
-  icon: string;
-  color: string;
-  text: string;
-  time: string;
-}
-
-export interface AlertItem {
-  sev: 'high' | 'medium' | 'low';
-  title: string;
-  msg: string;
-  time: string;
 }
 
 export interface ScanLogEntry {
@@ -111,42 +81,3 @@ export const INITIAL_DELIVERIES: Delivery[] = [
   { id: 'FX-582022', customer: 'Nimra Javed', zone: 'Cantt', rider: null, progress: 0, status: 'Ready', proof: '—' },
 ];
 
-export const STAFF: StaffMember[] = [
-  { name: 'Hassan Raza', role: 'Branch Manager', attendance: 'Present', contact: '+92 300 1234567', perm: 'Full Access' },
-  { name: 'Owais Farooq', role: 'Dispatch Officer', attendance: 'Present', contact: '+92 301 2345678', perm: 'Dispatch, Transfers' },
-  { name: 'Mahnoor Sheikh', role: 'Dispatch Officer', attendance: 'On Leave', contact: '+92 302 3456789', perm: 'Dispatch, Transfers' },
-  { name: 'Tayyab Hussain', role: 'Warehouse Staff', attendance: 'Present', contact: '+92 303 4567890', perm: 'Warehouse, Scanning' },
-  { name: 'Sadia Gul', role: 'Warehouse Staff', attendance: 'Present', contact: '+92 304 5678901', perm: 'Warehouse, Scanning' },
-  { name: 'Noman Afridi', role: 'Customer Support', attendance: 'Present', contact: '+92 305 6789012', perm: 'Tickets, Refunds' },
-  { name: 'Rabia Sarwar', role: 'Customer Support', attendance: 'Absent', contact: '+92 306 7890123', perm: 'Tickets, Refunds' },
-];
-
-export const ZONES: ZoneCoverage[] = [
-  { zone: 'Gulberg / Liberty', codes: '54660–54662', radius: '6 km', sameDay: true, express: true },
-  { zone: 'Model Town / Township', codes: '54700–54704', radius: '8 km', sameDay: true, express: true },
-  { zone: 'Johar Town / Wapda Town', codes: '54782–54790', radius: '10 km', sameDay: true, express: false },
-  { zone: 'DHA Phase 1–8', codes: '54810–54830', radius: '12 km', sameDay: false, express: true },
-  { zone: 'Iqbal Town / Faisal Town', codes: '54570–54590', radius: '9 km', sameDay: true, express: false },
-  { zone: 'Cantt / Garden Town', codes: '54000–54010', radius: '7 km', sameDay: true, express: true },
-];
-
-export const ACTIVITY: ActivityItem[] = [
-  { icon: 'box', color: '#2563EB', text: 'Parcel FX-591044 received from Karachi Branch', time: '2 min ago' },
-  { icon: 'rider', color: '#1E8E5A', text: 'Rider Bilal Ahmed assigned to pickup PK-70235', time: '8 min ago' },
-  { icon: 'truck', color: '#2563EB', text: 'Shipment FX-592012 dispatched to Peshawar Branch', time: '15 min ago' },
-  { icon: 'check', color: '#1E8E5A', text: 'Order FX-582011 delivered — OTP confirmed', time: '22 min ago' },
-  { icon: 'alert', color: '#E6350F', text: 'Delivery attempt failed for FX-582017 — customer unavailable', time: '34 min ago' },
-  { icon: 'return', color: '#F2A93B', text: 'Parcel FX-570092 marked for RTO after 5 days aging', time: '51 min ago' },
-  { icon: 'box', color: '#2563EB', text: 'Parcel FX-591046 sorted and shelved at C-02', time: '1 hr ago' },
-  { icon: 'rider', color: '#1E8E5A', text: 'Rider Hassan Iqbal came online', time: '1.5 hr ago' },
-];
-
-export const ALERTS: AlertItem[] = [
-  { sev: 'high', title: 'Storage nearing capacity', msg: 'Warehouse occupancy at 72% — plan additional dispatch runs today.', time: '10 min ago' },
-  { sev: 'high', title: '2 unassigned pickups past time slot', msg: 'PK-70233 and PK-70234 have no rider assigned and are past their requested slot.', time: '18 min ago' },
-  { sev: 'medium', title: 'Rider overload — Hassan Iqbal', msg: 'Currently assigned 5 active deliveries, above the recommended limit of 4.', time: '40 min ago' },
-  { sev: 'medium', title: 'Delayed delivery — FX-582013', msg: 'Out for delivery for over 3 hours without a status update.', time: '55 min ago' },
-  { sev: 'low', title: 'Customer complaint logged', msg: 'Complaint #C-4471 regarding late delivery, assigned to support desk.', time: '1 hr ago' },
-  { sev: 'low', title: 'Aging parcels flagged', msg: '4 parcels have been in the warehouse for 4+ days without movement.', time: '2 hr ago' },
-  { sev: 'medium', title: 'System sync delay', msg: 'Rider GPS feed refreshed with a 90 second delay in the last hour.', time: '2 hr ago' },
-];

@@ -295,6 +295,76 @@ def create_staff_or_rider(
     return UserOut.from_orm_with_role(user)
 
 
+def _period_network_stats(db: Session, start: datetime, end: datetime) -> dict:
+    """Delivery success rate, on-time pickup rate, and rider utilization for one
+    time window - powers the superadmin week-over-week comparison."""
+    from app.api.v1.hub import ON_TIME_PICKUP_HOURS
+
+    status_rows = (
+        db.query(Order.status, func.count(Order.id))
+        .filter(
+            Order.status.in_([OrderStatus.delivered, OrderStatus.failed, OrderStatus.rto]),
+            Order.created_at >= start,
+            Order.created_at < end,
+        )
+        .group_by(Order.status)
+        .all()
+    )
+    counts = {s: c for s, c in status_rows}
+    delivered = counts.get(OrderStatus.delivered, 0)
+    resolved = sum(counts.values())
+    delivery_success_rate = round((delivered / resolved) * 100, 1) if resolved else 0.0
+
+    pickup_rows = (
+        db.query(Order.id, Order.created_at, func.min(TrackingEvent.created_at))
+        .join(TrackingEvent, TrackingEvent.order_id == Order.id)
+        .filter(
+            TrackingEvent.status == OrderStatus.picked_up.value,
+            Order.created_at >= start,
+            Order.created_at < end,
+        )
+        .group_by(Order.id, Order.created_at)
+        .all()
+    )
+    on_time = sum(
+        1 for _, created, picked in pickup_rows
+        if picked and (picked - created) <= timedelta(hours=ON_TIME_PICKUP_HOURS)
+    )
+    on_time_pickup_rate = round((on_time / len(pickup_rows)) * 100, 1) if pickup_rows else 0.0
+
+    active_rider_ids = {
+        str(r) for (r,) in (
+            db.query(Order.rider_id)
+            .filter(
+                Order.status == OrderStatus.delivered,
+                Order.rider_id.isnot(None),
+                Order.created_at >= start,
+                Order.created_at < end,
+            )
+            .distinct()
+            .all()
+        )
+    }
+    total_riders = db.query(func.count(RiderProfile.id)).scalar() or 0
+    rider_utilization = round((len(active_rider_ids) / total_riders) * 100, 1) if total_riders else 0.0
+
+    return {
+        "delivery_success_rate": delivery_success_rate,
+        "on_time_pickup_rate": on_time_pickup_rate,
+        "rider_utilization": rider_utilization,
+    }
+
+
+def _network_comparison(db: Session) -> dict:
+    now = datetime.now(timezone.utc)
+    this_week_start = now - timedelta(days=7)
+    last_week_start = now - timedelta(days=14)
+    return {
+        "this_week": _period_network_stats(db, this_week_start, now),
+        "last_week": _period_network_stats(db, last_week_start, this_week_start),
+    }
+
+
 @router.get("/analytics")
 def analytics(
     db: Session = Depends(get_db),
@@ -377,6 +447,7 @@ def analytics(
         "cod_collected_total": round(cod_collected_total, 2),
         "cod_pending_total": cod_pending_total,
         "avg_delivery_hours": avg_delivery_hours,
+        "network_comparison": _network_comparison(db),
     }
 
 

@@ -25,3 +25,4 @@ class Branch(Base, TimestampMixin):
     staff_members = relationship("StaffProfile", back_populates="branch")
     riders = relationship("RiderProfile", back_populates="branch")
     warehouses = relationship("Warehouse", back_populates="branch")
+    service_areas = relationship("BranchServiceArea", back_populates="branch", cascade="all, delete-orphan")

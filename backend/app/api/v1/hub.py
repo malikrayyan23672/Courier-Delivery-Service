@@ -13,6 +13,11 @@ from app.models.order import Order, OrderStatus
 from app.models.rider import RiderProfile
 from app.models.tracking_event import TrackingEvent
 from app.models.bus_network import BusManifest, BusSchedule, ManifestItem, ManifestStatus
+from app.models.staff import StaffProfile
+from app.models.branch_service_area import BranchServiceArea
+from app.models.settlement import Settlement
+from app.models.support_ticket import SupportTicket
+from app.models.branch import Branch
 from app.services.order_service import transition
 from app.services.settlement_service import (
     rider_wallet_limit,
@@ -295,6 +300,93 @@ def vendor_scores(
     return _vendor_scores(db, bid)
 
 
+# No explicit delivery SLA field exists yet, so "on time" is approximated as
+# picked up within this many hours of the order being created.
+ON_TIME_PICKUP_HOURS = 4
+
+
+def _delivery_success_rate(db: Session, since: datetime, branch_id: str | None = None) -> float:
+    query = db.query(Order.status, func.count(Order.id)).filter(
+        Order.status.in_([OrderStatus.delivered, OrderStatus.failed, OrderStatus.rto]),
+        Order.created_at >= since,
+    )
+    if branch_id:
+        query = query.filter(Order.branch_id == branch_id)
+    counts = {s: c for s, c in query.group_by(Order.status).all()}
+    delivered = counts.get(OrderStatus.delivered, 0)
+    resolved = sum(counts.values())
+    return round((delivered / resolved) * 100, 1) if resolved else 0.0
+
+
+def _on_time_pickup_rate(db: Session, since: datetime, branch_id: str | None = None) -> float:
+    query = (
+        db.query(Order.id, Order.created_at, func.min(TrackingEvent.created_at))
+        .join(TrackingEvent, TrackingEvent.order_id == Order.id)
+        .filter(TrackingEvent.status == OrderStatus.picked_up.value, Order.created_at >= since)
+    )
+    if branch_id:
+        query = query.filter(Order.branch_id == branch_id)
+    rows = query.group_by(Order.id, Order.created_at).all()
+    if not rows:
+        return 0.0
+    on_time = sum(
+        1 for _, created, picked in rows
+        if picked and (picked - created) <= timedelta(hours=ON_TIME_PICKUP_HOURS)
+    )
+    return round((on_time / len(rows)) * 100, 1)
+
+
+def _hub_reports(db: Session, bid: str) -> dict:
+    since = datetime.now(timezone.utc) - timedelta(days=30)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+
+    avg_delivery_seconds = (
+        db.query(func.avg(func.extract("epoch", Order.updated_at - Order.created_at)))
+        .filter(Order.branch_id == bid, Order.status == OrderStatus.delivered)
+        .scalar()
+    )
+
+    cod_collected_today = (
+        db.query(func.sum(Settlement.amount))
+        .join(Order, Settlement.order_id == Order.id)
+        .filter(Order.branch_id == bid, Settlement.created_at >= today_start)
+        .scalar()
+        or 0.0
+    )
+
+    complaints_7d = (
+        db.query(func.count(SupportTicket.id))
+        .join(Order, SupportTicket.order_id == Order.id)
+        .filter(Order.branch_id == bid, SupportTicket.created_at >= week_ago)
+        .scalar()
+        or 0
+    )
+
+    branch_delivered_counts = (
+        db.query(Order.branch_id, func.count(Order.id))
+        .filter(Order.status == OrderStatus.delivered, Order.branch_id.isnot(None))
+        .group_by(Order.branch_id)
+        .order_by(func.count(Order.id).desc())
+        .all()
+    )
+    ranked_branch_ids = [str(row[0]) for row in branch_delivered_counts]
+    network_rank = ranked_branch_ids.index(bid) + 1 if bid in ranked_branch_ids else None
+    network_branch_count = db.query(func.count(Branch.id)).scalar() or 0
+
+    return {
+        "delivery_success_rate": _delivery_success_rate(db, since, bid),
+        "network_delivery_success_rate": _delivery_success_rate(db, since, None),
+        "on_time_pickup_rate": _on_time_pickup_rate(db, since, bid),
+        "network_on_time_pickup_rate": _on_time_pickup_rate(db, since, None),
+        "avg_delivery_hours": round(avg_delivery_seconds / 3600, 1) if avg_delivery_seconds else None,
+        "cod_collected_today": round(cod_collected_today, 2),
+        "complaints_7d": complaints_7d,
+        "network_rank": network_rank,
+        "network_branch_count": network_branch_count,
+    }
+
+
 @router.get("/analytics")
 def hub_analytics(
     branch_id: str | None = Query(None),
@@ -386,6 +478,7 @@ def hub_analytics(
             "pending": pending,
             "rto": rto,
         },
+        "reports": _hub_reports(db, bid),
     }
 
 
@@ -423,3 +516,148 @@ def rider_wallet_update(
     db.commit()
     db.refresh(rider)
     return _rider_wallet_out(rider)
+
+
+# ============================================================
+# BRANCH STAFF ROSTER
+# ============================================================
+def _staff_out(staff: StaffProfile) -> dict:
+    return {
+        "id": str(staff.id),
+        "full_name": staff.user.full_name if staff.user else "Unknown",
+        "designation": staff.designation,
+        "employee_code": staff.employee_code,
+        "phone": staff.user.phone if staff.user else None,
+        "attendance_status": staff.attendance_status,
+    }
+
+
+@router.get("/staff")
+def list_branch_staff(
+    branch_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
+):
+    bid = _resolve_branch_id(current_user, branch_id)
+    staff = (
+        db.query(StaffProfile)
+        .options(joinedload(StaffProfile.user))
+        .filter(StaffProfile.branch_id == bid)
+        .all()
+    )
+    return [_staff_out(s) for s in staff]
+
+
+class StaffAttendanceIn(BaseModel):
+    status: Literal["present", "on_leave", "absent"]
+
+
+@router.patch("/staff/{staff_profile_id}/attendance")
+def update_staff_attendance(
+    staff_profile_id: str,
+    payload: StaffAttendanceIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+):
+    bid = _resolve_branch_id(current_user, None)
+    staff = (
+        db.query(StaffProfile)
+        .options(joinedload(StaffProfile.user))
+        .filter(StaffProfile.id == staff_profile_id)
+        .first()
+    )
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff member not found")
+    if str(staff.branch_id) != bid:
+        raise HTTPException(status_code=403, detail="This staff member does not belong to your branch")
+
+    staff.attendance_status = payload.status
+    db.commit()
+    db.refresh(staff)
+    return _staff_out(staff)
+
+
+# ============================================================
+# BRANCH SERVICE AREAS (coverage zones)
+# ============================================================
+def _service_area_out(area: BranchServiceArea) -> dict:
+    return {
+        "id": str(area.id),
+        "branch_id": str(area.branch_id),
+        "zone_name": area.zone_name,
+        "postal_codes": area.postal_codes,
+        "radius_km": area.radius_km,
+        "same_day": area.same_day,
+        "express": area.express,
+    }
+
+
+@router.get("/service-areas")
+def list_service_areas(
+    branch_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
+):
+    bid = _resolve_branch_id(current_user, branch_id)
+    areas = db.query(BranchServiceArea).filter(BranchServiceArea.branch_id == bid).order_by(BranchServiceArea.zone_name).all()
+    return [_service_area_out(a) for a in areas]
+
+
+class ServiceAreaIn(BaseModel):
+    zone_name: str
+    postal_codes: Optional[str] = None
+    radius_km: Optional[float] = None
+    same_day: bool = False
+    express: bool = False
+
+
+@router.post("/service-areas", status_code=201)
+def create_service_area(
+    payload: ServiceAreaIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+):
+    bid = _resolve_branch_id(current_user, None)
+    area = BranchServiceArea(branch_id=bid, **payload.model_dump())
+    db.add(area)
+    db.commit()
+    db.refresh(area)
+    return _service_area_out(area)
+
+
+@router.patch("/service-areas/{area_id}")
+def update_service_area(
+    area_id: str,
+    payload: ServiceAreaIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+):
+    bid = _resolve_branch_id(current_user, None)
+    area = db.query(BranchServiceArea).filter(BranchServiceArea.id == area_id).first()
+    if not area:
+        raise HTTPException(status_code=404, detail="Service area not found")
+    if str(area.branch_id) != bid:
+        raise HTTPException(status_code=403, detail="This service area does not belong to your branch")
+
+    for key, value in payload.model_dump().items():
+        setattr(area, key, value)
+    db.commit()
+    db.refresh(area)
+    return _service_area_out(area)
+
+
+@router.delete("/service-areas/{area_id}", status_code=204)
+def delete_service_area(
+    area_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+):
+    bid = _resolve_branch_id(current_user, None)
+    area = db.query(BranchServiceArea).filter(BranchServiceArea.id == area_id).first()
+    if not area:
+        raise HTTPException(status_code=404, detail="Service area not found")
+    if str(area.branch_id) != bid:
+        raise HTTPException(status_code=403, detail="This service area does not belong to your branch")
+
+    db.delete(area)
+    db.commit()

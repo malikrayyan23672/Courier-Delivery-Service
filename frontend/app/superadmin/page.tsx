@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { RoleGuard } from '@/components/RoleGuard';
 import { useAuth } from '@/context/AuthContext';
 import { Field } from './components';
+import { NotificationBell } from '@/components/NotificationBell';
 import {
   ApiError,
   getAdminAnalytics,
@@ -26,11 +27,19 @@ import {
   ZoneCreatePayload,
   addNewZone,
   deleteZoneByAdmin,
+  listMyNotifications,
+  NotificationItem,
+  listActivityFeed,
+  ActivityItem as AuditActivityItem,
+  listAssignmentRules,
+  updateAssignmentRule,
+  AssignmentRule,
+  listMessageTemplates,
+  updateMessageTemplate,
+  MessageTemplate,
+  listSellersAdmin,
+  AdminSeller,
 } from '@/lib/api';
-import {
-  BUSINESS_ACCOUNTS, ASSIGNMENT_RULES, MESSAGE_TEMPLATES, SYSTEM_ALERTS,
-  NETWORK_ACTIVITY, NETWORK_COMPARISON, BusinessAccount, AssignmentRule, MessageTemplate, AdminAlert,
-} from './data';
 import {
   Pill, AvatarChip, KpiCard, StatStrip, Toasts, NavIcon, NavBadge, Modal, inputCls,
 } from './components';
@@ -94,6 +103,36 @@ function titleStatus(status: string) {
   return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function relativeTime(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+function notificationToAlert(n: NotificationItem): { sev: 'high' | 'medium' | 'low'; title: string; msg: string; time: string } {
+  const sev: 'high' | 'medium' | 'low' = n.type === 'error' ? 'high' : n.type === 'warning' ? 'medium' : 'low';
+  return { sev, title: n.title, msg: n.message, time: relativeTime(n.created_at) };
+}
+
+function activityText(a: AuditActivityItem): string {
+  return a.details || `${a.user ?? 'System'} ${a.action.replace(/_/g, ' ')}${a.entity_type ? ` — ${a.entity_type}` : ''}`;
+}
+
+function activityIcon(a: AuditActivityItem): { icon: string; color: string } {
+  const key = `${a.action} ${a.entity_type}`.toLowerCase();
+  if (key.includes('deliver')) return { icon: 'check', color: '#1E8E5A' };
+  if (key.includes('branch')) return { icon: 'building', color: '#2563EB' };
+  if (key.includes('rider')) return { icon: 'riders', color: '#1E8E5A' };
+  if (key.includes('business') || key.includes('seller')) return { icon: 'business', color: '#F2A93B' };
+  if (key.includes('rule') || key.includes('zone')) return { icon: 'target', color: '#E6350F' };
+  if (key.includes('message') || key.includes('template') || key.includes('notification')) return { icon: 'message', color: '#1D3C8F' };
+  if (key.includes('fail') || key.includes('dispute') || key.includes('reject')) return { icon: 'alert', color: '#E6350F' };
+  return { icon: 'box', color: '#2563EB' };
+}
+
 function mapAdminRiders(apiRiders: AdminRider[]): RiderCard[] {
   return apiRiders.map((r) => ({
     name: r.full_name,
@@ -131,11 +170,11 @@ function AdminDashboardContent() {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState('');
 
-  // local/mock-backed sections (no endpoint yet)
-  const [assignmentRules, setAssignmentRules] = useState<AssignmentRule[]>(ASSIGNMENT_RULES);
-  const [messageTemplates, setMessageTemplates] = useState<MessageTemplate[]>(MESSAGE_TEMPLATES);
-  const [businessAccounts] = useState<BusinessAccount[]>(BUSINESS_ACCOUNTS);
-  const [alerts] = useState<AdminAlert[]>(SYSTEM_ALERTS);
+  const [assignmentRules, setAssignmentRules] = useState<AssignmentRule[]>([]);
+  const [messageTemplates, setMessageTemplates] = useState<MessageTemplate[]>([]);
+  const [businessAccounts, setBusinessAccounts] = useState<AdminSeller[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [activity, setActivity] = useState<AuditActivityItem[]>([]);
 
   const [orderSearch, setOrderSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('');
@@ -170,19 +209,28 @@ function AdminDashboardContent() {
       listBranches(token),
       listZones(token),
       listStaffAndRiders(token),
+      listAssignmentRules(token),
+      listMessageTemplates(token),
+      listSellersAdmin(token),
     ])
-      .then(([a, o, r, b, z, u]) => {
+      .then(([a, o, r, b, z, u, rules, templates, sellers]) => {
         setAnalytics(a);
         setOrders(o);
         setAdminRiders(r);
         setBranches(b);
         setZones(z);
         setUsers(u);
+        setAssignmentRules(rules);
+        setMessageTemplates(templates);
+        setBusinessAccounts(sellers);
       })
       .catch((err) => {
         setSyncError(err instanceof ApiError ? err.message : 'Could not sync network data with backend.');
       })
       .finally(() => setSyncing(false));
+
+    listMyNotifications(token).then((d) => setNotifications(d.notifications)).catch(() => {});
+    listActivityFeed(token).then(setActivity).catch(() => {});
   }
 
   useEffect(() => {
@@ -261,12 +309,28 @@ function AdminDashboardContent() {
     }
   }
 
-  function toggleRule(id: string) {
-    setAssignmentRules((prev) => prev.map((r) => (r.id === id ? { ...r, active: !r.active } : r)));
+  async function toggleRule(id: string) {
+    if (!token) return;
+    const rule = assignmentRules.find((r) => r.id === id);
+    if (!rule) return;
+    try {
+      const updated = await updateAssignmentRule(id, { active: !rule.active }, token);
+      setAssignmentRules((prev) => prev.map((r) => (r.id === id ? updated : r)));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update rule.');
+    }
   }
 
-  function toggleTemplate(id: string) {
-    setMessageTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, active: !t.active } : t)));
+  async function toggleTemplate(id: string) {
+    if (!token) return;
+    const template = messageTemplates.find((t) => t.id === id);
+    if (!template) return;
+    try {
+      const updated = await updateMessageTemplate(id, { active: !template.active }, token);
+      setMessageTemplates((prev) => prev.map((t) => (t.id === id ? updated : t)));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update template.');
+    }
   }
 
   // ---- derived ----
@@ -319,7 +383,9 @@ function AdminDashboardContent() {
                 <span className="flex-1 text-left">{item.label}</span>
                 {item.view === 'orders' && <NavBadge n={unassignedOrders.length} />}
                 {item.view === 'riders' && <NavBadge n={onlineRiders + busyRiders} />}
-                {item.view === 'alerts' && <NavBadge n={alerts.length} danger />}
+                {item.view === 'alerts' && notifications.filter((n) => !n.is_read).length > 0 && (
+                  <NavBadge n={notifications.filter((n) => !n.is_read).length} danger />
+                )}
               </button>
             ))}
           </div>
@@ -343,12 +409,7 @@ function AdminDashboardContent() {
             <h1 className="font-display text-lg font-bold text-ink truncate">{PAGE_META[view].title}</h1>
             <div className="text-xs text-muted-foreground truncate">{PAGE_META[view].sub}</div>
           </div>
-          <button onClick={() => switchView('alerts')} className="relative p-2 text-ink hover:bg-page rounded-lg" title="Alerts">
-            <NavIcon name="alert" size={17} />
-            {alerts.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-danger text-white text-[0.6rem] font-bold flex items-center justify-center">{alerts.length}</span>
-            )}
-          </button>
+          <NotificationBell token={token!} className="text-ink" />
           {view === 'zones' && (
             <button onClick={() => setShowAddNewZone(true)} className="hidden sm:flex items-center gap-1.5 bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-sm px-4 py-2.5 rounded-[10px] transition-colors whitespace-nowrap">
               <NavIcon name="plus" size={14} color="#fff" /> Add new Zone
@@ -370,7 +431,7 @@ function AdminDashboardContent() {
 
           {view === 'overview' && (
             <OverviewView analytics={analytics} branches={branches} zones={zones} onlineRiders={onlineRiders}
-              busyRiders={busyRiders} unassignedOrders={unassignedOrders.length} switchView={switchView} />
+              busyRiders={busyRiders} unassignedOrders={unassignedOrders.length} switchView={switchView} activity={activity} />
           )}
 
           {view === 'orders' && (
@@ -405,7 +466,7 @@ function AdminDashboardContent() {
 
           {view === 'reports' && <ReportsView analytics={analytics} riders={riders} />}
 
-          {view === 'alerts' && <AlertsView alerts={alerts} />}
+          {view === 'alerts' && <AlertsView notifications={notifications} />}
 
           {view === 'settings' && <SettingsView toast={toast} />}
         </div>
@@ -431,9 +492,9 @@ function AdminDashboardContent() {
 // ============================================================
 // OVERVIEW
 // ============================================================
-function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, unassignedOrders, switchView }: {
+function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, unassignedOrders, switchView, activity }: {
   analytics?: AdminAnalytics; branches: Branch[]; zones: Zone[]; onlineRiders: number; busyRiders: number;
-  unassignedOrders: number; switchView: (v: View) => void;
+  unassignedOrders: number; switchView: (v: View) => void; activity: AuditActivityItem[];
 }) {
   const kpis = [
     { icon: 'box', bg: '#2563EB', label: 'Total Orders', num: analytics?.total_orders ?? '—', trend: 'All channels, all time', trendColor: '#8A94A6' },
@@ -487,17 +548,24 @@ function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, un
           <h2 className="font-display font-bold text-base mb-1">Recent Network Activity</h2>
           <p className="text-xs text-muted-foreground mb-4">Latest changes across the platform</p>
           <div className="flex flex-col gap-3">
-            {NETWORK_ACTIVITY.map((a, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-none text-white" style={{ background: a.color }}>
-                  <NavIcon name={a.icon} size={13} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-ink">{a.text}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{a.time}</div>
-                </div>
-              </div>
-            ))}
+            {activity.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No recent activity yet.</p>
+            ) : (
+              activity.slice(0, 8).map((a) => {
+                const { icon, color } = activityIcon(a);
+                return (
+                  <div key={a.id} className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center flex-none text-white" style={{ background: color }}>
+                      <NavIcon name={icon} size={13} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-ink">{activityText(a)}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{relativeTime(a.created_at)}</div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </section>
       </div>
@@ -725,7 +793,7 @@ function RidersView({ riders, onlineRiders, busyRiders, offlineRiders }: {
 function AssignmentView({ rules, onToggle, unassignedOrders, openAssign }: {
   rules: AssignmentRule[]; onToggle: (id: string) => void; unassignedOrders: ApiOrder[]; openAssign: (o: ApiOrder) => void;
 }) {
-  const typeLabel: Record<AssignmentRule['type'], string> = {
+  const typeLabel: Record<AssignmentRule['rule_type'], string> = {
     proximity: 'Proximity-based', load_balance: 'Load balancing', manual_only: 'Manual review', branch_priority: 'Branch priority',
   };
   return (
@@ -734,13 +802,14 @@ function AssignmentView({ rules, onToggle, unassignedOrders, openAssign }: {
         <h2 className="font-display font-bold text-base mb-1">Automatic Assignment Rules</h2>
         <p className="text-xs text-muted-foreground mb-4">Control how new orders get matched to riders across the network</p>
         <div className="flex flex-col gap-3">
+          {rules.length === 0 && <p className="text-sm text-muted-foreground">No assignment rules configured yet.</p>}
           {rules.map((r) => (
             <div key={r.id} className="flex items-start justify-between gap-4 border border-line rounded-xl p-4">
               <div className="flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold text-sm text-ink">{r.name}</span>
-                  <Pill status="blue" label={typeLabel[r.type]} />
-                  {r.radiusKm && <Pill status="gray" label={`${r.radiusKm}km radius`} />}
+                  <Pill status="blue" label={typeLabel[r.rule_type] ?? r.rule_type} />
+                  {r.radius_km && <Pill status="gray" label={`${r.radius_km}km radius`} />}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1.5 max-w-xl">{r.description}</p>
               </div>
@@ -1132,7 +1201,7 @@ function CreateUserModal({ branches, zones, onClose, onCreate }: {
 // ============================================================
 // BUSINESS ACCOUNTS
 // ============================================================
-function BusinessView({ accounts }: { accounts: BusinessAccount[] }) {
+function BusinessView({ accounts }: { accounts: AdminSeller[] }) {
   return (
     <section className="bg-white border border-line rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
@@ -1143,16 +1212,19 @@ function BusinessView({ accounts }: { accounts: BusinessAccount[] }) {
       </div>
       <table className="w-full text-sm">
         <thead><tr className="text-left text-muted-foreground text-xs border-b border-line">
-          <th className="py-2 pr-4">Business</th><th className="py-2 pr-4">Type</th><th className="py-2 pr-4">Monthly Shipments</th>
+          <th className="py-2 pr-4">Business</th><th className="py-2 pr-4">Type</th><th className="py-2 pr-4">Total Orders</th>
           <th className="py-2 pr-4">COD</th><th className="py-2 pr-4">City</th><th className="py-2">Status</th>
         </tr></thead>
         <tbody>
+          {accounts.length === 0 && (
+            <tr><td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No business accounts yet.</td></tr>
+          )}
           {accounts.map((b) => (
-            <tr key={b.id} className="border-b border-line last:border-0">
-              <td className="py-3 pr-4"><div className="font-bold text-ink">{b.name}</div><div className="text-xs text-muted-foreground">{b.contactPhone}</div></td>
-              <td className="py-3 pr-4"><Pill status="blue" label={b.type} /></td>
-              <td className="py-3 pr-4">{b.monthlyShipments.toLocaleString()}</td>
-              <td className="py-3 pr-4"><Pill status={b.codEnabled ? 'green' : 'gray'} label={b.codEnabled ? 'Enabled' : 'Disabled'} /></td>
+            <tr key={b.business_id} className="border-b border-line last:border-0">
+              <td className="py-3 pr-4"><div className="font-bold text-ink">{b.company_name}</div><div className="text-xs text-muted-foreground">{b.phone}</div></td>
+              <td className="py-3 pr-4"><Pill status="blue" label={b.business_type ?? 'Unspecified'} /></td>
+              <td className="py-3 pr-4">{b.total_orders.toLocaleString()}</td>
+              <td className="py-3 pr-4"><Pill status={b.cod_service ? 'green' : 'gray'} label={b.cod_service ? 'Enabled' : 'Disabled'} /></td>
               <td className="py-3 pr-4 text-muted-foreground">{b.city}</td>
               <td className="py-3"><Pill status={b.status} /></td>
             </tr>
@@ -1172,6 +1244,7 @@ function MessagingView({ templates, onToggle }: { templates: MessageTemplate[]; 
       <h2 className="font-display font-bold text-base mb-1">Automatic Messaging</h2>
       <p className="text-xs text-muted-foreground mb-4">Templates sent automatically as an order moves through its lifecycle</p>
       <div className="flex flex-col gap-3">
+        {templates.length === 0 && <p className="text-sm text-muted-foreground">No message templates configured yet.</p>}
         {templates.map((t) => (
           <div key={t.id} className="flex items-start justify-between gap-4 border border-line rounded-xl p-4">
             <div className="flex-1">
@@ -1244,13 +1317,17 @@ function ReportsView({ analytics, riders }: { analytics?: AdminAnalytics; riders
         <section className="bg-white border border-line rounded-2xl p-5">
           <h2 className="font-display font-bold text-base mb-4">Week-over-Week Comparison</h2>
           <div className="flex flex-col gap-4">
-            {NETWORK_COMPARISON.map((c) => (
+            {analytics ? [
+              { label: 'Delivery Success Rate', thisWeek: analytics.network_comparison.this_week.delivery_success_rate, lastWeek: analytics.network_comparison.last_week.delivery_success_rate },
+              { label: 'On-Time Pickup Rate', thisWeek: analytics.network_comparison.this_week.on_time_pickup_rate, lastWeek: analytics.network_comparison.last_week.on_time_pickup_rate },
+              { label: 'Avg. Rider Utilization', thisWeek: analytics.network_comparison.this_week.rider_utilization, lastWeek: analytics.network_comparison.last_week.rider_utilization },
+            ].map((c) => (
               <div key={c.label}>
                 <div className="flex justify-between text-xs font-semibold text-ink mb-1"><span>{c.label}</span><span>{c.thisWeek}% vs {c.lastWeek}%</span></div>
                 <div className="h-1.5 bg-line rounded-full overflow-hidden mb-1"><div className="h-full bg-[#db2203]" style={{ width: `${c.thisWeek}%` }} /></div>
                 <div className="h-1.5 bg-line rounded-full overflow-hidden"><div className="h-full bg-[#B7BEC9]" style={{ width: `${c.lastWeek}%` }} /></div>
               </div>
-            ))}
+            )) : <p className="text-sm text-muted-foreground">Loading…</p>}
             <div className="text-xs text-muted-foreground mt-1"><span className="text-[#db2203] font-bold">■</span> This week &nbsp; <span className="text-[#B7BEC9] font-bold">■</span> Last week</div>
           </div>
         </section>
@@ -1262,19 +1339,23 @@ function ReportsView({ analytics, riders }: { analytics?: AdminAnalytics; riders
 // ============================================================
 // ALERTS
 // ============================================================
-function AlertsView({ alerts }: { alerts: AdminAlert[] }) {
+function AlertsView({ notifications }: { notifications: NotificationItem[] }) {
   return (
     <section className="bg-white border border-line rounded-2xl p-5">
       <h2 className="font-display font-bold text-base mb-1">Alerts & Notifications</h2>
       <p className="text-xs text-muted-foreground mb-4">Everything flagged for super admin review</p>
       <div className="flex flex-col gap-2.5">
-        {alerts.map((a, i) => <AlertCard key={i} alert={a} />)}
+        {notifications.length === 0 ? (
+          <p className="text-sm text-muted-foreground">You're all caught up — nothing flagged.</p>
+        ) : (
+          notifications.map((n) => <AlertCard key={n.id} alert={notificationToAlert(n)} />)
+        )}
       </div>
     </section>
   );
 }
 
-function AlertCard({ alert }: { alert: AdminAlert }) {
+function AlertCard({ alert }: { alert: { sev: 'high' | 'medium' | 'low'; title: string; msg: string; time: string } }) {
   const border = alert.sev === 'high' ? '#E6350F' : alert.sev === 'medium' ? '#F2A93B' : '#B7BEC9';
   return (
     <div className="flex gap-3 border-l-4 rounded-lg bg-page p-3.5" style={{ borderColor: border }}>

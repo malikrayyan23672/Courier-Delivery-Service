@@ -21,6 +21,9 @@ class StaffProfile(Base, TimestampMixin):
     branch_name = Column(String(150), nullable=True)
     branch_location = Column(String(255), nullable=True)
 
+    # present / on_leave / absent - set by the branch manager from the staff roster.
+    attendance_status = Column(String(20), nullable=False, default="present")
+
     branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=True)
     branch = relationship("Branch", back_populates="staff_members")
 
