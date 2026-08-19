@@ -730,17 +730,29 @@ export interface ZoneCreatePayload{
 export interface Branch{
   id: string;
   name: string;
-  address: string;
-  manager_id: string;
-  phone: string;
-  email: string;
-  latitude: string;
-  longitude: string;
-  opening_time: string;
-  closing_time: string;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  opening_time: string | null;
+  closing_time: string | null;
+  latitude: string | null;
+  longitude: string | null;
   status: string;
-  zone_id: string;
+  zone_id: string | null;
+  zone_name: string | null;
+}
 
+export interface BranchInput {
+  name: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  opening_time?: string;
+  closing_time?: string;
+  latitude?: string;
+  longitude?: string;
+  zone_id?: string;
+  status?: 'active' | 'inactive';
 }
 
 export function listStaffAndRiders(token: string) {
@@ -754,6 +766,22 @@ export function listZones(token: string){
 
 export function listBranches(token: string){
   return request<Branch[]>('/admin/branches', {method: 'GET'}, token);
+}
+
+export function createBranch(payload: BranchInput, token: string) {
+  return request<Branch>('/admin/branches', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function updateBranch(branchId: string, payload: Partial<BranchInput>, token: string) {
+  return request<Branch>(`/admin/branches/${branchId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
+export function resetUserPassword(userId: string, token: string) {
+  return request<{ id: string; full_name: string; temporary_password: string }>(
+    `/admin/users/${userId}/reset-password`,
+    { method: 'POST' },
+    token
+  );
 }
 
 export interface AdminCreateUserPayload {
@@ -1504,6 +1532,29 @@ export interface SellerParcelDetail {
 
 export function getSellerParcelDetail(trackingNumber: string, token: string) {
   return request<SellerParcelDetail>(`/seller/parcels/${trackingNumber}`, { method: 'GET' }, token);
+}
+
+// Auth-gated PDF download - can't use a plain <a href>  (no Authorization
+// header on a bare navigation), so fetch as a blob and trigger the save
+// client-side instead.
+export async function downloadSellerInvoice(trackingNumber: string, token: string) {
+  const res = await fetch(`${API_ORIGIN}/api/v1/seller/parcels/${trackingNumber}/invoice.pdf`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    let detail: unknown = 'Could not download invoice.';
+    try { detail = (await res.json())?.detail ?? detail; } catch { /* non-JSON error body */ }
+    throw new ApiError(res.status, detail);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${trackingNumber}-invoice.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 export function cancelSellerParcel(trackingNumber: string, token: string, reason?: string) {

@@ -18,6 +18,7 @@ from app.models.rider_status_request import RiderStatusRequest, RequestStatus
 from app.models.parcel_unlock_request import ParcelUnlockRequest
 from app.models.support_ticket import SupportTicket, SupportTicketMessage, SupportTicketStatus
 from app.models.notification import Notification
+from app.models.audit_log import AuditLog
 from app.schemas.order import OrderOut, OrderDetailOut, AddressOut, TrackingEventOut, PaymentOut
 from app.schemas.notification import NotificationOut
 from app.schemas.order_message import OrderMessageCreate, OrderMessageOut
@@ -128,6 +129,42 @@ def my_profile(
         cod_wallet_limit=WALLET_LOCK_THRESHOLD,
         cod_wallet_warning_at=WALLET_WARNING_THRESHOLD,
     )
+
+
+WALLET_LOG_ACTIONS = ("rider_wallet_locked", "rider_wallet_unlocked", "rider_wallet_limit_updated")
+
+
+@router.get("/wallet/history")
+def my_wallet_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    """Every lock/unlock/limit-change event on this rider's COD cash-in-hand
+    wallet (see settlement_service.py's lock_rider_wallet/unlock_rider_wallet/
+    set_rider_wallet_limit, which already write these as audit log entries) -
+    the wallet screen previously showed only the current balance with no
+    history of how it got there."""
+    rider_profile = _rider_profile(db, current_user)
+    logs = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.entity_type == "RiderProfile",
+            AuditLog.entity_id == str(rider_profile.id),
+            AuditLog.action.in_(WALLET_LOG_ACTIONS),
+        )
+        .order_by(AuditLog.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    return [
+        {
+            "id": str(log.id),
+            "action": log.action,
+            "details": log.details,
+            "created_at": log.created_at,
+        }
+        for log in logs
+    ]
 
 
 @router.get("/notifications", response_model=list[NotificationOut])

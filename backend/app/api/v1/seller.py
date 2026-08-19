@@ -2,7 +2,7 @@ import csv
 import io
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
@@ -24,6 +24,7 @@ from app.models.delivery_attempt import DeliveryAttempt
 from app.models.order_message import OrderMessage
 from app.models.wallet import WalletTransaction
 from app.models.settlement import Settlement
+from app.models.invoice import Invoice
 from app.utils.uploads import save_seller_upload, save_product_image
 from app.schemas.order import AddressInput
 from app.schemas.seller import (
@@ -37,6 +38,7 @@ from app.schemas.wallet import WalletTransactionOut
 from app.schemas.marketplace import ProductIn, ProductUpdateIn, ProductOut, RatingOut, RatingSummaryOut
 from app.schemas.order_message import OrderMessageCreate, OrderMessageOut
 from app.services.order_service import create_order, get_or_create_guest_customer, cancel_order
+from app.services.invoice_pdf_service import generate_invoice_pdf
 from app.services import notification_service
 
 router = APIRouter(prefix="/seller", tags=["Seller Portal"])
@@ -523,6 +525,33 @@ def seller_parcel_detail(
         "last_lat": last_location.lat if last_location else None,
         "last_lng": last_location.lng if last_location else None,
     }
+
+
+@router.get("/parcels/{tracking_number}/invoice.pdf")
+def get_seller_parcel_invoice_pdf(
+    tracking_number: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("business")),
+):
+    business = _require_business(db, current_user)
+    order = (
+        db.query(Order)
+        .filter(Order.tracking_number == tracking_number.strip().upper(), Order.seller_business_id == business.id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Parcel not found")
+
+    invoice = db.query(Invoice).filter(Invoice.order_id == order.id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="No invoice exists for this order")
+
+    pdf_bytes = generate_invoice_pdf(invoice, order)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={invoice.invoice_number}.pdf"},
+    )
 
 
 @router.patch("/parcels/{tracking_number}/cancel")

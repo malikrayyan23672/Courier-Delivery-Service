@@ -42,6 +42,9 @@ import {
   getNetworkSettings,
   updateNetworkSettings,
   NetworkSettings,
+  createBranch,
+  updateBranch,
+  resetUserPassword,
 } from '@/lib/api';
 import {
   Pill, AvatarChip, KpiCard, StatStrip, Toasts, NavIcon, NavBadge, Modal, inputCls,
@@ -312,6 +315,17 @@ function AdminDashboardContent() {
     }
   }
 
+  async function handleResetPassword(u: AdminUser) {
+    if (!token) return;
+    if (!confirm(`Reset ${u.full_name}'s password? Their current password stops working immediately.`)) return;
+    try {
+      const result = await resetUserPassword(u.id, token);
+      window.alert(`New temporary password for ${result.full_name}:\n\n${result.temporary_password}\n\nShare this with them directly - it won't be shown again.`);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not reset password.');
+    }
+  }
+
   async function toggleRule(id: string) {
     if (!token) return;
     const rule = assignmentRules.find((r) => r.id === id);
@@ -454,13 +468,15 @@ function AdminDashboardContent() {
               openAssign={(o) => setAssignModalOrder(o)} />
           )}
 
-          {view === 'branches' && <BranchesView branches={branches} zones={zones} />}
+          {view === 'branches' && (
+            <BranchesView branches={branches} zones={zones} token={token!} toast={toast} setBranches={setBranches} />
+          )}
 
           {view === 'zones' && <ZonesView zones={zones} branches={branches} onDelete={handleDeleteZone} />}
 
           {view === 'staff' && (
             <StaffView users={filteredUsers} roleFilter={userRoleFilter} setRoleFilter={setUserRoleFilter}
-              onDelete={handleDeleteUser} />
+              onDelete={handleDeleteUser} onResetPassword={handleResetPassword} />
           )}
 
           {view === 'business' && <BusinessView accounts={businessAccounts} />}
@@ -859,43 +875,118 @@ function AssignmentView({ rules, onToggle, unassignedOrders, openAssign }: {
   );
 }
 
-interface FormState{
-  manager_id: string;
-  branch_name: string;
+interface BranchFormState {
+  name: string;
+  address: string;
   email: string;
   opening_time: string;
   closing_time: string;
   phone: string;
-  status: string;
+  status: 'active' | 'inactive';
   zone_id: string;
   latitude: string;
   longitude: string;
 }
 
-const INITIAL_FORM: FormState = {
-  manager_id: '',
-  branch_name: '',
+const INITIAL_BRANCH_FORM: BranchFormState = {
+  name: '',
+  address: '',
   email: '',
   opening_time: '',
   closing_time: '',
   phone: '',
-  status: '',
+  status: 'active',
   zone_id: '',
   latitude: '',
   longitude: '',
+};
 
+function branchToForm(b: Branch): BranchFormState {
+  return {
+    name: b.name,
+    address: b.address || '',
+    email: b.email || '',
+    opening_time: b.opening_time || '',
+    closing_time: b.closing_time || '',
+    phone: b.phone || '',
+    status: (b.status as 'active' | 'inactive') || 'active',
+    zone_id: b.zone_id || '',
+    latitude: b.latitude || '',
+    longitude: b.longitude || '',
+  };
 }
-
 
 // ============================================================
 // BRANCHES
 // ============================================================
-function BranchesView({ branches, zones }: { branches: Branch[]; zones: Zone[] }) {
+function BranchesView({ branches, zones, token, toast, setBranches }: {
+  branches: Branch[]; zones: Zone[]; token: string; toast: (msg: string) => void;
+  setBranches: React.Dispatch<React.SetStateAction<Branch[]>>;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null); // null while creating, branch id while editing
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<BranchFormState>(INITIAL_BRANCH_FORM);
+  const [saving, setSaving] = useState(false);
 
-    const [showCreateBranchForm, setShowCreateBranchForm] = useState(false);
-    const [form, setForm] = useState<FormState>(INITIAL_FORM)
+  const zoneName = (id: string | null) => zones.find((z) => z.id === id)?.name || '—';
 
-  const zoneName = (id: string) => zones.find((z) => z.id === id)?.name || '—';
+  function openCreateForm() {
+    setEditingId(null);
+    setForm(INITIAL_BRANCH_FORM);
+    setShowForm(true);
+  }
+
+  function openEditForm(b: Branch) {
+    setEditingId(b.id);
+    setForm(branchToForm(b));
+    setShowForm(true);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) { toast('Branch name is required.'); return; }
+    const payload = {
+      name: form.name.trim(),
+      address: form.address || undefined,
+      phone: form.phone || undefined,
+      email: form.email || undefined,
+      opening_time: form.opening_time || undefined,
+      closing_time: form.closing_time || undefined,
+      latitude: form.latitude || undefined,
+      longitude: form.longitude || undefined,
+      zone_id: form.zone_id || undefined,
+      status: form.status,
+    };
+    setSaving(true);
+    try {
+      if (editingId) {
+        const updated = await updateBranch(editingId, payload, token);
+        setBranches((prev) => prev.map((b) => (b.id === editingId ? updated : b)));
+        toast('Branch updated.');
+      } else {
+        const created = await createBranch(payload, token);
+        setBranches((prev) => [...prev, created]);
+        toast('Branch created.');
+      }
+      setShowForm(false);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not save branch.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleStatus(b: Branch) {
+    const newStatus = b.status === 'active' ? 'inactive' : 'active';
+    try {
+      const updated = await updateBranch(b.id, { status: newStatus }, token);
+      setBranches((prev) => prev.map((x) => (x.id === b.id ? updated : x)));
+      toast(`${b.name} marked ${newStatus}.`);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update branch status.');
+    }
+  }
+
   return (
     <section className="bg-white border border-line rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
@@ -903,15 +994,65 @@ function BranchesView({ branches, zones }: { branches: Branch[]; zones: Zone[] }
           <h2 className="font-display font-bold text-base">Branches</h2>
           <p className="text-xs text-muted-foreground">{branches.length} branches in the network</p>
         </div>
-        <button onClick={() => setShowCreateBranchForm((s) => !s)} className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
-          <NavIcon name="plus" size={13} color="#fff" /> Add Branch
+        <button onClick={showForm ? () => setShowForm(false) : openCreateForm} className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
+          <NavIcon name="plus" size={13} color="#fff" /> {showForm ? 'Cancel' : 'Add Branch'}
         </button>
       </div>
+
+      {showForm && (
+        <form onSubmit={handleSubmit} className="bg-page rounded-xl p-5 mb-5">
+          <h3 className="font-display font-bold text-sm mb-3">{editingId ? 'Edit Branch' : 'New Branch'}</h3>
+          <div className="grid md:grid-cols-2 gap-x-6 gap-y-3">
+            <Field label="Branch Name">
+              <input type="text" required className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            </Field>
+            <Field label="Zone">
+              <select className={inputCls} value={form.zone_id} onChange={(e) => setForm({ ...form, zone_id: e.target.value })}>
+                <option value="">No zone</option>
+                {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Address">
+              <input type="text" className={inputCls} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+            </Field>
+            <Field label="Phone">
+              <input type="text" className={inputCls} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            </Field>
+            <Field label="Email">
+              <input type="email" className={inputCls} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            </Field>
+            <Field label="Status">
+              <select className={inputCls} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as 'active' | 'inactive' })}>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </Field>
+            <Field label="Opening Time">
+              <input type="text" placeholder="09:00 AM" className={inputCls} value={form.opening_time} onChange={(e) => setForm({ ...form, opening_time: e.target.value })} />
+            </Field>
+            <Field label="Closing Time">
+              <input type="text" placeholder="09:00 PM" className={inputCls} value={form.closing_time} onChange={(e) => setForm({ ...form, closing_time: e.target.value })} />
+            </Field>
+            <Field label="Latitude">
+              <input type="text" className={inputCls} value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })} />
+            </Field>
+            <Field label="Longitude">
+              <input type="text" className={inputCls} value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} />
+            </Field>
+          </div>
+          <div className="flex justify-end mt-4">
+            <button type="submit" disabled={saving} className="text-sm font-bold px-5 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white disabled:opacity-60">
+              {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Create Branch'}
+            </button>
+          </div>
+        </form>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-muted-foreground text-xs border-b border-line">
             <th className="py-2 pr-4">Branch</th><th className="py-2 pr-4">Zone</th><th className="py-2 pr-4">Contact</th>
-            <th className="py-2 pr-4">Hours</th><th className="py-2 pr-4">Status</th><th className="py-2">Location</th>
+            <th className="py-2 pr-4">Hours</th><th className="py-2 pr-4">Status</th><th className="py-2 pr-4">Location</th><th className="py-2">Actions</th>
           </tr></thead>
           <tbody>
             {branches.map((b) => (
@@ -921,44 +1062,27 @@ function BranchesView({ branches, zones }: { branches: Branch[]; zones: Zone[] }
                 <td className="py-3 pr-4 text-xs text-muted-foreground">{b.phone}<br />{b.email}</td>
                 <td className="py-3 pr-4 text-xs text-muted-foreground">{b.opening_time} – {b.closing_time}</td>
                 <td className="py-3 pr-4"><Pill status={b.status || 'active'} /></td>
-                <td className="py-3">
+                <td className="py-3 pr-4">
                   {b.latitude && b.longitude ? (
                     <a href={`https://www.google.com/maps/search/?api=1&query=${b.latitude},${b.longitude}`} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-[#db2203]">Open map →</a>
                   ) : <span className="text-xs text-muted-foreground">No coordinates</span>}
                 </td>
+                <td className="py-3">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => openEditForm(b)} className="text-xs font-bold text-navy hover:underline">Edit</button>
+                    <button onClick={() => toggleStatus(b)} className="text-xs font-bold text-muted-foreground hover:underline">
+                      {b.status === 'active' ? 'Deactivate' : 'Activate'}
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
-            {branches.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No branches yet.</td></tr>}
+            {branches.length === 0 && <tr><td colSpan={7} className="py-8 text-center text-sm text-muted-foreground">No branches yet.</td></tr>}
           </tbody>
         </table>
       </div>
-
-      {showCreateBranchForm && (
-
-        <form onSubmit={handleBranchCreate} className='bg-white rounded-card shadow-card p-6 md:p-8 mb-6'>
-
-            <h2 className='font-display font-bold text-lg mb-4'>New Branch</h2>
-            <div className='grid md:grid-cols-2 gap-x-6'>
-                <Field 
-                        label='Branch Name' 
-                        >
-                          <input type='text' value={''} />
-                        </Field>
-
-                
-
-            </div>
-
-        </form>
-      )}
     </section>
-
-    
   );
-}
-
-function handleBranchCreate(){
-
 }
 
 // ============================================================
@@ -1026,8 +1150,9 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
 // ============================================================
 // STAFF & ADMINS
 // ============================================================
-function StaffView({ users, roleFilter, setRoleFilter, onDelete }: {
+function StaffView({ users, roleFilter, setRoleFilter, onDelete, onResetPassword }: {
   users: AdminUser[]; roleFilter: string; setRoleFilter: (v: string) => void; onDelete: (u: AdminUser) => void;
+  onResetPassword: (u: AdminUser) => void;
 }) {
   const roles = ['admin', 'super_admin', 'staff', 'rider', 'customer'];
   return (
@@ -1056,9 +1181,14 @@ function StaffView({ users, roleFilter, setRoleFilter, onDelete }: {
               <td className="py-3 pr-4"><Pill status={u.is_verified ? 'green' : 'gray'} label={u.is_verified ? 'Verified' : 'Unverified'} /></td>
               <td className="py-3 pr-4"><Pill status={u.is_active ? 'green' : 'red'} label={u.is_active ? 'Active' : 'Suspended'} /></td>
               <td className="py-3">
-                <button onClick={() => onDelete(u)} className="text-xs font-bold text-[#db2203] border border-danger/30 rounded-lg px-3 py-1.5 hover:bg-[#FBEAE7] flex items-center gap-1">
-                  <NavIcon name="trash" size={12} color="#E6350F" /> Remove
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => onResetPassword(u)} className="text-xs font-bold text-navy border border-line rounded-lg px-3 py-1.5 hover:bg-page">
+                    Reset Password
+                  </button>
+                  <button onClick={() => onDelete(u)} className="text-xs font-bold text-[#db2203] border border-danger/30 rounded-lg px-3 py-1.5 hover:bg-[#FBEAE7] flex items-center gap-1">
+                    <NavIcon name="trash" size={12} color="#E6350F" /> Remove
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

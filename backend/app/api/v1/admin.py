@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -219,6 +220,38 @@ def edit_user(
         user.phone = phone
     db.commit()
     return {"id": str(user.id), "full_name": user.full_name, "phone": user.phone, "email": user.email, "role": user.role.name if user.role else None, "is_active": user.is_active, "is_verified": user.is_verified}
+
+
+@router.post("/users/{user_id}/reset-password")
+def reset_user_password(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    """Generates a new random password for a staff/rider/admin account and
+    returns it once, in the clear, for the admin to relay to the user out of
+    band - there's no email/SMS channel wired up in this environment (see
+    order_service.get_or_create_guest_customer for the same tradeoff), so
+    this mirrors that rather than pretending a reset-link email goes out."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    temp_password = secrets.token_urlsafe(9)
+    user.hashed_password = hash_password(temp_password)
+    db.commit()
+
+    log_service.create_log(
+        db,
+        action="admin_reset_password",
+        user_id=str(current_user.id),
+        entity_type="User",
+        entity_id=str(user.id),
+        details=f"Password reset for {user.full_name} ({user.email})",
+    )
+
+    return {"id": str(user.id), "full_name": user.full_name, "temporary_password": temp_password}
+
 
 # @router.post("/zones", response_model=ZoneOut, status_code=201)
 # def add_zone(
@@ -491,23 +524,30 @@ def create_zone(
     return zone
 
 
+def _branch_out(b: Branch) -> dict:
+    return {
+        "id": str(b.id),
+        "name": b.name,
+        "address": b.address,
+        "phone": b.phone,
+        "email": b.email,
+        "opening_time": b.opening_time,
+        "closing_time": b.closing_time,
+        "latitude": b.latitude,
+        "longitude": b.longitude,
+        "zone_id": str(b.zone_id) if b.zone_id else None,
+        "zone_name": b.zone.name if b.zone else None,
+        "status": b.status,
+    }
+
+
 @router.get("/branches")
 def list_branches_admin(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
-    branches = db.query(Branch).all()
-    return [
-        {
-            "id": str(b.id),
-            "name": b.name,
-            "address": b.address,
-            "zone_id": str(b.zone_id) if b.zone_id else None,
-            "zone_name": b.zone.name if b.zone else None,
-            "status": b.status
-        }
-        for b in branches
-    ]
+    branches = db.query(Branch).order_by(Branch.name).all()
+    return [_branch_out(b) for b in branches]
 
 
 @router.post("/branches", status_code=201)
@@ -517,13 +557,49 @@ def create_branch(
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
     name = payload.get("name")
-    address = payload.get("address")
-    zone_id = payload.get("zone_id")
     if not name:
         raise HTTPException(status_code=400, detail="Branch name is required")
-    
-    branch = Branch(name=name, address=address, zone_id=zone_id)
+
+    branch = Branch(
+        name=name,
+        address=payload.get("address"),
+        zone_id=payload.get("zone_id") or None,
+        phone=payload.get("phone"),
+        email=payload.get("email"),
+        opening_time=payload.get("opening_time"),
+        closing_time=payload.get("closing_time"),
+        latitude=payload.get("latitude"),
+        longitude=payload.get("longitude"),
+    )
     db.add(branch)
     db.commit()
     db.refresh(branch)
-    return branch
+    return _branch_out(branch)
+
+
+@router.patch("/branches/{branch_id}")
+def update_branch(
+    branch_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    branch = db.query(Branch).filter(Branch.id == branch_id).first()
+    if not branch:
+        raise HTTPException(status_code=404, detail="Branch not found")
+
+    if "name" in payload and not payload["name"]:
+        raise HTTPException(status_code=400, detail="Branch name cannot be empty")
+
+    # Whitelisted, partial update - only touches fields the caller actually sent.
+    for field in ("name", "address", "phone", "email", "opening_time", "closing_time", "zone_id", "latitude", "longitude"):
+        if field in payload:
+            setattr(branch, field, payload[field] or None)
+    if "status" in payload:
+        if payload["status"] not in ("active", "inactive"):
+            raise HTTPException(status_code=400, detail="Status must be 'active' or 'inactive'")
+        branch.status = payload["status"]
+
+    db.commit()
+    db.refresh(branch)
+    return _branch_out(branch)

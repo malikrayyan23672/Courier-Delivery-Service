@@ -72,6 +72,8 @@ class AddressOut(BaseModel):
     city: Optional[str] = None
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
     class Config:
         from_attributes = True
