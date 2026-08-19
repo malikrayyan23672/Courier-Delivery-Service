@@ -278,9 +278,13 @@ class RiderService {
     }
   }
 
-  Future<void> sendDeliveryOtp(String orderId) async {
+  /// Returns the OTP code itself only when the backend has no real SMS
+  /// provider configured (dev/testing) - see rider.py's `dev_otp` field.
+  /// Null in production, where the recipient reads it off the real SMS.
+  Future<String?> sendDeliveryOtp(String orderId) async {
     try {
-      await _dio.post('/rider/deliveries/$orderId/send-delivery-otp');
+      final response = await _dio.post('/rider/deliveries/$orderId/send-delivery-otp');
+      return (response.data as Map<String, dynamic>)['dev_otp'] as String?;
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

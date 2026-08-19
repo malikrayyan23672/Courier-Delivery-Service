@@ -37,13 +37,16 @@ import {
   toggleDiscount,
   deleteDiscount,
   Discount,
+  getAdminOrderDetail,
+  cancelAdminOrder,
+  OrderDetail,
 } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Printer } from 'lucide-react';
+import { Printer, X } from 'lucide-react';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'secondary'> = {
   pending: 'warning',
@@ -1144,6 +1147,105 @@ export function DiscountsTab({ token }: { token: string }) {
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+// ============================================================
+// ORDER DETAIL MODAL - shared by the Admin and Super Admin "All Orders"
+// views. Replaces what used to be dead `<a href="/admin/orders/{id}">`
+// View/Edit links pointing at pages that were never built.
+// ============================================================
+const ORDER_CANCELLABLE_STATUSES = ['created', 'assigned', 'picked_up'];
+
+export function AdminOrderDetailModal({ orderId, token, onClose, onChanged }: {
+  orderId: string; token: string; onClose: () => void; onChanged?: (order: OrderDetail) => void;
+}) {
+  const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [error, setError] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+
+  useEffect(() => {
+    getAdminOrderDetail(orderId, token)
+      .then(setOrder)
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load this order.'));
+  }, [orderId, token]);
+
+  async function handleCancel() {
+    if (!order) return;
+    if (!confirm(`Cancel order ${order.tracking_number}? This can't be undone.`)) return;
+    const reason = window.prompt('Reason for cancelling (optional):') || undefined;
+    setCancelling(true);
+    try {
+      await cancelAdminOrder(order.id, token, reason);
+      const updated = { ...order, status: 'cancelled' };
+      setOrder(updated);
+      onChanged?.(updated);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not cancel this order.');
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-start md:items-center justify-center p-3 md:p-6 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-card shadow-card max-w-2xl w-full p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-ink font-mono">{order?.tracking_number || 'Loading…'}</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-ink"><X className="w-5 h-5" /></button>
+        </div>
+        {error && <p className="text-sm text-destructive mb-3">{error}</p>}
+        {!order ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <Badge variant="secondary" className="capitalize">{order.status.replace(/_/g, ' ')}</Badge>
+              {ORDER_CANCELLABLE_STATUSES.includes(order.status) && (
+                <Button size="sm" variant="ghost" className="text-destructive" disabled={cancelling} onClick={handleCancel}>
+                  {cancelling ? 'Cancelling…' : 'Cancel Order'}
+                </Button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-xs text-muted-foreground">Customer</p><p className="text-ink font-semibold">{order.customer_name || '—'}</p><p className="text-xs text-muted-foreground">{order.customer_phone}</p></div>
+              <div><p className="text-xs text-muted-foreground">Rider</p><p className="text-ink font-semibold">{order.rider?.full_name || 'Unassigned'}</p><p className="text-xs text-muted-foreground">{order.rider?.phone}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground">Pickup</p><p className="text-ink">{order.pickup_address?.full_address || '—'}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground">Drop-off</p><p className="text-ink">{order.dropoff_address?.full_address || '—'}</p></div>
+              {order.branch_name && (
+                <div className="col-span-2"><p className="text-xs text-muted-foreground">Routed via branch</p><p className="text-ink">{order.branch_name} {order.branch_address ? `· ${order.branch_address}` : ''}</p></div>
+              )}
+              <div><p className="text-xs text-muted-foreground">Price</p><p className="text-ink font-semibold">{order.final_price != null ? `Rs ${order.final_price.toLocaleString()}` : '—'}</p></div>
+              <div><p className="text-xs text-muted-foreground">Payment</p><p className="text-ink capitalize">{order.payment ? `${order.payment.method.replace(/_/g, ' ')} · ${order.payment.status}` : '—'}</p></div>
+              {order.failed_attempt_count != null && order.failed_attempt_count > 0 && (
+                <div><p className="text-xs text-muted-foreground">Failed attempts</p><p className="text-ink">{order.failed_attempt_count}</p></div>
+              )}
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Timeline</p>
+              {order.tracking_events.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No scans recorded yet.</p>
+              ) : (
+                <div className="flex flex-col gap-2.5 max-h-64 overflow-y-auto">
+                  {order.tracking_events.slice().reverse().map((e, i) => (
+                    <div key={i} className="flex items-start gap-2.5">
+                      <span className="w-2 h-2 rounded-full bg-[#db2203] mt-1.5 flex-none" />
+                      <div>
+                        <p className="text-sm font-semibold text-ink capitalize">{e.status.replace(/_/g, ' ')}</p>
+                        {e.note && <p className="text-xs text-muted-foreground">{e.note}</p>}
+                        <p className="text-xs text-muted-foreground">{e.created_at ? new Date(e.created_at).toLocaleString() : ''}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

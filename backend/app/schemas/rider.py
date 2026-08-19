@@ -49,6 +49,11 @@ class ReturnToHubRequest(BaseModel):
 class DeliveryOtpOut(BaseModel):
     message: str
     expires_in_minutes: int
+    # Only set when no real SMS provider is configured (TWILIO_ACCOUNT_SID
+    # empty - see otp_service.send_otp) - otherwise the OTP only ever reaches
+    # the backend console log, and the rider has no way to complete a
+    # delivery at all since they can't see what the recipient was texted.
+    dev_otp: Optional[str] = None
 
 
 # --- Availability change requests ---

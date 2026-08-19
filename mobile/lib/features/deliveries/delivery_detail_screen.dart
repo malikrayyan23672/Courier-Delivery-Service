@@ -14,6 +14,7 @@ import 'delivery_failed_final_screen.dart';
 import 'failure_reasons.dart';
 import 'order_messages_screen.dart';
 import 'pod/proof_of_delivery_screen.dart';
+import '../../services/offline_queue_service.dart';
 
 class DeliveryDetailScreen extends StatelessWidget {
   final String orderId;
@@ -511,9 +512,19 @@ class _ActionArea extends StatelessWidget {
           ElevatedButton.icon(
             onPressed: busy
                 ? null
-                : () => Navigator.of(context).push(
+                : () async {
+                    final outcome = await Navigator.of(context).push<QueuedActionOutcome>(
                       MaterialPageRoute(builder: (_) => ProofOfDeliveryScreen(orderId: order.id)),
-                    ),
+                    );
+                    if (!context.mounted || outcome == null) return;
+                    await context.read<DeliveryDetailProvider>().load();
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(outcome == QueuedActionOutcome.queued
+                          ? 'No connection - delivery saved and will sync automatically'
+                          : 'Delivery completed'),
+                    ));
+                  },
             icon: const Icon(Icons.camera_alt_outlined),
             label: const Text('Complete Delivery'),
           ),

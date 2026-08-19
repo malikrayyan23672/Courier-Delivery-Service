@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
+from app.config import settings
 from app.core.permissions import require_roles
 from app.models.user import User
 from app.models.rider import RiderProfile, RiderStatus
@@ -750,8 +751,12 @@ def send_delivery_otp(
     if not order.dropoff_address or not order.dropoff_address.contact_phone:
         raise HTTPException(status_code=400, detail="No recipient phone number on file for this delivery.")
 
-    otp_service.send_otp(db, order.dropoff_address.contact_phone)
-    return DeliveryOtpOut(message="OTP sent to recipient", expires_in_minutes=otp_service.OTP_EXPIRY_MINUTES)
+    otp = otp_service.send_otp(db, order.dropoff_address.contact_phone)
+    return DeliveryOtpOut(
+        message="OTP sent to recipient",
+        expires_in_minutes=otp_service.OTP_EXPIRY_MINUTES,
+        dev_otp=otp.otp_code if not settings.TWILIO_ACCOUNT_SID else None,
+    )
 
 
 @router.post("/deliveries/{order_id}/proof-of-delivery", response_model=OrderOut)

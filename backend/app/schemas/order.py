@@ -154,4 +154,9 @@ class OrderDetailOut(OrderOut):
     # Count of failed delivery attempts so far - the rider app requires a
     # cancellation photo once this reaches 2 (the next attempt is the 3rd/final one).
     failed_attempt_count: int = 0
+    # Who placed the order - only populated by the admin detail endpoint,
+    # where seeing the customer matters and isn't already implied by "this
+    # is my own order" the way it is for the customer/rider/seller endpoints.
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
 

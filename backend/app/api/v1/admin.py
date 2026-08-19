@@ -1,7 +1,9 @@
 import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -18,13 +20,14 @@ from app.models.staff import StaffProfile
 from app.models.branch import Branch
 from app.models.zone import Zone
 from app.models.settlement import Settlement, SettlementStatus
-from app.schemas.order import OrderOut
+from app.schemas.order import OrderOut, OrderDetailOut, AddressOut, TrackingEventOut, PaymentOut, RiderContactOut
 from app.schemas.auth import AdminCreateUserRequest
 from app.schemas.user import UserOut
 from app.schemas.zone import ZoneOut
 from app.schemas.zone import ZoneCreateRequest
 from app.schemas.rider import RiderLocationOut
-from app.services.order_service import transition
+from app.services.order_service import transition, cancel_order
+from app.models.delivery_attempt import DeliveryAttempt
 from app.services.settlement_service import pending_cod_amount, rider_wallet_limit, rider_wallet_warning_at
 from app.services import log_service
 from app.services import notification_service
@@ -38,6 +41,84 @@ def list_all_orders(
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
     return db.query(Order).order_by(Order.created_at.desc()).limit(200).all()
+
+
+@router.get("/orders/{order_id}", response_model=OrderDetailOut)
+def get_order_detail(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    """Full detail behind the Orders table's "View" action - previously a
+    dead link to a page that didn't exist (`/admin/orders/{id}`)."""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    rider_contact = None
+    if order.rider and order.rider.user:
+        rider_contact = RiderContactOut(
+            full_name=order.rider.user.full_name,
+            phone=order.rider.user.phone,
+            vehicle_type=order.rider.vehicle_type,
+            rating=order.rider.rating,
+            current_lat=order.rider.current_lat,
+            current_lng=order.rider.current_lng,
+        )
+
+    return OrderDetailOut(
+        id=str(order.id),
+        tracking_number=order.tracking_number,
+        status=order.status,
+        booking_channel=order.booking_channel,
+        pickup_address=AddressOut.model_validate(order.pickup_address) if order.pickup_address else None,
+        dropoff_address=AddressOut.model_validate(order.dropoff_address) if order.dropoff_address else None,
+        package_weight_kg=order.package_weight_kg,
+        package_description=order.package_description,
+        estimated_price=order.estimated_price,
+        final_price=order.final_price,
+        discount_id=str(order.discount_id) if order.discount_id else None,
+        discount_amount=order.discount_amount,
+        rider_accepted=order.rider_accepted,
+        branch_name=order.branch_name,
+        branch_address=order.branch_address,
+        branch_phone=order.branch_phone,
+        created_at=order.created_at,
+        proof_of_delivery_url=order.proof_of_delivery_url,
+        proof_of_delivery_recipient_name=order.proof_of_delivery_recipient_name,
+        product_id=str(order.product_id) if order.product_id else None,
+        quantity=order.quantity,
+        unit_price=order.unit_price,
+        tracking_events=[TrackingEventOut.model_validate(e) for e in order.tracking_events],
+        payment=PaymentOut.model_validate(order.payment) if order.payment else None,
+        rider=rider_contact,
+        failed_attempt_count=db.query(DeliveryAttempt).filter(DeliveryAttempt.order_id == order.id).count(),
+        customer_name=order.customer.full_name if order.customer else None,
+        customer_phone=order.customer.phone if order.customer else None,
+    )
+
+
+class OrderCancelIn(BaseModel):
+    reason: Optional[str] = None
+
+
+@router.patch("/orders/{order_id}/cancel", response_model=OrderOut)
+def cancel_order_admin(
+    order_id: str,
+    payload: OrderCancelIn = OrderCancelIn(),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    """Admin override - can cancel any order regardless of who booked it,
+    same eligibility window as the customer/seller self-service cancel
+    (before the parcel enters the hub network)."""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    cancel_order(db, order, actor=current_user, reason=payload.reason)
+    db.commit()
+    db.refresh(order)
+    return order
 
 
 @router.patch("/orders/{order_id}/assign-rider/{rider_id}")

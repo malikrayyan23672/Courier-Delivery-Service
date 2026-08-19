@@ -32,6 +32,10 @@ class _ProofOfDeliveryScreenState extends State<ProofOfDeliveryScreen> {
   bool _submitting = false;
   String? _error;
   bool _errorNeedsLocationSettings = false;
+  // Only ever set when the backend has no real SMS provider configured -
+  // see RiderService.sendDeliveryOtp / rider.py's `dev_otp` field. Null in
+  // production, where the recipient reads the code off the real SMS.
+  String? _devOtp;
 
   @override
   void dispose() {
@@ -46,16 +50,35 @@ class _ProofOfDeliveryScreenState extends State<ProofOfDeliveryScreen> {
       _sendingOtp = true;
       _error = null;
     });
+    final riderService = context.read<RiderService>();
     try {
-      await context.read<RiderService>().sendDeliveryOtp(widget.orderId);
-      setState(() => _otpSent = true);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('OTP sent to recipient')));
+      final devOtp = await riderService.sendDeliveryOtp(widget.orderId);
+      if (!mounted) return;
+      // Mutating a TextEditingController's value triggers its own
+      // notifyListeners()/rebuild - doing that from inside setState() causes
+      // a reentrant rebuild while the widget tree is already mid-update,
+      // which is what was throwing the "RenderBox was not laid out" /
+      // sliver assertion / null-check crashes. Set it before setState, with
+      // an explicit (valid) selection rather than the collapsed(-1) that
+      // plain `.text =` leaves behind.
+      if (devOtp != null) {
+        _otpController.value = TextEditingValue(
+          text: devOtp,
+          selection: TextSelection.collapsed(offset: devOtp.length),
+        );
       }
+      setState(() {
+        _otpSent = true;
+        _devOtp = devOtp;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(devOtp != null ? 'Dev mode - OTP is $devOtp (no SMS provider configured)' : 'OTP sent to recipient'),
+        duration: devOtp != null ? const Duration(seconds: 6) : const Duration(seconds: 4),
+      ));
     } catch (e) {
-      setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = e.toString());
     } finally {
-      setState(() => _sendingOtp = false);
+      if (mounted) setState(() => _sendingOtp = false);
     }
   }
 
@@ -75,9 +98,15 @@ class _ProofOfDeliveryScreenState extends State<ProofOfDeliveryScreen> {
       _errorNeedsLocationSettings = false;
     });
 
+    // Grabbed before any `await` - reading these off `context` after an
+    // await risks "looking up a deactivated widget's ancestor" if the user
+    // backgrounds/navigates away mid-submit.
+    final locationService = context.read<LocationService>();
+    final offlineQueueService = context.read<OfflineQueueService>();
+
     try {
-      final position = await context.read<LocationService>().getCurrentPosition();
-      final outcome = await context.read<OfflineQueueService>().submitProofOfDelivery(
+      final position = await locationService.getCurrentPosition();
+      final outcome = await offlineQueueService.submitProofOfDelivery(
             orderId: widget.orderId,
             photo: _photo!,
             otpCode: _otpController.text.trim(),
@@ -87,14 +116,10 @@ class _ProofOfDeliveryScreenState extends State<ProofOfDeliveryScreen> {
             note: _noteController.text.trim(),
           );
       if (mounted) {
-        if (outcome == QueuedActionOutcome.queued) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No connection - delivery saved and will sync automatically')),
-          );
-        }
-        Navigator.of(context)
-          ..pop()
-          ..pop();
+        // Pop once, with the outcome - the caller (delivery detail screen)
+        // reloads and shows its own delivered/proof-of-delivery confirmation
+        // instead of this screen popping straight past it back to the list.
+        Navigator.of(context).pop(outcome);
       }
     } on LocationPermissionException catch (e) {
       setState(() {
@@ -141,6 +166,20 @@ class _ProofOfDeliveryScreenState extends State<ProofOfDeliveryScreen> {
           ],
           const Text('1. Recipient OTP', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
+          if (_devOtp != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Dev mode - no SMS provider configured. OTP: $_devOtp',
+                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.warning),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Row(
             children: [
               Expanded(

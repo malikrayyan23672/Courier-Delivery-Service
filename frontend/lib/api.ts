@@ -276,6 +276,20 @@ export interface OrderDetail extends Order {
   tracking_events: OrderTrackingEvent[];
   payment?: PaymentInfo | null;
   rider?: RiderContact | null;
+  branch_name?: string | null;
+  branch_address?: string | null;
+  branch_phone?: string | null;
+  failed_attempt_count?: number;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+}
+
+export function getAdminOrderDetail(orderId: string, token: string) {
+  return request<OrderDetail>(`/admin/orders/${orderId}`, { method: 'GET' }, token);
+}
+
+export function cancelAdminOrder(orderId: string, token: string, reason?: string) {
+  return request<Order>(`/admin/orders/${orderId}/cancel`, { method: 'PATCH', body: JSON.stringify({ reason }) }, token);
 }
 
 export function getMyOrder(orderId: string, token: string) {

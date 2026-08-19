@@ -30,6 +30,7 @@ import {
   WalletsTab,
   RnpTab,
   DiscountsTab,
+  AdminOrderDetailModal,
 } from './components';
 import { NotificationBell } from '@/components/NotificationBell';
 import { AnnouncementsPanel } from '@/components/AnnouncementsPanel';
@@ -610,6 +611,7 @@ function OrdersTab({ token, search }: { token: string; search: string }) {
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [error, setError] = useState('');
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([listAllOrders(token), listRiders(token)])
@@ -727,10 +729,7 @@ function OrdersTab({ token, search }: { token: string; search: string }) {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" asChild><a href={`/admin/orders/${order.id}`}>View</a></Button>
-                        <Button variant="ghost" size="sm" className="text-primary" asChild><a href={`/admin/orders/${order.id}/edit`}>Edit</a></Button>
-                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => setViewingId(order.id)}>View</Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -739,6 +738,15 @@ function OrdersTab({ token, search }: { token: string; search: string }) {
           )}
         </CardContent>
       </Card>
+
+      {viewingId && (
+        <AdminOrderDetailModal
+          orderId={viewingId}
+          token={token}
+          onClose={() => setViewingId(null)}
+          onChanged={(updated) => setOrders((prev) => prev.map((o) => (o.id === updated.id ? { ...o, status: updated.status } : o)))}
+        />
+      )}
     </div>
   );
 }

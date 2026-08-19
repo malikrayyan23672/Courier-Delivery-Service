@@ -52,7 +52,7 @@ import {
   Pill, AvatarChip, KpiCard, StatStrip, Toasts, NavIcon, NavBadge, Modal, inputCls,
 } from './components';
 import { RequestsView } from '@/components/ops/RequestsView';
-import { BusNetworkTab, DiscountsTab } from '@/app/admin/components';
+import { BusNetworkTab, DiscountsTab, AdminOrderDetailModal } from '@/app/admin/components';
 
 type View =
   | 'overview' | 'orders' | 'map'
@@ -200,6 +200,7 @@ function AdminDashboardContent() {
   const [userRoleFilter, setUserRoleFilter] = useState('');
 
   const [assignModalOrder, setAssignModalOrder] = useState<ApiOrder | null>(null);
+  const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
   const [showCreateUser, setShowCreateUser] = useState(false);
 
   const [showAddNewZone, setShowAddNewZone] = useState(false);
@@ -467,7 +468,7 @@ function AdminDashboardContent() {
           {view === 'orders' && (
             <OrdersView orders={filteredOrders} total={orders.length} search={orderSearch} setSearch={setOrderSearch}
               statusFilter={orderStatusFilter} setStatusFilter={setOrderStatusFilter}
-              onAssign={(o) => setAssignModalOrder(o)} />
+              onAssign={(o) => setAssignModalOrder(o)} onView={(o) => setViewingOrderId(o.id)} />
           )}
 
           {view === 'map' && <MapView branches={branches} riders={riders} />}
@@ -514,6 +515,15 @@ function AdminDashboardContent() {
 
       {assignModalOrder && (
         <AssignRiderModal order={assignModalOrder} riders={adminRiders} onClose={() => setAssignModalOrder(null)} onAssign={handleAssignRider} />
+      )}
+
+      {viewingOrderId && (
+        <AdminOrderDetailModal
+          orderId={viewingOrderId}
+          token={token!}
+          onClose={() => setViewingOrderId(null)}
+          onChanged={(updated) => setOrders((prev) => prev.map((o) => (o.id === updated.id ? { ...o, status: updated.status } : o)))}
+        />
       )}
 
       {showAddNewZone && (
@@ -649,9 +659,10 @@ function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, un
 // ============================================================
 // ORDERS
 // ============================================================
-function OrdersView({ orders, total, search, setSearch, statusFilter, setStatusFilter, onAssign }: {
+function OrdersView({ orders, total, search, setSearch, statusFilter, setStatusFilter, onAssign, onView }: {
   orders: ApiOrder[]; total: number; search: string; setSearch: (v: string) => void;
   statusFilter: string; setStatusFilter: (v: string) => void; onAssign: (o: ApiOrder) => void;
+  onView: (o: ApiOrder) => void;
 }) {
   const statuses = ['created', 'assigned', 'picked_up', 'in_transit', 'delivered', 'failed', 'cancelled'];
   return (
@@ -698,9 +709,12 @@ function OrdersView({ orders, total, search, setSearch, statusFilter, setStatusF
                 <td className="py-3 pr-4">{o.rider_accepted ? <Pill status="green" label="Assigned" /> : <Pill status="amber" label="Unassigned" />}</td>
                 <td className="py-3 pr-4"><Pill status={o.status} /></td>
                 <td className="py-3">
-                  {!o.rider_accepted && o.status !== 'cancelled' && o.status !== 'delivered'
-                    ? <button onClick={() => onAssign(o)} className="text-xs font-bold text-[#db2203] border border-orange/30 rounded-lg px-3 py-1.5 hover:bg-[#FBF3EA]">Assign Rider</button>
-                    : <span className="text-muted-foreground text-xs">—</span>}
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => onView(o)} className="text-xs font-bold text-navy border border-line rounded-lg px-3 py-1.5 hover:bg-page">View</button>
+                    {!o.rider_accepted && o.status !== 'cancelled' && o.status !== 'delivered' && (
+                      <button onClick={() => onAssign(o)} className="text-xs font-bold text-[#db2203] border border-orange/30 rounded-lg px-3 py-1.5 hover:bg-[#FBF3EA]">Assign Rider</button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
