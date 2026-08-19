@@ -11,15 +11,27 @@ import { getMyOrder, cancelMyOrder, downloadMyInvoice, OrderDetail, ApiError } f
 // is only legal before the parcel enters the hub network.
 const CANCELLABLE_STATUSES = ['created', 'assigned', 'picked_up'];
 
-const STATUS_ORDER = ['created', 'assigned', 'picked_up', 'in_transit', 'delivered'];
+// Mirrors the backend's actual 8-stage state machine (order_service.py
+// ALLOWED_TRANSITIONS) - this used to be a 5-stage subset (created, assigned,
+// picked_up, in_transit, delivered) left over from before the hub network
+// was built. Any order routed through a hub (the normal path, not just the
+// local no-hub fallback) would hit `in_hub`/`dest_hub`/`out_for_delivery`,
+// none of which matched this list - getProgressPercent returned 0% (same as
+// a brand-new order) and the "Next Step" callout vanished entirely for the
+// whole middle of a real delivery.
+const STATUS_ORDER = ['created', 'assigned', 'picked_up', 'in_hub', 'in_transit', 'dest_hub', 'out_for_delivery', 'delivered'];
 
 const STATUS_COLORS: Record<string, string> = {
   created: 'bg-[#EAF1FC] text-navy',
   assigned: 'bg-[#FBF3EA] text-[#db2203]',
   picked_up: 'bg-[#FBF3EA] text-[#db2203]',
+  in_hub: 'bg-[#FBF3EA] text-[#db2203]',
   in_transit: 'bg-[#FBF3EA] text-[#db2203]',
+  dest_hub: 'bg-[#FBF3EA] text-[#db2203]',
+  out_for_delivery: 'bg-[#FBF3EA] text-[#db2203]',
   delivered: 'bg-[#EAF7EF] text-success',
   failed: 'bg-[#FBEAE7] text-[#db2203]',
+  rto: 'bg-[#FBEAE7] text-[#db2203]',
   cancelled: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
@@ -33,12 +45,27 @@ const NEXT_STEP: Record<string, { title: string; detail: string }> = {
     detail: 'Your rider has accepted the job and is on the way to collect your package.',
   },
   picked_up: {
-    title: 'Package picked up — heading to transit',
-    detail: 'Your package has been collected and is being prepared to move toward the drop-off city.',
+    title: 'Package picked up — heading to the hub',
+    detail: 'Your rider has collected the package and is dropping it at the local hub for onward routing.',
   },
+  in_hub: {
+    title: 'At the origin hub',
+    detail: 'Your package has been received at the hub and is being prepared to move toward the drop-off city.',
+  },
+  // Inter-city bus transit between hubs - not the final mile. The old copy
+  // here said "Out for delivery... arrive soon", which was wrong at this
+  // stage and duplicated the (correct) out_for_delivery message below.
   in_transit: {
+    title: 'On the way to the destination city',
+    detail: 'Your package is travelling between hubs toward the drop-off city.',
+  },
+  dest_hub: {
+    title: 'Arrived at the destination hub',
+    detail: 'Your package has reached the hub nearest the drop-off address and is awaiting a rider for final delivery.',
+  },
+  out_for_delivery: {
     title: 'Out for delivery',
-    detail: 'Your package is on its way to the recipient. It should arrive at the drop-off address soon.',
+    detail: 'A rider has your package and is on the way to the recipient. It should arrive soon.',
   },
   delivered: {
     title: 'Delivered',
@@ -47,6 +74,10 @@ const NEXT_STEP: Record<string, { title: string; detail: string }> = {
   failed: {
     title: 'Delivery attempt failed',
     detail: 'The last delivery attempt was unsuccessful. Our team will reach out to reschedule.',
+  },
+  rto: {
+    title: 'Returned to origin',
+    detail: 'This shipment could not be delivered and is being returned.',
   },
   cancelled: {
     title: 'Shipment cancelled',
@@ -98,7 +129,7 @@ function formatStatus(status: string) {
 }
 
 function getProgressPercent(status: string): number {
-  if (status === 'failed' || status === 'cancelled') return 0;
+  if (status === 'failed' || status === 'cancelled' || status === 'rto') return 0;
   const idx = STATUS_ORDER.indexOf(status);
   if (idx === -1) return 0;
   return Math.round((idx / (STATUS_ORDER.length - 1)) * 100);
@@ -181,7 +212,7 @@ function ShipmentTrackingContent() {
 
   const percent = order ? getProgressPercent(order.status) : 0;
   const nextStep = order ? NEXT_STEP[order.status] : null;
-  const isIssue = order?.status === 'failed' || order?.status === 'cancelled';
+  const isIssue = order?.status === 'failed' || order?.status === 'cancelled' || order?.status === 'rto';
   const isDelivered = order?.status === 'delivered';
 
   return (

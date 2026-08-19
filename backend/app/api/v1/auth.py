@@ -15,6 +15,8 @@ from app.schemas.auth import (
     RefreshRequest,
     SendOTPRequest,
     VerifyOTPRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
 )
 from app.core.security import (
     hash_password,
@@ -166,6 +168,35 @@ def confirm_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
     return {"message": "Phone number verified successfully"}
 
 
+@router.post("/forgot-password")
+def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Sends a reset OTP to the phone on file - the "Forgot password?" link
+    used to be a dead `href="#"` with no backend behind it at all. Same
+    "vague response either way" pattern as /login: never reveals whether a
+    phone number is registered, so this doesn't become a phone-number
+    enumeration oracle."""
+    user = db.query(User).filter(User.phone == payload.phone).first()
+    if user:
+        send_otp(db, payload.phone)
+    return {"message": "If that phone number is registered, a reset code has been sent."}
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    verify_otp(db, payload.phone, payload.otp_code)
+
+    user = db.query(User).filter(User.phone == payload.phone).first()
+    if not user:
+        # OTP verified but no account on this phone - shouldn't happen since
+        # forgot_password only ever sends one to a registered number, but
+        # guard it explicitly rather than letting a bare 500 leak through.
+        raise HTTPException(status_code=404, detail="No account found for this phone number")
+
+    user.hashed_password = hash_password(payload.new_password)
+    db.commit()
+    return {"message": "Password reset - you can now log in with your new password"}
+
+
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(func.lower(User.email) == payload.email.lower()).first()
@@ -184,16 +215,17 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             detail="Phone number not verified. Please verify via /auth/verify-otp before logging in.",
         )
 
-    if(user.role_id == 2):
-
+    # `designation` (manager vs regular staff) drives which panel the
+    # frontend routes to (AuthContext.panelPathForRole) - only staff accounts
+    # have one. This used to key off `user.role_id == 2`, a magic number with
+    # no guarantee it means "staff" (role seed order isn't pinned), and
+    # assumed `staff_profile` always exists for that role - a staff account
+    # without one (e.g. a StaffProfile row deleted independently of the User)
+    # would 500 on login from the `.designation` access on `None`.
+    token_data = {"sub": str(user.id), "role": user.role.name}
+    if user.role.name == "staff":
         staff_profile = db.query(StaffProfile).filter(StaffProfile.user_id == user.id).first()
-        print("Role id = 2")
-        token_data = {"sub": str(user.id), "role": user.role.name, "designation": staff_profile.designation}
-        
-    else:
-        print("Role id = something")
-
-        token_data = {"sub": str(user.id), "role": user.role.name}
+        token_data["designation"] = staff_profile.designation if staff_profile else None
 
 
 

@@ -195,6 +195,20 @@ export function loginUser(email: string, password: string) {
   });
 }
 
+export function forgotPassword(phone: string) {
+  return request<{ message: string }>('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export function resetPassword(phone: string, otp_code: string, new_password: string) {
+  return request<{ message: string }>('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ phone, otp_code, new_password }),
+  });
+}
+
 // ---- Customer orders ----
 
 export interface AddressInput {

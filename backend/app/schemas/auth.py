@@ -5,7 +5,13 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 # E.164-ish format: optional +, 7-15 digits total. Adjust to your target country if needed.
 # PHONE_REGEX = re.compile(r"^\+?[0-9]{7,15}$")
 PHONE_REGEX = re.compile(r"^((\+92)?(0092)?(92)?(0)?)(3\d{2}-\d{7}|3\d{9})$")
-CNIC_REGEX = re.compile(r"/^([0-9]{5})[\-]([0-9]{7})[\-]([0-9]{1})+/")
+# Was `r"/^([0-9]{5})[\-]([0-9]{7})[\-]([0-9]{1})+/"` - stray leading/trailing
+# `/` left over from a JS-style /regex/ literal (Python doesn't use those
+# delimiters, so they became literal characters the pattern had to match,
+# meaning it could never match a real CNIC), and a `+` on the last digit
+# group that allowed trailing extra digits past the 13th. Both validators
+# below had the actual check commented out as a result.
+CNIC_REGEX = re.compile(r"^[0-9]{5}-[0-9]{7}-[0-9]{1}$")
 
 class BusinessRegisterRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=150)
@@ -55,9 +61,8 @@ class BusinessRegisterRequest(BaseModel):
     @classmethod
     def cnic_valid_format(cls, v: str) -> str:
         v = v.strip()
-        # if not CNIC_REGEX.match(v):
-        #     raise ValueError("Please enter correct CNIC")
-        
+        if not CNIC_REGEX.match(v):
+            raise ValueError("CNIC must be in the format 12345-1234567-1")
         return v
 
     @field_validator("password")
@@ -102,9 +107,8 @@ class RegisterRequest(BaseModel):
     @classmethod
     def cnic_valid_format(cls, v: str) -> str:
         v = v.strip()
-        # if not CNIC_REGEX.match(v):
-        #     raise ValueError("Please enter correct CNIC")
-        
+        if not CNIC_REGEX.match(v):
+            raise ValueError("CNIC must be in the format 12345-1234567-1")
         return v
 
     @field_validator("password")
@@ -165,4 +169,38 @@ class VerifyOTPRequest(BaseModel):
     def otp_numeric(cls, v: str) -> str:
         if not v.isdigit():
             raise ValueError("OTP code must be 6 digits")
+        return v
+
+
+class ForgotPasswordRequest(BaseModel):
+    phone: str = Field(..., min_length=7, max_length=20)
+
+    @field_validator("phone")
+    @classmethod
+    def phone_valid_format(cls, v: str) -> str:
+        v = v.strip()
+        if not PHONE_REGEX.match(v):
+            raise ValueError("Phone number must be 7-15 digits, optionally starting with +")
+        return v
+
+
+class ResetPasswordRequest(BaseModel):
+    phone: str = Field(..., min_length=7, max_length=20)
+    otp_code: str = Field(..., min_length=6, max_length=6)
+    new_password: str = Field(..., min_length=8, max_length=72)
+
+    @field_validator("otp_code")
+    @classmethod
+    def otp_numeric(cls, v: str) -> str:
+        if not v.isdigit():
+            raise ValueError("OTP code must be 6 digits")
+        return v
+
+    @field_validator("new_password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        if len(v.encode("utf-8")) > 72:
+            raise ValueError("Password must not exceed 72 bytes")
+        if not re.search(r"[A-Za-z]", v) or not re.search(r"[0-9]", v):
+            raise ValueError("Password must contain at least one letter and one number")
         return v

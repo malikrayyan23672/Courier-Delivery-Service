@@ -53,17 +53,28 @@ const OVERVIEW_ICON = (
   </svg>
 );
 
+// Mirrors the real 8-stage state machine (order_service.py) - this used to
+// omit in_hub/dest_hub/out_for_delivery/rto entirely, so a customer had no
+// way to even filter their list down to those statuses, and rows in those
+// statuses fell back to an unstyled badge.
 const STATUS_COLORS: Record<string, string> = {
   created: 'bg-[#EAF1FC] text-navy',
   assigned: 'bg-[#FBF3EA] text-[#db2203]',
   picked_up: 'bg-[#FBF3EA] text-[#db2203]',
+  in_hub: 'bg-[#FBF3EA] text-[#db2203]',
   in_transit: 'bg-[#FBF3EA] text-[#db2203]',
+  dest_hub: 'bg-[#FBF3EA] text-[#db2203]',
+  out_for_delivery: 'bg-[#FBF3EA] text-[#db2203]',
   delivered: 'bg-[#EAF7EF] text-success',
   failed: 'bg-[#FBEAE7] text-[#db2203]',
+  rto: 'bg-[#FBEAE7] text-[#db2203]',
   cancelled: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
-const STATUS_FILTERS = ['all', 'created', 'assigned', 'picked_up', 'in_transit', 'delivered', 'failed', 'cancelled'];
+const STATUS_FILTERS = [
+  'all', 'created', 'assigned', 'picked_up', 'in_hub', 'in_transit', 'dest_hub',
+  'out_for_delivery', 'delivered', 'failed', 'rto', 'cancelled',
+];
 
 type Tab = 'overview' | 'shipments' | 'profile';
 
@@ -103,7 +114,8 @@ const EMPTY_FORM: BookingForm = {
 function statusSummary(orders: Order[]): string | null {
   if (orders.length === 0) return null;
   const priority: Record<string, number> = {
-    out_for_delivery: 0, in_transit: 1, picked_up: 2, assigned: 3, created: 4, delivered: 5, failed: 6, cancelled: 7,
+    out_for_delivery: 0, dest_hub: 1, in_transit: 2, in_hub: 3, picked_up: 4, assigned: 5, created: 6,
+    failed: 7, rto: 8, delivered: 9, cancelled: 10,
   };
   const active = [...orders].sort((a, b) => (priority[a.status] ?? 9) - (priority[b.status] ?? 9))[0];
   const dest = active.dropoff_address?.city || active.dropoff_address?.full_address || 'its destination';
@@ -111,8 +123,12 @@ function statusSummary(orders: Order[]): string | null {
   switch (active.status) {
     case 'out_for_delivery':
       return `Your parcel ${active.tracking_number} is out for delivery to ${dest} — it should arrive today.`;
+    case 'dest_hub':
+      return `Your parcel ${active.tracking_number} has arrived at the hub nearest ${dest} and is awaiting a rider.`;
     case 'in_transit':
       return `Your parcel ${active.tracking_number} is in transit toward ${dest}.`;
+    case 'in_hub':
+      return `Your parcel ${active.tracking_number} has reached the origin hub and is being routed toward ${dest}.`;
     case 'picked_up':
       return `Your parcel ${active.tracking_number} has been picked up and is heading to the hub.`;
     case 'assigned':
@@ -123,6 +139,10 @@ function statusSummary(orders: Order[]): string | null {
       return `Your most recent parcel ${active.tracking_number} was delivered to ${dest}.`;
     case 'failed':
       return `Delivery attempt for ${active.tracking_number} failed — our team will retry shortly.`;
+    case 'rto':
+      return `${active.tracking_number} couldn't be delivered and is being returned to origin.`;
+    case 'cancelled':
+      return `${active.tracking_number} was cancelled.`;
     default:
       return null;
   }
@@ -220,7 +240,12 @@ function DashboardContent() {
   const stats = useMemo(() => {
     const inTransit = orders.filter((o) => ['assigned', 'picked_up', 'in_transit'].includes(o.status)).length;
     const delivered = orders.filter((o) => o.status === 'delivered').length;
-    const totalSpent = orders.reduce((sum, o) => sum + (o.final_price ?? o.estimated_price ?? 0), 0);
+    // Excludes cancelled/failed/rto - those never actually charged the
+    // customer (or the charge was reversed), so counting them here
+    // overstated real spend on any order that didn't go through.
+    const totalSpent = orders
+      .filter((o) => !['cancelled', 'failed', 'rto'].includes(o.status))
+      .reduce((sum, o) => sum + (o.final_price ?? o.estimated_price ?? 0), 0);
     return { total: orders.length, inTransit, delivered, totalSpent };
   }, [orders]);
 
@@ -351,7 +376,14 @@ function OrderRow({ order, onSelect }: { order: Order; onSelect: (id: string) =>
         {order.dropoff_address?.full_address || '—'}
       </td>
       <td className="px-6 py-3.5 text-ink text-right">
-        {order.final_price ?? order.estimated_price ? `Rs. ${order.final_price ?? order.estimated_price}` : '—'}
+        {(() => {
+          const price = order.final_price ?? order.estimated_price;
+          // `??` binds tighter than `? :` - the old `a ?? b ? x : y` form
+          // evaluated as `(a ?? b) ? x : y`, so a genuinely free (Rs. 0)
+          // order rendered as "—" (unknown) instead of "Rs. 0", since 0 is
+          // falsy but not nullish.
+          return price != null ? `Rs. ${price}` : '—';
+        })()}
       </td>
     </tr>
   );
@@ -371,8 +403,6 @@ function BookingFormFields({
   formError: string;
 }) {
 
-  const [dropoffCity, setDropoffCity] = useState('');
-  const [pickupCity, setPickupCity] = useState('');
   return (
     <form onSubmit={handleBook} className="bg-white rounded-card shadow-card p-6 md:p-8 mb-8">
       <h2 className="font-display font-bold text-lg mb-5">Pickup &amp; Drop-off Details</h2>
@@ -399,17 +429,15 @@ function BookingFormFields({
             label="Pickup city"
             icon={BOX_ICON}
             placeholder="Select a pickup city"
+            required
             options={[
               { label: 'Islamabad', value: 'islamabad' },
               { label: 'Lahore', value: 'lahore' },
-              { label: 'Karachi', value: 'Karachi' },
+              { label: 'Karachi', value: 'karachi' },
               { label: 'Rawalpindi', value: 'rawalpindi' },
             ]}
-            value={pickupCity}
-            onChange={(e) => {
-              setPickupCity(e.target.value),
-              setForm((f) => ({...f, pickup_city: e.target.value}))}}
-            // error={errors.country}
+            value={form.pickup_city}
+            onChange={(e) => setForm((f) => ({ ...f, pickup_city: e.target.value }))}
           />
         <Field
           id="pickup_contact_name"
@@ -448,17 +476,16 @@ function BookingFormFields({
             id="dropoff_city"
             label="Dropoff city"
             icon={BOX_ICON}
-            placeholder="Select a pickup city"
+            placeholder="Select a drop-off city"
+            required
             options={[
               { label: 'Islamabad', value: 'islamabad' },
               { label: 'Lahore', value: 'lahore' },
-              { label: 'Karachi', value: 'Karachi' },
+              { label: 'Karachi', value: 'karachi' },
               { label: 'Rawalpindi', value: 'rawalpindi' },
             ]}
-            value={dropoffCity}
-            onChange={(e) => {
-              setDropoffCity(e.target.value)
-              setForm((f) => ({...f, dropoff_city: e.target.value}))}}
+            value={form.dropoff_city}
+            onChange={(e) => setForm((f) => ({ ...f, dropoff_city: e.target.value }))}
             />
         <Field
           id="dropoff_contact_name"

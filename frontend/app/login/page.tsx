@@ -132,15 +132,11 @@ export default function LoginPage() {
               // onChange={(e) => setEmail(e.target.value)}
               onChange={(e) => set('email', e.target.value)}
             />
-            <PasswordField id="password" label="Password *" icon={<Icon path={LOCK_ICON} />} placeholder="Create a password"
+            <PasswordField id="password" label="Password *" icon={<Icon path={LOCK_ICON} />} placeholder="Enter your password"
               value={form.password} onChange={(v) => set('password', v)} />
 
-            <div className="flex justify-between items-center mb-6 text-sm">
-              <label className="flex items-center gap-2 text-ink">
-                <input type="checkbox" className="w-4 h-4 accent-orange" />
-                Remember me
-              </label>
-              <Link href="#" className="text-[#db2203] font-semibold no-underline">
+            <div className="flex justify-end items-center mb-6 text-sm">
+              <Link href="/forgot-password" className="text-[#db2203] font-semibold no-underline">
                 Forgot password?
               </Link>
             </div>

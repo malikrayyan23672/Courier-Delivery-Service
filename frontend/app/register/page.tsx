@@ -54,6 +54,8 @@ export default function RegisterPage() {
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
 
   function updateField(key: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -64,6 +66,13 @@ export default function RegisterPage() {
     const nextErrors: Record<string, string> = {};
     if (form.password !== form.confirm) {
       nextErrors.confirm = "Passwords don't match.";
+    }
+    // The `required` attribute was commented out here, and the backend's own
+    // CNIC format check was itself dead (a malformed, always-uncommented-out
+    // regex) - an incomplete CNIC used to sail through the form and only
+    // fail with a generic error after a round trip to the server.
+    if (form.cnic.replace(/[^0-9]/g, '').length !== 13) {
+      nextErrors.cnic = 'CNIC must be 13 digits.';
     }
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors);
@@ -91,13 +100,20 @@ export default function RegisterPage() {
   }
 
   async function handleVerify() {
-    if (otp.length < 6) return;
+    // No guard here before meant a double-tap fired two concurrent verify
+    // requests - the backend counts each as an attempt and locks out after
+    // 5, so a single fast double-tap could burn 2 of them for nothing.
+    if (otp.length < 6 || verifying) return;
+    setVerifying(true);
+    setOtpError('');
     try {
       await verifyOtp(form.phone, otp);
       setStep('success');
       setTimeout(() => router.push('/login'), 2200);
     } catch (err) {
       setOtpError(err instanceof ApiError ? err.message : 'Verification failed.');
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -113,12 +129,16 @@ export default function RegisterPage() {
   }
 
   async function handleResend() {
+    if (resending) return;
+    setResending(true);
     setOtpError('');
     setOtp('');
     try {
       await sendOtp(form.phone);
     } catch (err) {
       setOtpError(err instanceof ApiError ? err.message : 'Could not resend code.');
+    } finally {
+      setResending(false);
     }
   }
 
@@ -196,12 +216,12 @@ export default function RegisterPage() {
                 <Field
                   id="cnic"
                   type="tel"
-                  label="cnic"
+                  label="CNIC"
                   icon={CNIC_ICON}
-                  placeholder='e.g 1620434324'
-                  // required
+                  placeholder="e.g. 12345-1234567-1"
+                  required
+                  error={errors.cnic}
                   value={form.cnic}
-                  // onChange={(e) => updateField('cnic', e.target.value)}/>
                   onChange={(e) => set('cnic', formatCNIC(e.target.value))}/>
                 <Field
                   id="password"
@@ -270,16 +290,17 @@ export default function RegisterPage() {
 
               <p className="text-sm text-muted-foreground mb-5">
                 Didn&apos;t get the code?{' '}
-                <button onClick={handleResend} className="text-[#db2203] font-bold bg-transparent p-0">
-                  Resend code
+                <button onClick={handleResend} disabled={resending} className="text-[#db2203] font-bold bg-transparent p-0 disabled:opacity-60">
+                  {resending ? 'Sending…' : 'Resend code'}
                 </button>
               </p>
 
               <button
                 onClick={handleVerify}
-                className="w-full bg-navy hover:bg-navy-light text-white font-bold text-[0.9rem] py-3.5 rounded-[10px] transition-colors"
+                disabled={otp.length < 6 || verifying}
+                className="w-full bg-navy hover:bg-navy-light text-white font-bold text-[0.9rem] py-3.5 rounded-[10px] transition-colors disabled:opacity-60"
               >
-                Verify &amp; Continue ✓
+                {verifying ? 'Verifying…' : 'Verify & Continue ✓'}
               </button>
             </>
           )}
