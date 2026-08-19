@@ -16,8 +16,12 @@ class BusOperatorOut(BusOperatorIn):
     id: str
 
 
-class BusOperatorStatusIn(BaseModel):
-    status: str  # active / inactive
+class BusOperatorUpdateIn(BaseModel):
+    name: Optional[str] = None
+    city: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    status: Optional[str] = None
 
 
 class BusScheduleIn(BaseModel):

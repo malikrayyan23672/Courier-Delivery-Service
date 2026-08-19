@@ -17,6 +17,7 @@ import {
   WalletTransaction,
   listBusOperators,
   createBusOperator,
+  updateBusOperator,
   listBusSchedules,
   createBusSchedule,
   updateBusSchedule,
@@ -340,6 +341,8 @@ function OperatorsSection({ token }: { token: string }) {
   const [city, setCity] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', city: '', contact_phone: '', contact_email: '' });
   const { data: operators, loading } = useApi((t) => listBusOperators(t), token, reload);
 
   async function handleAdd(e: React.FormEvent) {
@@ -351,6 +354,32 @@ function OperatorsSection({ token }: { token: string }) {
       setReload((r) => r + 1);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not add operator.');
+    }
+  }
+
+  function startEdit(o: BusOperator) {
+    setEditingId(o.id);
+    setEditForm({ name: o.name, city: o.city || '', contact_phone: o.contact_phone || '', contact_email: o.contact_email || '' });
+  }
+
+  async function handleSaveEdit(operatorId: string) {
+    setError('');
+    try {
+      await updateBusOperator(operatorId, editForm, token);
+      setEditingId(null);
+      setReload((r) => r + 1);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not save changes.');
+    }
+  }
+
+  async function handleToggleStatus(o: BusOperator) {
+    setError('');
+    try {
+      await updateBusOperator(o.id, { status: o.status === 'active' ? 'inactive' : 'active' }, token);
+      setReload((r) => r + 1);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update status.');
     }
   }
 
@@ -377,17 +406,45 @@ function OperatorsSection({ token }: { token: string }) {
                   <th className={thCls}>Name</th>
                   <th className={thCls}>City</th>
                   <th className={thCls}>Phone</th>
+                  <th className={thCls}>Status</th>
+                  <th className={thCls}></th>
                 </tr>
               </thead>
               <tbody>
                 {operators?.map((o: BusOperator) => (
-                  <tr key={o.id} className={rowCls}>
-                    <td className={`${tdCls} font-semibold text-ink`}>{o.name}</td>
-                    <td className={`${tdCls} text-muted-foreground`}>{o.city || '—'}</td>
-                    <td className={`${tdCls} text-muted-foreground`}>{o.contact_phone || '—'}</td>
-                  </tr>
+                  editingId === o.id ? (
+                    <tr key={o.id} className={rowCls}>
+                      <td className={tdCls} colSpan={5}>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Input className="w-40" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Name" />
+                          <Input className="w-28" value={editForm.city} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} placeholder="City" />
+                          <Input className="w-32" value={editForm.contact_phone} onChange={(e) => setEditForm({ ...editForm, contact_phone: e.target.value })} placeholder="Phone" />
+                          <Input className="w-40" value={editForm.contact_email} onChange={(e) => setEditForm({ ...editForm, contact_email: e.target.value })} placeholder="Email" />
+                          <Button size="sm" variant="navy" onClick={() => handleSaveEdit(o.id)}>Save</Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={o.id} className={rowCls}>
+                      <td className={`${tdCls} font-semibold text-ink`}>{o.name}</td>
+                      <td className={`${tdCls} text-muted-foreground`}>{o.city || '—'}</td>
+                      <td className={`${tdCls} text-muted-foreground`}>{o.contact_phone || '—'}</td>
+                      <td className={tdCls}>
+                        <Badge variant={o.status === 'active' ? 'success' : 'secondary'} className="capitalize">{o.status || 'active'}</Badge>
+                      </td>
+                      <td className={tdCls}>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" onClick={() => startEdit(o)}>Edit</Button>
+                          <Button size="sm" variant="outline" onClick={() => handleToggleStatus(o)}>
+                            {o.status === 'active' ? 'Deactivate' : 'Activate'}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
                 ))}
-                {!operators?.length && <tr><td colSpan={3} className="p-6 text-sm text-muted-foreground">No operators yet.</td></tr>}
+                {!operators?.length && <tr><td colSpan={5} className="p-6 text-sm text-muted-foreground">No operators yet.</td></tr>}
               </tbody>
             </table>
           </div>

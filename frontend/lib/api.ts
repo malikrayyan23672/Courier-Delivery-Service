@@ -1087,6 +1087,14 @@ export function deactivateBusOperator(operatorId: string, token: string) {
   return request<BusOperator>(`/admin/bus/operators/${operatorId}`, { method: 'PATCH', body: JSON.stringify({ status: 'inactive' }) }, token);
 }
 
+export function updateBusOperator(
+  operatorId: string,
+  payload: Partial<{ name: string; city: string; contact_phone: string; contact_email: string; status: string }>,
+  token: string
+) {
+  return request<BusOperator>(`/admin/bus/operators/${operatorId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
 export function listBusSchedules(token: string) {
   return request<BusSchedule[]>('/admin/bus/schedules', { method: 'GET' }, token);
 }

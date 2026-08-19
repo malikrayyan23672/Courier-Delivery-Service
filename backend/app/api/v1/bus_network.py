@@ -23,7 +23,7 @@ from app.services import log_service
 from app.schemas.bus_network import (
     BusOperatorIn,
     BusOperatorOut,
-    BusOperatorStatusIn,
+    BusOperatorUpdateIn,
     BusScheduleIn,
     BusScheduleUpdateIn,
     BusScheduleOut,
@@ -69,17 +69,19 @@ def create_operator(
 @router.patch("/operators/{operator_id}", response_model=BusOperatorOut)
 def update_operator_status(
     operator_id: str,
-    payload: BusOperatorStatusIn,
+    payload: BusOperatorUpdateIn,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
-    """Deactivate (remove) a bus operator. Schedules keep referencing the row,
-    so this is a soft-remove - the operator stops appearing in active options
+    """Edits an operator's details, and/or deactivates (removes) it via
+    `status` - schedules keep referencing the row either way, so a status
+    change is a soft-remove: the operator stops appearing in active options
     while historical manifests still resolve their operator name."""
     operator = db.query(BusOperator).filter(BusOperator.id == operator_id).first()
     if not operator:
         raise HTTPException(status_code=404, detail="Bus operator not found")
-    operator.status = payload.status
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(operator, field, value)
     db.commit()
     db.refresh(operator)
     return BusOperatorOut.model_validate(operator)
