@@ -238,6 +238,7 @@ class OfflineQueueService extends ChangeNotifier {
   Future<QueuedActionOutcome> submitDeliveryFailed({
     required String orderId,
     required String note,
+    required String reason,
     double? lat,
     double? lng,
     File? photo,
@@ -245,15 +246,15 @@ class OfflineQueueService extends ChangeNotifier {
     if (photo == null) {
       return _submitOrQueue(
         type: QueuedActionType.deliveryFailed,
-        payload: {'orderId': orderId, 'note': note, 'lat': lat, 'lng': lng},
+        payload: {'orderId': orderId, 'note': note, 'reason': reason, 'lat': lat, 'lng': lng},
         send: () async {
-          await _riderService.reportDeliveryFailed(orderId, note: note, lat: lat, lng: lng);
+          await _riderService.reportDeliveryFailed(orderId, note: note, reason: reason, lat: lat, lng: lng);
         },
       );
     }
 
     try {
-      await _riderService.reportDeliveryFailed(orderId, note: note, lat: lat, lng: lng, photo: photo);
+      await _riderService.reportDeliveryFailed(orderId, note: note, reason: reason, lat: lat, lng: lng, photo: photo);
       return QueuedActionOutcome.sent;
     } on ApiException catch (e) {
       if (e.statusCode == null) {
@@ -261,7 +262,7 @@ class OfflineQueueService extends ChangeNotifier {
         pending.add(QueuedAction(
           id: _newId(),
           type: QueuedActionType.deliveryFailed,
-          payload: {'orderId': orderId, 'note': note, 'lat': lat, 'lng': lng, 'photoPath': durablePath},
+          payload: {'orderId': orderId, 'note': note, 'reason': reason, 'lat': lat, 'lng': lng, 'photoPath': durablePath},
           capturedAt: DateTime.now(),
         ));
         await _persist();
@@ -371,6 +372,8 @@ class OfflineQueueService extends ChangeNotifier {
         await _riderService.reportDeliveryFailed(
           p['orderId'] as String,
           note: p['note'] as String,
+          // Falls back to 'other' for actions queued before `reason` existed.
+          reason: (p['reason'] as String?) ?? 'other',
           lat: (p['lat'] as num?)?.toDouble(),
           lng: (p['lng'] as num?)?.toDouble(),
           photo: photo,

@@ -231,12 +231,14 @@ class RiderService {
   }
 
   /// Reports a failed doorstep delivery attempt. [photo] is required once
-  /// this would be the 3rd attempt (see Order.nextFailedAttemptIsFinal) -
-  /// the backend rejects the request without one and auto-returns the
-  /// parcel to origin when it's supplied.
+  /// this would be the 3rd attempt, or whenever [reason] is `refused` (see
+  /// Order.nextFailedAttemptIsFinal and failure_reasons.dart) - the backend
+  /// rejects the request without one and auto-returns the parcel to origin
+  /// when it's supplied.
   Future<Order> reportDeliveryFailed(
     String orderId, {
     required String note,
+    required String reason,
     double? lat,
     double? lng,
     File? photo,
@@ -244,6 +246,7 @@ class RiderService {
     try {
       final formData = FormData.fromMap({
         'note': note,
+        'reason': reason,
         if (lat != null) 'lat': lat,
         if (lng != null) 'lng': lng,
         if (photo != null) 'photo': await MultipartFile.fromFile(photo.path, filename: 'failure_$orderId.jpg'),

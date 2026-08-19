@@ -24,7 +24,7 @@ from app.schemas.order_message import OrderMessageCreate, OrderMessageOut
 from app.utils.uploads import save_pod_photo, save_failure_proof_photo
 from app.services import otp_service
 from app.services import notification_service
-from app.services.order_service import haversine_meters, maybe_auto_assign_last_mile_rider
+from app.services.order_service import haversine_meters, maybe_auto_assign_last_mile_rider, add_order_to_return_batch
 from app.services.settlement_service import (
     create_cod_settlement,
     WALLET_LOCK_THRESHOLD,
@@ -509,7 +509,10 @@ def return_to_hub(
 ):
     """Rider physically drops an RTO parcel back at the hub. `rto` is a
     terminal state, so this just logs the handover as a tracking event
-    rather than transitioning status."""
+    rather than transitioning status - but it's the trigger for grouping
+    the parcel into the hub's return batch (TRD: "Return batch auto-
+    created"), since that's the point it's actually sitting at the hub
+    ready to go out again."""
     rider_profile = _rider_profile(db, current_user)
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order or order.rider_id != rider_profile.id:
@@ -518,6 +521,7 @@ def return_to_hub(
         raise HTTPException(status_code=400, detail="Only RTO parcels can be returned to hub")
 
     transition(db, order, order.status, actor=current_user, note="Returned to hub", lat=payload.lat, lng=payload.lng)
+    add_order_to_return_batch(db, order)
     db.commit()
     db.refresh(order)
     return order
@@ -612,20 +616,34 @@ def update_delivery_status(
     return {"message": "Status updated", "status": order.status}
 
 
+# Structured failure reasons a rider can pick - "refused" is the one the TRD
+# calls out by name as its own immediate-RTO trigger, independent of attempt
+# count ("3 attempts exhausted OR buyer refuses").
+FAILURE_REASONS = {
+    "unavailable", "refused", "unreachable", "reschedule_requested",
+    "bad_address", "inaccessible", "safety", "other",
+}
+
+
 @router.post("/deliveries/{order_id}/delivery-failed", response_model=OrderOut)
 def report_delivery_failed(
     order_id: str,
     note: str = Form(...),
+    reason: str = Form("other"),
     lat: float | None = Form(None),
     lng: float | None = Form(None),
     photo: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("rider")),
 ):
-    """Records a failed doorstep delivery attempt. On the 3rd attempt this
-    auto-returns the parcel to origin (RTO) and - since the rider won't get
-    another chance to explain what happened - requires a photo as proof,
-    notifying the branch and the seller."""
+    """Records a failed doorstep delivery attempt. Auto-returns the parcel to
+    origin (RTO) either on the 3rd attempt or immediately when the buyer
+    refused the parcel outright - in both cases the rider won't get another
+    chance to explain what happened, so a photo is required as proof, and
+    the branch + seller are notified."""
+    if reason not in FAILURE_REASONS:
+        raise HTTPException(status_code=400, detail="Invalid failure reason")
+
     rider_profile = _rider_profile(db, current_user)
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order or order.rider_id != rider_profile.id:
@@ -634,38 +652,40 @@ def report_delivery_failed(
         raise HTTPException(status_code=400, detail="This delivery isn't currently out for delivery.")
 
     attempt_number = db.query(DeliveryAttempt).filter(DeliveryAttempt.order_id == order.id).count() + 1
-    is_final_attempt = attempt_number >= 3
+    is_buyer_refusal = reason == "refused"
+    is_final_attempt = attempt_number >= 3 or is_buyer_refusal
 
     photo_url = None
     if is_final_attempt:
         if not photo:
             raise HTTPException(
                 status_code=400,
-                detail="A photo is required to report the 3rd failed attempt - it returns the parcel to origin.",
+                detail="A photo is required to report a buyer refusal or the 3rd failed attempt - it returns the parcel to origin.",
             )
         photo_url = save_failure_proof_photo(order.id, photo)
     elif photo:
         photo_url = save_failure_proof_photo(order.id, photo)
 
     transition(db, order, OrderStatus.failed, actor=current_user, note=note, lat=lat, lng=lng)
-    db.add(DeliveryAttempt(order_id=order.id, attempt_number=attempt_number, status="failed", notes=note, photo_url=photo_url))
+    db.add(DeliveryAttempt(order_id=order.id, attempt_number=attempt_number, status="failed", reason=reason, notes=note, photo_url=photo_url))
 
     if is_final_attempt:
+        rto_reason = "the buyer refused the parcel" if is_buyer_refusal else f"{attempt_number} failed delivery attempts"
         transition(
             db, order, OrderStatus.rto, actor=current_user,
-            note=f"Auto-RTO after {attempt_number} failed delivery attempts - proof attached",
+            note=f"Auto-RTO - {rto_reason} - proof attached",
         )
         for staff in db.query(StaffProfile).filter(StaffProfile.branch_id == order.branch_id).all():
             notification_service.notify(
                 db, user_id=staff.user_id, title="Parcel returned to origin",
-                message=f"{order.tracking_number} was returned after 3 failed delivery attempts.",
+                message=f"{order.tracking_number} was returned - {rto_reason}.",
                 type="warning", order_id=order.id,
             )
         if order.seller_business_id:
             for owner in db.query(User).filter(User.business_id == order.seller_business_id).all():
                 notification_service.notify(
                     db, user_id=owner.id, title="Parcel returned to origin",
-                    message=f"{order.tracking_number} couldn't be delivered after 3 attempts and is being returned.",
+                    message=f"{order.tracking_number} couldn't be delivered - {rto_reason} - and is being returned.",
                     type="warning", order_id=order.id,
                 )
 

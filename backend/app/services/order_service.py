@@ -13,6 +13,7 @@ from app.models.rider import RiderProfile, RiderStatus
 from app.models.tracking_event import TrackingEvent
 from app.models.staff import StaffProfile
 from app.models.branch import Branch
+from app.models.bus_network import BusManifest, ManifestItem, ManifestStatus, ScanStatus
 from app.models.zone import Zone
 from app.models.discount import Discount
 from app.models.user import User
@@ -407,3 +408,64 @@ def _auto_assign_rider(db: Session, order: Order) -> RiderProfile | None:
         order_id=order.id,
     )
     return rider
+
+
+def _get_or_create_return_batch(db: Session, branch_id: str) -> BusManifest:
+    """The open (in_preparation) RTO return batch for this branch, or a new
+    one - RTO manifests are marked by an "RTO-" manifest number instead of
+    the "MF-" forward-dispatch ones so this lookup doesn't need a join."""
+    manifest = (
+        db.query(BusManifest)
+        .filter(
+            BusManifest.origin_branch_id == branch_id,
+            BusManifest.status == ManifestStatus.in_preparation,
+            BusManifest.manifest_number.like("RTO-%"),
+        )
+        .order_by(BusManifest.created_at.desc())
+        .first()
+    )
+    if manifest:
+        return manifest
+
+    branch = db.query(Branch).filter(Branch.id == branch_id).first()
+    manifest = BusManifest(
+        origin_branch_id=branch_id,
+        manifest_number=f"RTO-{secrets.token_hex(3).upper()}",
+        status=ManifestStatus.in_preparation,
+        origin_city=branch.name if branch else None,
+        destination_city="Return to seller",
+    )
+    db.add(manifest)
+    db.flush()
+    return manifest
+
+
+def add_order_to_return_batch(db: Session, order: Order) -> None:
+    """Groups a physically-returned RTO parcel into this branch's open
+    return batch (TRD: "Return batch auto-created") - same crate-on-a-
+    manifest model as forward dispatch, just auto-built instead of hand-
+    assembled by staff. Called once the rider has actually handed the
+    parcel back at the hub (see rider.py's return_to_hub), matching how the
+    forward flow only loads a parcel onto a manifest once it's physically
+    at the hub."""
+    if not order.branch_id:
+        return
+
+    already_batched = (
+        db.query(ManifestItem)
+        .join(BusManifest, ManifestItem.manifest_id == BusManifest.id)
+        .filter(ManifestItem.order_id == order.id, BusManifest.manifest_number.like("RTO-%"))
+        .first()
+    )
+    if already_batched:
+        return
+
+    manifest = _get_or_create_return_batch(db, order.branch_id)
+    db.add(
+        ManifestItem(
+            manifest_id=manifest.id,
+            order_id=order.id,
+            crate_label=f"RTO-{order.tracking_number}",
+            scan_status=ScanStatus.loaded,
+        )
+    )

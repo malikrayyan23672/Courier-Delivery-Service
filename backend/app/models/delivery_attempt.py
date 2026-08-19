@@ -12,6 +12,10 @@ class DeliveryAttempt(Base, TimestampMixin):
     order = relationship("Order", back_populates="delivery_attempts")
     attempt_number = Column(Integer, nullable=False)  # e.g., 1 for first attempt, 2 for second attempt
     status = Column(String(50), nullable=False)  # e.g., "successful", "failed", "rescheduled"
+    # Structured failure reason (e.g. "refused", "unavailable", "bad_address") -
+    # a "refused" reason is an immediate RTO trigger, same as exhausting all 3
+    # attempts (TRD: "3 attempts exhausted OR buyer refuses").
+    reason = Column(String(50), nullable=True)
     notes = Column(String(255), nullable=True)  # Optional notes about the delivery attempt
     # Cancellation proof - only ever populated on the 3rd/final failed attempt,
     # which auto-transitions the order to RTO (see rider.py's delivery-failed endpoint).

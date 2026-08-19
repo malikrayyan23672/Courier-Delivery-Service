@@ -177,10 +177,11 @@ class DeliveryDetailProvider extends ChangeNotifier {
   /// GPS is best-effort here (not strictly required to report a failed
   /// delivery attempt) - if it can't be resolved, submits without coordinates
   /// rather than blocking the rider from recording the failure at all.
-  /// [photo] is required by the backend once this is the 3rd attempt (see
-  /// `order.nextFailedAttemptIsFinal`) - the screen is responsible for
-  /// capturing it before calling this.
-  Future<ActionResult> markFailed({required String reason, File? photo}) async {
+  /// [photo] is required by the backend once this is the 3rd attempt, or
+  /// whenever [reasonCode] is `refused` (see `order.nextFailedAttemptIsFinal`
+  /// and failure_reasons.dart) - the screen is responsible for capturing it
+  /// before calling this.
+  Future<ActionResult> markFailed({required String note, required String reasonCode, File? photo}) async {
     Position? position;
     try {
       position = await _locationService.getCurrentPosition();
@@ -196,7 +197,8 @@ class DeliveryDetailProvider extends ChangeNotifier {
     try {
       final outcome = await _offlineQueueService.submitDeliveryFailed(
         orderId: orderId,
-        note: reason,
+        note: note,
+        reason: reasonCode,
         lat: position?.latitude,
         lng: position?.longitude,
         photo: photo,

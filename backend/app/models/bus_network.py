@@ -76,6 +76,11 @@ class BusManifest(Base, TimestampMixin):
     schedule_id = Column(UUID_TYPE, ForeignKey("bus_schedules.id"), nullable=True)
     schedule = relationship("BusSchedule", back_populates="manifests")
 
+    # Only set on auto-created RTO return batches (see order_service.
+    # add_order_to_return_batch), which have no real BusSchedule yet - lets
+    # that lookup find "the open return batch for branch X" without a join.
+    origin_branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=True)
+
     manifest_number = Column(String(50), unique=True, nullable=True, index=True)
     coach_number = Column(String(50), nullable=True)  # e.g. bus registration/coach tag
     departure_at = Column(DateTime(timezone=True), nullable=True)

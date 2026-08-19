@@ -10,19 +10,9 @@ import '../../models/address.dart';
 import '../../models/order.dart';
 import 'delivery_detail_provider.dart';
 import 'delivery_failed_final_screen.dart';
+import 'failure_reasons.dart';
 import 'order_messages_screen.dart';
 import 'pod/proof_of_delivery_screen.dart';
-
-const _failureReasons = [
-  'Customer unavailable',
-  'Customer refused',
-  'Customer unreachable',
-  'Customer requested reschedule',
-  'Incorrect address',
-  'Address inaccessible',
-  'Safety issue',
-  'Other',
-];
 
 class DeliveryDetailScreen extends StatelessWidget {
   final String orderId;
@@ -42,7 +32,11 @@ class _DeliveryDetailView extends StatelessWidget {
   const _DeliveryDetailView();
 
   /// Quick reason-only dialog for attempts 1-2 (no photo required yet - see
-  /// DeliveryFailedFinalScreen for the mandatory-photo 3rd attempt).
+  /// DeliveryFailedFinalScreen for the mandatory-photo 3rd attempt). A buyer
+  /// refusal is its own immediate-RTO trigger regardless of attempt count
+  /// (TRD: "3 attempts exhausted OR buyer refuses"), and RTO requires proof -
+  /// so picking "Customer refused" here hands off to the final screen
+  /// instead of submitting straight from this dialog.
   Future<void> _showFailureDialog(BuildContext context) async {
     String? selectedReason;
     final noteController = TextEditingController();
@@ -59,7 +53,7 @@ class _DeliveryDetailView extends StatelessWidget {
               DropdownButtonFormField<String>(
                 value: selectedReason,
                 decoration: const InputDecoration(labelText: 'Reason'),
-                items: _failureReasons
+                items: failureReasons.keys
                     .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                     .toList(),
                 onChanged: (value) => setState(() => selectedReason = value),
@@ -85,11 +79,26 @@ class _DeliveryDetailView extends StatelessWidget {
 
     if (confirmed != true || !context.mounted) return;
 
-    final reason = noteController.text.trim().isEmpty
+    if (selectedReason == refusedReasonLabel) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => DeliveryFailedFinalScreen(
+            initialReason: selectedReason,
+            initialNote: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final note = noteController.text.trim().isEmpty
         ? selectedReason!
         : '$selectedReason - ${noteController.text.trim()}';
 
-    final result = await context.read<DeliveryDetailProvider>().markFailed(reason: reason);
+    final result = await context.read<DeliveryDetailProvider>().markFailed(
+          note: note,
+          reasonCode: failureReasonSlug(selectedReason!),
+        );
     if (!context.mounted) return;
 
     final message = switch (result) {

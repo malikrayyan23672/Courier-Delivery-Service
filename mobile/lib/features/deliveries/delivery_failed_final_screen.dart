@@ -6,35 +6,36 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme.dart';
 import 'delivery_detail_provider.dart';
+import 'failure_reasons.dart';
 
-const _failureReasons = [
-  'Customer unavailable',
-  'Customer refused',
-  'Customer unreachable',
-  'Customer requested reschedule',
-  'Incorrect address',
-  'Address inaccessible',
-  'Safety issue',
-  'Other',
-];
-
-/// The 3rd/final failed-delivery attempt: this auto-returns the parcel to
-/// origin, so - unlike attempts 1-2 (see the quick dialog in
-/// delivery_detail_screen.dart) - a cancellation photo is mandatory. Mirrors
-/// pod/proof_of_delivery_screen.dart's layout.
+/// The 3rd/final failed-delivery attempt, or an immediate buyer refusal on
+/// any attempt: both auto-return the parcel to origin, so - unlike a normal
+/// attempt 1-2 (see the quick dialog in delivery_detail_screen.dart) - a
+/// cancellation photo is mandatory. Mirrors pod/proof_of_delivery_screen.dart's
+/// layout. [initialReason]/[initialNote] let the quick dialog hand off a
+/// buyer-refusal report it already started collecting.
 class DeliveryFailedFinalScreen extends StatefulWidget {
-  const DeliveryFailedFinalScreen({super.key});
+  final String? initialReason;
+  final String? initialNote;
+
+  const DeliveryFailedFinalScreen({super.key, this.initialReason, this.initialNote});
 
   @override
   State<DeliveryFailedFinalScreen> createState() => _DeliveryFailedFinalScreenState();
 }
 
 class _DeliveryFailedFinalScreenState extends State<DeliveryFailedFinalScreen> {
-  final _noteController = TextEditingController();
+  late final _noteController = TextEditingController(text: widget.initialNote);
   String? _reason;
   File? _photo;
   bool _submitting = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _reason = widget.initialReason;
+  }
 
   @override
   void dispose() {
@@ -60,7 +61,11 @@ class _DeliveryFailedFinalScreenState extends State<DeliveryFailedFinalScreen> {
     final note = _noteController.text.trim().isEmpty ? _reason! : '$_reason - ${_noteController.text.trim()}';
 
     try {
-      final result = await context.read<DeliveryDetailProvider>().markFailed(reason: note, photo: _photo);
+      final result = await context.read<DeliveryDetailProvider>().markFailed(
+            note: note,
+            reasonCode: failureReasonSlug(_reason!),
+            photo: _photo,
+          );
       if (!mounted) return;
       if (result == ActionResult.failed) {
         setState(() => _error = context.read<DeliveryDetailProvider>().actionError ?? 'Failed to submit');
@@ -89,9 +94,11 @@ class _DeliveryFailedFinalScreenState extends State<DeliveryFailedFinalScreen> {
               color: AppColors.warning.withOpacity(0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Text(
-              'This is the 3rd failed attempt. Submitting this will return the parcel to origin - a photo is required as proof.',
-              style: TextStyle(fontWeight: FontWeight.w600),
+            child: Text(
+              widget.initialReason == refusedReasonLabel
+                  ? 'The buyer refused this parcel. Submitting this will return it to origin - a photo is required as proof.'
+                  : 'This is the 3rd failed attempt. Submitting this will return the parcel to origin - a photo is required as proof.',
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
           if (_error != null) ...[
@@ -111,7 +118,7 @@ class _DeliveryFailedFinalScreenState extends State<DeliveryFailedFinalScreen> {
           DropdownButtonFormField<String>(
             value: _reason,
             decoration: const InputDecoration(labelText: 'Reason'),
-            items: _failureReasons.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+            items: failureReasons.keys.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
             onChanged: (value) => setState(() => _reason = value),
           ),
           const SizedBox(height: 12),
