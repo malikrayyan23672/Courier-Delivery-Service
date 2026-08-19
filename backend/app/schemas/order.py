@@ -143,4 +143,7 @@ class OrderDetailOut(OrderOut):
     tracking_events: list[TrackingEventOut] = []
     payment: Optional[PaymentOut] = None
     rider: Optional[RiderContactOut] = None
+    # Count of failed delivery attempts so far - the rider app requires a
+    # cancellation photo once this reaches 2 (the next attempt is the 3rd/final one).
+    failed_attempt_count: int = 0
 

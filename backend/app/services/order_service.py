@@ -307,6 +307,74 @@ def _apply_discount(
     return str(discount.id), round(discount.apply(price), 2)
 
 
+def offer_last_mile_rider(
+    db: Session,
+    order: Order,
+    rider: RiderProfile,
+    actor: User | None = None,
+    note: str | None = None,
+) -> None:
+    """Puts a rider up for the destination-hub last-mile leg. Doesn't move
+    `order.status` (it's already `dest_hub`, which doubles as the "offer
+    pending" state) - the rider accepts/declines via respond_to_offer, same
+    shape as the origin pickup offer."""
+    order.rider_id = rider.id
+    order.rider_accepted = None
+    transition(db, order, order.status, actor=actor, note=note or f"Offered to rider {rider.user.full_name if rider.user else rider.id}")
+    notification_service.notify(
+        db,
+        user_id=rider.user_id,
+        title="New delivery offer",
+        message=f"Order {order.tracking_number} assigned to you for last-mile delivery",
+        order_id=order.id,
+    )
+
+
+def auto_assign_last_mile_rider(db: Session, order: Order, actor: User | None = None) -> RiderProfile | None:
+    """Picks the best available rider at the order's (destination) branch,
+    same ranking as `_auto_assign_rider` but scoped by branch rather than
+    zone, since the last mile is a single-branch hand-off."""
+    if not order.branch_id:
+        return None
+
+    query = db.query(RiderProfile).filter(
+        RiderProfile.branch_id == order.branch_id,
+        RiderProfile.status == RiderStatus.active,
+        RiderProfile.is_available.is_(True),
+    )
+    if order.payment and order.payment.method == PaymentMethod.cash:
+        query = query.filter(RiderProfile.cod_wallet_locked.is_(False))
+
+    rider = query.order_by(RiderProfile.rating.desc(), RiderProfile.created_at.asc()).first()
+    if not rider:
+        return None
+
+    offer_last_mile_rider(db, order, rider, actor=actor, note=f"Auto-assigned to rider {rider.user.full_name} for last-mile delivery")
+    return rider
+
+
+def maybe_auto_assign_last_mile_rider(db: Session, order: Order, actor: User | None = None) -> RiderProfile | None:
+    """Only auto-assigns if the order's branch has last-mile assignment set
+    to automatic - the manual branches leave the order in the last-mile
+    queue for hub staff to pick a rider themselves."""
+    if not order.branch_id:
+        return None
+    branch = db.query(Branch).filter(Branch.id == order.branch_id).first()
+    if not branch or branch.rider_assignment_mode != "automatic":
+        return None
+    return auto_assign_last_mile_rider(db, order, actor=actor)
+
+
+def handle_dest_hub_arrival(db: Session, order: Order, branch_id: str, actor: User | None = None) -> None:
+    """Called the moment a parcel reaches `dest_hub`. Records the branch now
+    physically holding it (order.branch_id tracked the origin branch up to
+    this point) so the hub console's queries - which all scope by
+    Order.branch_id - pick it up, then offers a last-mile rider if that
+    branch runs automatic assignment."""
+    order.branch_id = branch_id
+    maybe_auto_assign_last_mile_rider(db, order, actor=actor)
+
+
 def _auto_assign_rider(db: Session, order: Order) -> RiderProfile | None:
     if not order.zone_id:
         return None

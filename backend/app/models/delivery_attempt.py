@@ -13,3 +13,6 @@ class DeliveryAttempt(Base, TimestampMixin):
     attempt_number = Column(Integer, nullable=False)  # e.g., 1 for first attempt, 2 for second attempt
     status = Column(String(50), nullable=False)  # e.g., "successful", "failed", "rescheduled"
     notes = Column(String(255), nullable=True)  # Optional notes about the delivery attempt
+    # Cancellation proof - only ever populated on the 3rd/final failed attempt,
+    # which auto-transitions the order to RTO (see rider.py's delivery-failed endpoint).
+    photo_url = Column(String(500), nullable=True)

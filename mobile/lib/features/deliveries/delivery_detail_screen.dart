@@ -9,6 +9,8 @@ import '../../core/widgets/status_badge.dart';
 import '../../models/address.dart';
 import '../../models/order.dart';
 import 'delivery_detail_provider.dart';
+import 'delivery_failed_final_screen.dart';
+import 'order_messages_screen.dart';
 import 'pod/proof_of_delivery_screen.dart';
 
 const _failureReasons = [
@@ -39,6 +41,8 @@ class DeliveryDetailScreen extends StatelessWidget {
 class _DeliveryDetailView extends StatelessWidget {
   const _DeliveryDetailView();
 
+  /// Quick reason-only dialog for attempts 1-2 (no photo required yet - see
+  /// DeliveryFailedFinalScreen for the mandatory-photo 3rd attempt).
   Future<void> _showFailureDialog(BuildContext context) async {
     String? selectedReason;
     final noteController = TextEditingController();
@@ -140,8 +144,25 @@ class _DeliveryDetailView extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<DeliveryDetailProvider>();
 
+    final order = provider.order;
+    final canMessageSeller = order != null &&
+        order.riderAccepted == true &&
+        !const [OrderStatus.delivered, OrderStatus.rto, OrderStatus.cancelled].contains(order.status);
+
     return Scaffold(
-      appBar: AppBar(title: Text(provider.order?.trackingNumber ?? 'Delivery')),
+      appBar: AppBar(
+        title: Text(order?.trackingNumber ?? 'Delivery'),
+        actions: [
+          if (canMessageSeller)
+            IconButton(
+              icon: const Icon(Icons.chat_bubble_outline),
+              tooltip: 'Message Seller',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => OrderMessagesScreen(trackingNumber: order.trackingNumber)),
+              ),
+            ),
+        ],
+      ),
       body: AsyncStateView(
         isLoading: provider.isLoading,
         errorMessage: provider.errorMessage,
@@ -393,10 +414,57 @@ class _ActionArea extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
-            onPressed: busy ? null : onFailurePressed,
+            onPressed: busy
+                ? null
+                : order.nextFailedAttemptIsFinal
+                    ? () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const DeliveryFailedFinalScreen()),
+                        )
+                    : onFailurePressed,
             icon: const Icon(Icons.report_gmailerrorred_outlined, color: AppColors.danger),
-            label: const Text('Mark as Failed', style: TextStyle(color: AppColors.danger)),
+            label: Text(
+              order.nextFailedAttemptIsFinal ? 'Mark as Failed (Final Attempt)' : 'Mark as Failed',
+              style: const TextStyle(color: AppColors.danger),
+            ),
             style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.danger)),
+          ),
+        ],
+      );
+    }
+
+    if (order.status == OrderStatus.failed) {
+      return Column(
+        children: [
+          Card(
+            color: AppColors.warning.withOpacity(0.12),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Text(
+                order.nextFailedAttemptIsFinal
+                    ? 'Delivery attempt ${order.failedAttemptCount} of 3 failed. The next attempt is final and will require a photo.'
+                    : 'Delivery attempt ${order.failedAttemptCount} of 3 failed.',
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          ElevatedButton.icon(
+            onPressed: busy
+                ? null
+                : () async {
+                    final result = await context.read<DeliveryDetailProvider>().retryDelivery();
+                    if (!context.mounted) return;
+                    if (result == ActionResult.queued) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('No connection - saved and will sync automatically')),
+                      );
+                    } else if (result == ActionResult.failed) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(context.read<DeliveryDetailProvider>().actionError ?? 'Failed to update')),
+                      );
+                    }
+                  },
+            icon: busy ? const _BusyIndicator() : const Icon(Icons.replay),
+            label: const Text('Retry Delivery'),
           ),
         ],
       );

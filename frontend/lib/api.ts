@@ -1559,10 +1559,32 @@ export interface SellerReturnRow {
   sla_hours_left: number;
   sla_breached: boolean;
   batch_id: string | null;
+  failure_note: string | null;
+  failure_photo_url: string | null;
 }
 
 export function listSellerReturns(token: string) {
   return request<SellerReturnRow[]>('/seller/returns', { method: 'GET' }, token);
+}
+
+// ---- Order messages (seller <-> rider chat) ----
+
+export interface OrderMessage {
+  id: string;
+  order_id: string;
+  sender_id: string;
+  sender_name: string | null;
+  sender_role: string | null;
+  body: string;
+  created_at: string;
+}
+
+export function listOrderMessages(orderId: string, token: string) {
+  return request<OrderMessage[]>(`/seller/orders/${orderId}/messages`, { method: 'GET' }, token);
+}
+
+export function sendOrderMessage(orderId: string, body: string, token: string) {
+  return request<OrderMessage>(`/seller/orders/${orderId}/messages`, { method: 'POST', body: JSON.stringify({ body }) }, token);
 }
 
 // ---- Hub Operations ----
@@ -1578,6 +1600,11 @@ export interface HubOrderSummary {
 
 export interface HubAgingOrder extends HubOrderSummary {
   hours_aging: number;
+}
+
+export interface HubRtoOrder extends HubOrderSummary {
+  failure_note: string | null;
+  failure_photo_url: string | null;
 }
 
 export interface HubManifestItem {
@@ -1739,7 +1766,56 @@ export function getHubAnalytics(token: string, branchId?: string, days = 14) {
 }
 
 export function getHubRtoQueue(token: string, branchId?: string) {
-  return request<HubOrderSummary[]>(`/hub/rto-queue${branchQuery(branchId)}`, { method: 'GET' }, token);
+  return request<HubRtoOrder[]>(`/hub/rto-queue${branchQuery(branchId)}`, { method: 'GET' }, token);
+}
+
+// ---- Hub last-mile rider assignment ----
+
+export interface HubLastMileOrder extends HubOrderSummary {
+  rider_id: string | null;
+  rider_name: string | null;
+  rider_accepted: boolean | null;
+}
+
+export interface HubRiderOption {
+  rider_id: string;
+  full_name: string;
+  phone: string | null;
+  vehicle_type: string | null;
+  is_available: boolean;
+  rating: number;
+  cod_wallet_locked: boolean;
+}
+
+export type RiderAssignmentMode = 'manual' | 'automatic';
+
+export interface HubSettings {
+  branch_id: string;
+  rider_assignment_mode: RiderAssignmentMode;
+}
+
+export function getHubLastMileQueue(token: string, branchId?: string) {
+  return request<HubLastMileOrder[]>(`/hub/last-mile-queue${branchQuery(branchId)}`, { method: 'GET' }, token);
+}
+
+export function getHubRiders(token: string, branchId?: string) {
+  return request<HubRiderOption[]>(`/hub/riders${branchQuery(branchId)}`, { method: 'GET' }, token);
+}
+
+export function assignHubLastMileRider(orderId: string, riderId: string, token: string, branchId?: string) {
+  return request<HubLastMileOrder>(
+    `/hub/orders/${orderId}/assign-rider/${riderId}${branchQuery(branchId)}`,
+    { method: 'PATCH' },
+    token
+  );
+}
+
+export function getHubSettings(token: string, branchId?: string) {
+  return request<HubSettings>(`/hub/settings${branchQuery(branchId)}`, { method: 'GET' }, token);
+}
+
+export function updateHubSettings(mode: RiderAssignmentMode, token: string) {
+  return request<HubSettings>('/hub/settings', { method: 'PATCH', body: JSON.stringify({ rider_assignment_mode: mode }) }, token);
 }
 
 // ---- Finance & COD Engine ----

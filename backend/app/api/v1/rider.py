@@ -11,6 +11,8 @@ from app.models.rider import RiderProfile, RiderStatus
 from app.models.order import Order, OrderStatus
 from app.models.delivery_attempt import DeliveryAttempt
 from app.models.branch import Branch
+from app.models.staff import StaffProfile
+from app.models.order_message import OrderMessage
 from app.models.bus_network import ManifestItem, ScanStatus
 from app.models.rider_status_request import RiderStatusRequest, RequestStatus
 from app.models.parcel_unlock_request import ParcelUnlockRequest
@@ -18,9 +20,11 @@ from app.models.support_ticket import SupportTicket, SupportTicketMessage, Suppo
 from app.models.notification import Notification
 from app.schemas.order import OrderOut, OrderDetailOut, AddressOut, TrackingEventOut, PaymentOut
 from app.schemas.notification import NotificationOut
-from app.utils.uploads import save_pod_photo
+from app.schemas.order_message import OrderMessageCreate, OrderMessageOut
+from app.utils.uploads import save_pod_photo, save_failure_proof_photo
 from app.services import otp_service
-from app.services.order_service import haversine_meters
+from app.services import notification_service
+from app.services.order_service import haversine_meters, maybe_auto_assign_last_mile_rider
 from app.services.settlement_service import (
     create_cod_settlement,
     WALLET_LOCK_THRESHOLD,
@@ -61,8 +65,10 @@ ACTIVE_STATUSES = (
 )
 # Statuses a rider is allowed to set directly via the generic status endpoint.
 # `in_hub`/`in_transit`/`dest_hub` only ever happen via hub/manifest scans;
-# `delivered` requires the dedicated OTP+photo+GPS proof-of-delivery endpoint.
-RIDER_SETTABLE_STATUSES = (OrderStatus.picked_up, OrderStatus.out_for_delivery, OrderStatus.failed)
+# `delivered` requires the dedicated OTP+photo+GPS proof-of-delivery endpoint;
+# `failed` requires the dedicated delivery-failed endpoint (cancellation photo
+# on the 3rd attempt).
+RIDER_SETTABLE_STATUSES = (OrderStatus.picked_up, OrderStatus.out_for_delivery)
 
 
 def _rider_profile(db: Session, current_user: User) -> RiderProfile:
@@ -309,6 +315,7 @@ def my_delivery_detail(
         tracking_events=[TrackingEventOut.model_validate(e) for e in order.tracking_events],
         payment=PaymentOut.model_validate(order.payment) if order.payment else None,
         rider=None,
+        failed_attempt_count=db.query(DeliveryAttempt).filter(DeliveryAttempt.order_id == order.id).count(),
     )
 
 
@@ -551,6 +558,9 @@ def respond_to_offer(
         order.rider_accepted = None
         if is_last_mile_offer:
             transition(db, order, order.status, actor=current_user, note="Rider declined last-mile delivery")
+            # Automatic branches immediately re-offer to the next best rider;
+            # manual branches leave it in the last-mile queue for hub staff.
+            maybe_auto_assign_last_mile_rider(db, order, actor=current_user)
         else:
             transition(db, order, OrderStatus.created, actor=current_user, note="Rider declined the delivery")
         message = "Delivery declined"
@@ -579,6 +589,11 @@ def update_delivery_status(
             status_code=400,
             detail="Marking a delivery as delivered requires OTP + photo + GPS - use the proof-of-delivery endpoint instead.",
         )
+    if new_status == OrderStatus.failed:
+        raise HTTPException(
+            status_code=400,
+            detail="Marking a delivery as failed requires the delivery-failed endpoint instead.",
+        )
     if new_status not in RIDER_SETTABLE_STATUSES:
         raise HTTPException(
             status_code=400,
@@ -589,18 +604,74 @@ def update_delivery_status(
         if lat is None or lng is None:
             raise HTTPException(status_code=400, detail="GPS location is required to confirm pickup.")
         transition(db, order, new_status, actor=current_user, note=note, lat=lat, lng=lng, reference_address=order.pickup_address)
-    elif new_status == OrderStatus.failed:
-        transition(db, order, new_status, actor=current_user, note=note, lat=lat, lng=lng)
-        attempt_number = db.query(DeliveryAttempt).filter(DeliveryAttempt.order_id == order.id).count() + 1
-        db.add(DeliveryAttempt(order_id=order.id, attempt_number=attempt_number, status="failed", notes=note))
-        if attempt_number >= 3:
-            transition(db, order, OrderStatus.rto, actor=current_user, note=f"Auto-RTO after {attempt_number} failed delivery attempts")
     else:
         transition(db, order, new_status, actor=current_user, note=note, lat=lat, lng=lng)
 
     db.commit()
     db.refresh(order)
     return {"message": "Status updated", "status": order.status}
+
+
+@router.post("/deliveries/{order_id}/delivery-failed", response_model=OrderOut)
+def report_delivery_failed(
+    order_id: str,
+    note: str = Form(...),
+    lat: float | None = Form(None),
+    lng: float | None = Form(None),
+    photo: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    """Records a failed doorstep delivery attempt. On the 3rd attempt this
+    auto-returns the parcel to origin (RTO) and - since the rider won't get
+    another chance to explain what happened - requires a photo as proof,
+    notifying the branch and the seller."""
+    rider_profile = _rider_profile(db, current_user)
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order or order.rider_id != rider_profile.id:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    if order.status != OrderStatus.out_for_delivery:
+        raise HTTPException(status_code=400, detail="This delivery isn't currently out for delivery.")
+
+    attempt_number = db.query(DeliveryAttempt).filter(DeliveryAttempt.order_id == order.id).count() + 1
+    is_final_attempt = attempt_number >= 3
+
+    photo_url = None
+    if is_final_attempt:
+        if not photo:
+            raise HTTPException(
+                status_code=400,
+                detail="A photo is required to report the 3rd failed attempt - it returns the parcel to origin.",
+            )
+        photo_url = save_failure_proof_photo(order.id, photo)
+    elif photo:
+        photo_url = save_failure_proof_photo(order.id, photo)
+
+    transition(db, order, OrderStatus.failed, actor=current_user, note=note, lat=lat, lng=lng)
+    db.add(DeliveryAttempt(order_id=order.id, attempt_number=attempt_number, status="failed", notes=note, photo_url=photo_url))
+
+    if is_final_attempt:
+        transition(
+            db, order, OrderStatus.rto, actor=current_user,
+            note=f"Auto-RTO after {attempt_number} failed delivery attempts - proof attached",
+        )
+        for staff in db.query(StaffProfile).filter(StaffProfile.branch_id == order.branch_id).all():
+            notification_service.notify(
+                db, user_id=staff.user_id, title="Parcel returned to origin",
+                message=f"{order.tracking_number} was returned after 3 failed delivery attempts.",
+                type="warning", order_id=order.id,
+            )
+        if order.seller_business_id:
+            for owner in db.query(User).filter(User.business_id == order.seller_business_id).all():
+                notification_service.notify(
+                    db, user_id=owner.id, title="Parcel returned to origin",
+                    message=f"{order.tracking_number} couldn't be delivered after 3 attempts and is being returned.",
+                    type="warning", order_id=order.id,
+                )
+
+    db.commit()
+    db.refresh(order)
+    return order
 
 
 @router.post("/deliveries/{order_id}/send-delivery-otp", response_model=DeliveryOtpOut)
@@ -772,6 +843,67 @@ def reply_to_support_ticket(
     db.commit()
     db.refresh(ticket)
     return _support_ticket_out(ticket)
+
+
+# --- Order messages (rider <-> seller chat) ---
+
+def _order_message_out(m: OrderMessage) -> OrderMessageOut:
+    return OrderMessageOut(
+        id=str(m.id),
+        order_id=str(m.order_id),
+        sender_id=str(m.sender_id),
+        sender_name=m.sender.full_name if m.sender else None,
+        sender_role=m.sender.role.name if m.sender and m.sender.role else None,
+        body=m.body,
+        created_at=m.created_at,
+    )
+
+
+def _my_delivery_order(db: Session, current_user: User, order_id: str) -> Order:
+    rider_profile = _rider_profile(db, current_user)
+    order = db.query(Order).filter(Order.id == order_id, Order.rider_id == rider_profile.id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    return order
+
+
+@router.get("/deliveries/{order_id}/messages", response_model=list[OrderMessageOut])
+def list_order_messages(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    order = _my_delivery_order(db, current_user, order_id)
+    messages = (
+        db.query(OrderMessage)
+        .filter(OrderMessage.order_id == order.id)
+        .order_by(OrderMessage.created_at)
+        .all()
+    )
+    return [_order_message_out(m) for m in messages]
+
+
+@router.post("/deliveries/{order_id}/messages", response_model=OrderMessageOut)
+def send_order_message(
+    order_id: str,
+    payload: OrderMessageCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    order = _my_delivery_order(db, current_user, order_id)
+    message = OrderMessage(order_id=order.id, sender_id=current_user.id, body=payload.body.strip())
+    db.add(message)
+
+    if order.seller_business_id:
+        for owner in db.query(User).filter(User.business_id == order.seller_business_id).all():
+            notification_service.notify(
+                db, user_id=owner.id, title=f"New message about {order.tracking_number}",
+                message=message.body[:200], order_id=order.id,
+            )
+
+    db.commit()
+    db.refresh(message)
+    return _order_message_out(message)
 
 
 # --- Earnings ---

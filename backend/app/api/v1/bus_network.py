@@ -17,7 +17,7 @@ from app.models.bus_network import (
     ScanStatus,
 )
 from app.models.order import Order, OrderStatus
-from app.services.order_service import transition
+from app.services.order_service import transition, handle_dest_hub_arrival
 from app.services import log_service
 from app.schemas.bus_network import (
     BusOperatorIn,
@@ -295,6 +295,9 @@ def update_manifest_status(
                 transition(db, item.order, OrderStatus.in_transit, actor=current_user, note=f"Manifest {manifest.manifest_number} departed")
             elif new_manifest_status == ManifestStatus.arrived and item.order.status == OrderStatus.in_transit:
                 transition(db, item.order, OrderStatus.dest_hub, actor=current_user, note=f"Manifest {manifest.manifest_number} arrived")
+                dest_branch_id = manifest.schedule.destination_branch_id if manifest.schedule else None
+                if dest_branch_id:
+                    handle_dest_hub_arrival(db, item.order, dest_branch_id, actor=current_user)
 
     db.commit()
     manifest = (

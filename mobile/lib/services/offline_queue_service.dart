@@ -20,6 +20,7 @@ import 'rider_service.dart';
 enum QueuedActionType {
   deliveryStatusUpdate,
   proofOfDelivery,
+  deliveryFailed,
   availabilityChange,
   supportTicketCreate,
   supportTicketReply,
@@ -56,6 +57,7 @@ class QueuedAction {
   static const _labels = {
     QueuedActionType.deliveryStatusUpdate: 'Delivery status update',
     QueuedActionType.proofOfDelivery: 'Proof of delivery',
+    QueuedActionType.deliveryFailed: 'Failed delivery report',
     QueuedActionType.availabilityChange: 'Availability change request',
     QueuedActionType.supportTicketCreate: 'Support ticket',
     QueuedActionType.supportTicketReply: 'Support ticket reply',
@@ -128,11 +130,11 @@ class OfflineQueueService extends ChangeNotifier {
   /// Copies a captured photo out of image_picker's cache (which the OS can
   /// reclaim at any time) into a durable app-support directory, so it
   /// survives sitting in the queue for hours before the rider gets signal.
-  Future<String> _copyToDurableStorage(File photo, String orderId) async {
+  Future<String> _copyToDurableStorage(File photo, String orderId, {String subfolder = 'pending_pod', String prefix = 'pod'}) async {
     final dir = await getApplicationSupportDirectory();
-    final podDir = Directory('${dir.path}/pending_pod');
-    if (!await podDir.exists()) await podDir.create(recursive: true);
-    final dest = File('${podDir.path}/pod_${orderId}_${DateTime.now().microsecondsSinceEpoch}.jpg');
+    final destDir = Directory('${dir.path}/$subfolder');
+    if (!await destDir.exists()) await destDir.create(recursive: true);
+    final dest = File('${destDir.path}/${prefix}_${orderId}_${DateTime.now().microsecondsSinceEpoch}.jpg');
     await photo.copy(dest.path);
     return dest.path;
   }
@@ -229,6 +231,47 @@ class OfflineQueueService extends ChangeNotifier {
     }
   }
 
+  /// Reports a failed delivery attempt. [photo] is only present on the 3rd
+  /// (final) attempt - when it is, this follows [submitProofOfDelivery]'s
+  /// durable-copy pattern so it still queues offline; without a photo it's
+  /// plain JSON like [submitStatusUpdate].
+  Future<QueuedActionOutcome> submitDeliveryFailed({
+    required String orderId,
+    required String note,
+    double? lat,
+    double? lng,
+    File? photo,
+  }) async {
+    if (photo == null) {
+      return _submitOrQueue(
+        type: QueuedActionType.deliveryFailed,
+        payload: {'orderId': orderId, 'note': note, 'lat': lat, 'lng': lng},
+        send: () async {
+          await _riderService.reportDeliveryFailed(orderId, note: note, lat: lat, lng: lng);
+        },
+      );
+    }
+
+    try {
+      await _riderService.reportDeliveryFailed(orderId, note: note, lat: lat, lng: lng, photo: photo);
+      return QueuedActionOutcome.sent;
+    } on ApiException catch (e) {
+      if (e.statusCode == null) {
+        final durablePath = await _copyToDurableStorage(photo, orderId, subfolder: 'pending_failure', prefix: 'failure');
+        pending.add(QueuedAction(
+          id: _newId(),
+          type: QueuedActionType.deliveryFailed,
+          payload: {'orderId': orderId, 'note': note, 'lat': lat, 'lng': lng, 'photoPath': durablePath},
+          capturedAt: DateTime.now(),
+        ));
+        await _persist();
+        notifyListeners();
+        return QueuedActionOutcome.queued;
+      }
+      rethrow;
+    }
+  }
+
   Future<QueuedActionOutcome> submitAvailabilityChange(bool isAvailable, {String? note}) {
     return _submitOrQueue(
       type: QueuedActionType.availabilityChange,
@@ -315,6 +358,24 @@ class OfflineQueueService extends ChangeNotifier {
           note: p['note'] as String?,
         );
         unawaited(photo.delete().catchError((_) => photo));
+        return;
+      case QueuedActionType.deliveryFailed:
+        final photoPath = p['photoPath'] as String?;
+        File? photo;
+        if (photoPath != null) {
+          photo = File(photoPath);
+          if (!await photo.exists()) {
+            throw ApiException('The captured failure photo is no longer available on this device', statusCode: 0);
+          }
+        }
+        await _riderService.reportDeliveryFailed(
+          p['orderId'] as String,
+          note: p['note'] as String,
+          lat: (p['lat'] as num?)?.toDouble(),
+          lng: (p['lng'] as num?)?.toDouble(),
+          photo: photo,
+        );
+        if (photo != null) unawaited(photo.delete().catchError((_) => photo!));
         return;
       case QueuedActionType.availabilityChange:
         await _riderService.requestAvailabilityChange(p['isAvailable'] as bool, note: p['note'] as String?);

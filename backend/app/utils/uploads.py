@@ -223,3 +223,34 @@ def save_pod_photo(order_id: str, photo: UploadFile) -> str:
         f.write(contents)
 
     return f"/uploads/pod/{order_id}/{filename}"
+
+
+def save_failure_proof_photo(order_id: str, photo: UploadFile) -> str:
+    """Validate and persist a cancellation-proof photo for a 3rd/final failed
+    delivery attempt. Same validation as save_pod_photo, separate folder."""
+    if photo.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Delivery failure photo must be a JPEG, PNG, or WebP image.",
+        )
+
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    contents = photo.file.read(max_bytes + 1)
+    if len(contents) > max_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Photo is too large - max {settings.MAX_UPLOAD_SIZE_MB}MB.",
+        )
+    if not contents:
+        raise HTTPException(status_code=400, detail="Uploaded photo is empty.")
+
+    ext = ALLOWED_IMAGE_TYPES[photo.content_type]
+    folder = os.path.join(settings.UPLOAD_DIR, "failure_proof", str(order_id))
+    os.makedirs(folder, exist_ok=True)
+
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(folder, filename)
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    return f"/uploads/failure_proof/{order_id}/{filename}"

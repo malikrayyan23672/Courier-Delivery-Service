@@ -41,6 +41,7 @@ class Order {
   // Detail-only fields (populated via GET /rider/deliveries/{id})
   final List<TrackingEvent> trackingEvents;
   final Payment? payment;
+  final int failedAttemptCount;
 
   Order({
     required this.id,
@@ -59,7 +60,12 @@ class Order {
     this.proofOfDeliveryRecipientName,
     this.trackingEvents = const [],
     this.payment,
+    this.failedAttemptCount = 0,
   });
+
+  /// True once the next failed attempt would be the 3rd - the rider app must
+  /// require a cancellation photo for it (see rider.py's delivery-failed endpoint).
+  bool get nextFailedAttemptIsFinal => failedAttemptCount >= 2;
 
   /// True if this order is a pickup offer the rider hasn't responded to yet.
   bool get isPendingOffer =>
@@ -88,6 +94,7 @@ class Order {
           ? (json['tracking_events'] as List).map((e) => TrackingEvent.fromJson(e)).toList()
           : const [],
       payment: json['payment'] != null ? Payment.fromJson(json['payment']) : null,
+      failedAttemptCount: (json['failed_attempt_count'] as num?)?.toInt() ?? 0,
     );
   }
 }

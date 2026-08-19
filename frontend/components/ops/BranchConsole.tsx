@@ -34,6 +34,15 @@ import {
   hubScan,
   HubScanAction,
   HubScanResult,
+  getHubLastMileQueue,
+  getHubRiders,
+  assignHubLastMileRider,
+  getHubSettings,
+  updateHubSettings,
+  HubLastMileOrder,
+  HubRiderOption,
+  HubSettings,
+  RiderAssignmentMode,
   listBusSchedules,
   createBusManifest,
   addManifestItem,
@@ -45,9 +54,11 @@ import {
   HubAgingOrder,
   HubManifestSummary,
   HubManifestItem,
+  mediaUrl,
   HubAnalytics,
   HubSnapshot,
   HubReports,
+  HubRtoOrder,
   BusSchedule,
   BusOperator,
   VendorScore,
@@ -351,9 +362,16 @@ export function BranchConsole() {
   const [hubAnalytics, setHubAnalytics] = useState<HubAnalytics | null>(null);
   const [hubLoading, setHubLoading] = useState(true);
   const [hubError, setHubError] = useState('');
-  const [rtoQueue, setRtoQueue] = useState<HubOrderSummary[]>([]);
+  const [rtoQueue, setRtoQueue] = useState<HubRtoOrder[]>([]);
   const [schedules, setSchedules] = useState<BusSchedule[]>([]);
   const [manifestBusy, setManifestBusy] = useState(false);
+
+  // Last-mile rider assignment (destination hub -> rider): manual pick or
+  // automatic per the branch's toggle in hub settings.
+  const [lastMileQueue, setLastMileQueue] = useState<HubLastMileOrder[]>([]);
+  const [hubRiderOptions, setHubRiderOptions] = useState<HubRiderOption[]>([]);
+  const [hubSettings, setHubSettings] = useState<HubSettings | null>(null);
+  const [lastMileBusy, setLastMileBusy] = useState(false);
 
   const [pickupSearch, setPickupSearch] = useState('');
   const [pickupStatusFilter, setPickupStatusFilter] = useState('');
@@ -453,8 +471,11 @@ export function BranchConsole() {
       getHubAnalytics(token, branchId),
       getHubRtoQueue(token, branchId),
       listBusSchedules(token),
+      getHubLastMileQueue(token, branchId),
+      getHubRiders(token, branchId),
+      getHubSettings(token, branchId),
     ])
-      .then(([inbound, dispatch, history, aging, analytics, rto, allSchedules]) => {
+      .then(([inbound, dispatch, history, aging, analytics, rto, allSchedules, lastMile, hubRiders, settings]) => {
         setInboundQueue(inbound);
         setDispatchQueue(dispatch);
         setManifestHistory(history);
@@ -462,6 +483,9 @@ export function BranchConsole() {
         setHubAnalytics(analytics);
         setRtoQueue(rto);
         setSchedules(allSchedules);
+        setLastMileQueue(lastMile);
+        setHubRiderOptions(hubRiders);
+        setHubSettings(settings);
       })
       .catch((err) => setHubError(err instanceof ApiError ? err.message : 'Could not load hub operations data.'))
       .finally(() => setHubLoading(false));
@@ -628,6 +652,35 @@ export function BranchConsole() {
       })
       .catch((err) => toast(err instanceof ApiError ? err.message : 'Scan failed.'))
       .finally(() => setScanning(false));
+  }
+
+  // ---- Last-mile rider assignment (destination hub) ----
+  async function handleAssignLastMileRider(orderId: string, riderId: string) {
+    if (!token) return;
+    setLastMileBusy(true);
+    try {
+      await assignHubLastMileRider(orderId, riderId, token, branchId);
+      toast('Rider assigned for last-mile delivery.');
+      loadHubData();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not assign rider.');
+    } finally {
+      setLastMileBusy(false);
+    }
+  }
+
+  async function handleToggleAssignmentMode(mode: RiderAssignmentMode) {
+    if (!token) return;
+    setLastMileBusy(true);
+    try {
+      const updated = await updateHubSettings(mode, token);
+      setHubSettings(updated);
+      toast(`Last-mile assignment set to ${mode}.`);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update assignment setting.');
+    } finally {
+      setLastMileBusy(false);
+    }
   }
 
   // ---- Rider COD wallet controls (branch manager + admin oversight) ----
@@ -854,6 +907,9 @@ export function BranchConsole() {
               inboundQueue={inboundQueue} dispatchQueue={dispatchQueue} manifestHistory={manifestHistory}
               hubLoading={hubLoading} hubError={hubError}
               onScan={handleScan} toast={toast} switchView={switchView}
+              lastMileQueue={lastMileQueue} hubRiderOptions={hubRiderOptions} hubSettings={hubSettings}
+              lastMileBusy={lastMileBusy} canManageAssignmentMode={role === 'manager' || role === 'admin' || role === 'super_admin'}
+              onAssignLastMileRider={handleAssignLastMileRider} onToggleAssignmentMode={handleToggleAssignmentMode}
             />
           )}
 
@@ -1238,15 +1294,59 @@ const SCAN_MODES: { value: HubScanAction; label: string; desc: string }[] = [
   { value: 'arrive', label: 'Scan Arrive', desc: 'arrived at destination hub' },
 ];
 
+function LastMileQueueRow({ order, riders, busy, onAssign }: {
+  order: HubLastMileOrder; riders: HubRiderOption[]; busy: boolean;
+  onAssign: (orderId: string, riderId: string) => void;
+}) {
+  const [selected, setSelected] = useState('');
+  return (
+    <TableRow>
+      <TableCell className="font-mono text-xs">{order.tracking_number}</TableCell>
+      <TableCell>{order.dropoff_city || '—'}</TableCell>
+      <TableCell>
+        {order.rider_name
+          ? <span>{order.rider_name} {order.rider_accepted === null && <span className="text-muted-foreground">(awaiting response)</span>}</span>
+          : <span className="text-muted-foreground">Unassigned</span>}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <select className={selectCls} value={selected} onChange={(e) => setSelected(e.target.value)} disabled={busy}>
+            <option value="">Select rider…</option>
+            {riders.map((r) => (
+              <option key={r.rider_id} value={r.rider_id} disabled={r.cod_wallet_locked}>
+                {r.full_name}{r.is_available ? '' : ' (offline)'}{r.cod_wallet_locked ? ' (wallet locked)' : ''}
+              </option>
+            ))}
+          </select>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!selected || busy}
+            onClick={() => { if (selected) { onAssign(order.id, selected); setSelected(''); } }}
+          >
+            Assign
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 function ParcelOpsView({
   scanInput, setScanInput, scanning, scanAction, setScanAction, lastScan,
   inboundQueue, dispatchQueue, manifestHistory, hubLoading, hubError, onScan, toast, switchView,
+  lastMileQueue, hubRiderOptions, hubSettings, lastMileBusy, canManageAssignmentMode,
+  onAssignLastMileRider, onToggleAssignmentMode,
 }: {
   scanInput: string; setScanInput: (v: string) => void; scanning: boolean;
   scanAction: HubScanAction; setScanAction: (v: HubScanAction) => void; lastScan: HubScanResult | null;
   inboundQueue: HubOrderSummary[]; dispatchQueue: HubOrderSummary[]; manifestHistory: HubManifestSummary[];
   hubLoading: boolean; hubError: string;
   onScan: () => void; toast: (msg: string) => void; switchView: (v: View) => void;
+  lastMileQueue: HubLastMileOrder[]; hubRiderOptions: HubRiderOption[]; hubSettings: HubSettings | null;
+  lastMileBusy: boolean; canManageAssignmentMode: boolean;
+  onAssignLastMileRider: (orderId: string, riderId: string) => void;
+  onToggleAssignmentMode: (mode: RiderAssignmentMode) => void;
 }) {
   const mode = SCAN_MODES.find((m) => m.value === scanAction) || SCAN_MODES[0];
   return (
@@ -1341,6 +1441,52 @@ function ParcelOpsView({
           </Table>
         </Card>
       </div>
+
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <div>
+            <CardTitle className="text-base">Last-Mile Rider Assignment</CardTitle>
+            <CardDescription>Parcels that arrived at this hub, ready to hand off to a rider for final delivery</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-muted-foreground">Assignment mode</span>
+            <div className="flex rounded-lg border border-line overflow-hidden">
+              {(['manual', 'automatic'] as RiderAssignmentMode[]).map((m) => (
+                <button
+                  key={m}
+                  disabled={!canManageAssignmentMode || lastMileBusy}
+                  onClick={() => onToggleAssignmentMode(m)}
+                  className={`px-3 py-1.5 text-xs font-bold capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                    hubSettings?.rider_assignment_mode === m ? 'bg-navy text-white' : 'bg-card text-muted-foreground hover:bg-muted/40'
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        {hubSettings?.rider_assignment_mode === 'automatic' && (
+          <div className="mb-3 text-xs text-muted-foreground bg-page rounded-lg px-3 py-2">
+            Automatic mode is on - the best available rider at this branch is offered the parcel as soon as it arrives. You can still override any offer below.
+          </div>
+        )}
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/30">
+              <TableHead>Tracking ID</TableHead><TableHead>Destination</TableHead><TableHead>Current Rider</TableHead><TableHead>Assign Rider</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {lastMileQueue.map((o) => (
+              <LastMileQueueRow key={o.id} order={o} riders={hubRiderOptions} busy={lastMileBusy} onAssign={onAssignLastMileRider} />
+            ))}
+            {!hubLoading && lastMileQueue.length === 0 && (
+              <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No parcels awaiting last-mile assignment.</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </Card>
 
       <Card className="p-5">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -1585,7 +1731,7 @@ function ManifestItemsTable({ items }: { items: HubManifestItem[] }) {
 function ReturnsView({
   rtoQueue, manifestHistory, hubLoading, busy, onCreateManifest, onLoadCrate, onDepart,
 }: {
-  rtoQueue: HubOrderSummary[]; manifestHistory: HubManifestSummary[]; hubLoading: boolean; busy: boolean;
+  rtoQueue: HubRtoOrder[]; manifestHistory: HubManifestSummary[]; hubLoading: boolean; busy: boolean;
   onCreateManifest: (scheduleId: string, coachNumber: string, departureAt?: string) => Promise<string | undefined>;
   onLoadCrate: (manifestId: string, trackingNumber: string, source: HubOrderSummary[], crateLabelPrefix?: string) => void;
   onDepart: (manifestId: string) => void;
@@ -1615,7 +1761,7 @@ function ReturnsView({
         </CardHeader>
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/30"><TableHead>Tracking ID</TableHead><TableHead>Origin</TableHead><TableHead>Status</TableHead></TableRow>
+            <TableRow className="bg-muted/30"><TableHead>Tracking ID</TableHead><TableHead>Origin</TableHead><TableHead>Status</TableHead><TableHead>Failure Proof</TableHead></TableRow>
           </TableHeader>
           <TableBody>
             {rtoQueue.map((r) => (
@@ -1623,10 +1769,24 @@ function ReturnsView({
                 <TableCell className="font-mono text-xs">{r.tracking_number}</TableCell>
                 <TableCell>{r.dropoff_city || '—'}</TableCell>
                 <TableCell><Pill status={r.status} /></TableCell>
+                <TableCell>
+                  {r.failure_photo_url || r.failure_note ? (
+                    <div className="flex items-center gap-2">
+                      {r.failure_photo_url && (
+                        <a href={mediaUrl(r.failure_photo_url)} target="_blank" rel="noopener noreferrer">
+                          <img src={mediaUrl(r.failure_photo_url)} alt="Delivery failure proof" className="w-10 h-10 rounded-md object-cover border border-line" />
+                        </a>
+                      )}
+                      {r.failure_note && <span className="text-xs text-muted-foreground max-w-[220px] truncate">{r.failure_note}</span>}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
               </TableRow>
             ))}
             {!hubLoading && rtoQueue.length === 0 && (
-              <TableRow><TableCell colSpan={3} className="text-center py-6 text-muted-foreground">No parcels awaiting return right now.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No parcels awaiting return right now.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

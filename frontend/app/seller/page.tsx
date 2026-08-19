@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RoleGuard } from '@/components/RoleGuard';
@@ -31,6 +31,9 @@ import {
   previewBulkUpload,
   confirmBulkUpload,
   listSellerReturns,
+  listOrderMessages,
+  sendOrderMessage,
+  OrderMessage,
   SellerMe,
   SellerSettlement,
   SellerUpload,
@@ -1325,6 +1328,7 @@ function ParcelDetailDialog({ trackingNumber, token, onClose }: { trackingNumber
 function ReturnsTab({ token }: { token: string }) {
   const [rows, setRows] = useState<SellerReturnRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openChatId, setOpenChatId] = useState<string | null>(null);
 
   useEffect(() => {
     listSellerReturns(token).then(setRows).catch(() => {}).finally(() => setLoading(false));
@@ -1342,25 +1346,133 @@ function ReturnsTab({ token }: { token: string }) {
             <th className="px-4 py-3 font-semibold">Receiver</th>
             <th className="px-4 py-3 font-semibold">COD</th>
             <th className="px-4 py-3 font-semibold">Batch</th>
+            <th className="px-4 py-3 font-semibold">Failure Proof</th>
             <th className="px-6 py-3 font-semibold text-right">SLA</th>
+            <th className="px-4 py-3 font-semibold" />
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.id} className="border-b border-line last:border-0">
-              <td className="px-6 py-3.5 font-mono text-xs text-ink">{r.tracking_number}</td>
-              <td className="px-4 py-3.5 text-ink">{r.receiver_name || '—'}<span className="block text-xs text-muted-foreground">{r.dropoff_city}</span></td>
-              <td className="px-4 py-3.5 text-ink">{r.cod_amount != null ? `Rs ${r.cod_amount.toLocaleString()}` : '—'}</td>
-              <td className="px-4 py-3.5 font-mono text-xs text-muted-foreground">{r.batch_id || 'Not yet batched'}</td>
-              <td className="px-6 py-3.5 text-right">
-                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${r.sla_breached ? 'bg-[#FBEAE7] text-[#db2203]' : r.sla_hours_left < 12 ? 'bg-[#FBF0DC] text-[#B9770E]' : 'bg-[#EAF7EF] text-success'}`}>
-                  {r.sla_breached ? 'SLA breached' : `${r.sla_hours_left}h left`}
-                </span>
-              </td>
-            </tr>
+            <Fragment key={r.id}>
+              <tr className="border-b border-line last:border-0">
+                <td className="px-6 py-3.5 font-mono text-xs text-ink">{r.tracking_number}</td>
+                <td className="px-4 py-3.5 text-ink">{r.receiver_name || '—'}<span className="block text-xs text-muted-foreground">{r.dropoff_city}</span></td>
+                <td className="px-4 py-3.5 text-ink">{r.cod_amount != null ? `Rs ${r.cod_amount.toLocaleString()}` : '—'}</td>
+                <td className="px-4 py-3.5 font-mono text-xs text-muted-foreground">{r.batch_id || 'Not yet batched'}</td>
+                <td className="px-4 py-3.5">
+                  {r.failure_photo_url || r.failure_note ? (
+                    <div className="flex items-center gap-2">
+                      {r.failure_photo_url && (
+                        <a href={mediaUrl(r.failure_photo_url)} target="_blank" rel="noopener noreferrer">
+                          <img src={mediaUrl(r.failure_photo_url)} alt="Delivery failure proof" className="w-10 h-10 rounded-md object-cover border border-line" />
+                        </a>
+                      )}
+                      {r.failure_note && <span className="text-xs text-muted-foreground max-w-[180px] truncate">{r.failure_note}</span>}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </td>
+                <td className="px-6 py-3.5 text-right">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${r.sla_breached ? 'bg-[#FBEAE7] text-[#db2203]' : r.sla_hours_left < 12 ? 'bg-[#FBF0DC] text-[#B9770E]' : 'bg-[#EAF7EF] text-success'}`}>
+                    {r.sla_breached ? 'SLA breached' : `${r.sla_hours_left}h left`}
+                  </span>
+                </td>
+                <td className="px-4 py-3.5 text-right">
+                  <button
+                    onClick={() => setOpenChatId(openChatId === r.id ? null : r.id)}
+                    className="text-xs font-bold text-navy hover:underline whitespace-nowrap"
+                  >
+                    {openChatId === r.id ? 'Close' : 'Message rider'}
+                  </button>
+                </td>
+              </tr>
+              {openChatId === r.id && (
+                <tr className="border-b border-line last:border-0 bg-page">
+                  <td colSpan={7} className="px-6 py-4">
+                    <OrderChatPanel orderId={r.id} token={token} />
+                  </td>
+                </tr>
+              )}
+            </Fragment>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** Order-scoped chat with the assigned rider - e.g. to discuss a returned parcel. */
+function OrderChatPanel({ orderId, token }: { orderId: string; token: string }) {
+  const [messages, setMessages] = useState<OrderMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+
+  function load() {
+    listOrderMessages(orderId, token).then(setMessages).catch(() => {}).finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId]);
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    const body = draft.trim();
+    if (!body) return;
+    setSending(true);
+    try {
+      await sendOrderMessage(orderId, body, token);
+      setDraft('');
+      load();
+    } catch {
+      /* ignore - rider will still see it was not delivered if they reply and it looks stale */
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="max-w-xl">
+      <div className="max-h-64 overflow-y-auto flex flex-col gap-2 mb-3">
+        {loading ? (
+          <p className="text-xs text-muted-foreground">Loading…</p>
+        ) : messages.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No messages yet — say hello to the rider.</p>
+        ) : (
+          messages.map((m) => {
+            const isMe = m.sender_role === 'business';
+            return (
+              <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[280px] rounded-lg px-3 py-2 text-xs ${isMe ? 'bg-navy text-white' : 'bg-white border border-line text-ink'}`}>
+                  {!isMe && <div className="font-bold mb-0.5">{m.sender_name || 'Rider'}</div>}
+                  <div>{m.body}</div>
+                  <div className={`mt-1 text-[0.65rem] ${isMe ? 'text-white/70' : 'text-muted-foreground'}`}>
+                    {new Date(m.created_at).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+      <form onSubmit={handleSend} className="flex gap-2">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Message the rider…"
+          className="flex-1 text-xs px-3 py-2 rounded-lg border border-line bg-white outline-none focus:border-orange"
+        />
+        <button
+          type="submit"
+          disabled={sending || !draft.trim()}
+          className="text-xs font-bold px-3 py-2 rounded-lg bg-navy text-white disabled:opacity-50"
+        >
+          Send
+        </button>
+      </form>
     </div>
   );
 }

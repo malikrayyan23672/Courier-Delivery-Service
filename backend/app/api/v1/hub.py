@@ -10,15 +10,16 @@ from app.database import get_db
 from app.core.permissions import require_roles
 from app.models.user import User
 from app.models.order import Order, OrderStatus
-from app.models.rider import RiderProfile
+from app.models.rider import RiderProfile, RiderStatus
 from app.models.tracking_event import TrackingEvent
+from app.models.delivery_attempt import DeliveryAttempt
 from app.models.bus_network import BusManifest, BusSchedule, ManifestItem, ManifestStatus
 from app.models.staff import StaffProfile
 from app.models.branch_service_area import BranchServiceArea
 from app.models.settlement import Settlement
 from app.models.support_ticket import SupportTicket
 from app.models.branch import Branch
-from app.services.order_service import transition
+from app.services.order_service import transition, offer_last_mile_rider, handle_dest_hub_arrival
 from app.services.settlement_service import (
     rider_wallet_limit,
     rider_wallet_warning_at,
@@ -173,6 +174,8 @@ def hub_scan(
 
     target, note = _SCAN_ACTIONS[action]
     transition(db, order, target, actor=current_user, note=f"Scanned {action} - {note} (branch {bid})")
+    if action == "arrive":
+        handle_dest_hub_arrival(db, order, bid, actor=current_user)
     db.commit()
     db.refresh(order)
     return {**_order_summary(order), "scan_action": action, "note": f"Scanned {action} - {note} (branch {bid})"}
@@ -260,7 +263,19 @@ def rto_queue(
         .order_by(Order.updated_at.desc())
         .all()
     )
-    return [_order_summary(o) for o in orders]
+    rows = []
+    for o in orders:
+        summary = _order_summary(o)
+        last_attempt = (
+            db.query(DeliveryAttempt)
+            .filter(DeliveryAttempt.order_id == o.id)
+            .order_by(DeliveryAttempt.attempt_number.desc())
+            .first()
+        )
+        summary["failure_note"] = last_attempt.notes if last_attempt else None
+        summary["failure_photo_url"] = last_attempt.photo_url if last_attempt else None
+        rows.append(summary)
+    return rows
 
 
 @router.get("/aging-parcels")
@@ -661,3 +676,148 @@ def delete_service_area(
 
     db.delete(area)
     db.commit()
+
+
+# ============================================================
+# LAST-MILE RIDER ASSIGNMENT (destination hub -> rider)
+# ============================================================
+def _last_mile_order_out(order: Order) -> dict:
+    summary = _order_summary(order)
+    summary["rider_id"] = str(order.rider_id) if order.rider_id else None
+    summary["rider_name"] = order.rider.user.full_name if order.rider and order.rider.user else None
+    summary["rider_accepted"] = order.rider_accepted
+    return summary
+
+
+@router.get("/last-mile-queue")
+def last_mile_queue(
+    branch_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
+):
+    """Parcels that have arrived at this destination hub and need a rider
+    for the final leg - unassigned (manual mode) or already offered and
+    awaiting the rider's response."""
+    bid = _resolve_branch_id(current_user, branch_id)
+    orders = (
+        db.query(Order)
+        .options(joinedload(Order.dropoff_address), joinedload(Order.rider).joinedload(RiderProfile.user))
+        .filter(Order.branch_id == bid, Order.status == OrderStatus.dest_hub)
+        .order_by(Order.updated_at.asc())
+        .all()
+    )
+    return [_last_mile_order_out(o) for o in orders]
+
+
+@router.get("/riders")
+def list_hub_riders(
+    branch_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
+):
+    """Active riders based at this branch - populates the manual assign-rider dropdown."""
+    bid = _resolve_branch_id(current_user, branch_id)
+    riders = (
+        db.query(RiderProfile)
+        .options(joinedload(RiderProfile.user))
+        .filter(RiderProfile.branch_id == bid, RiderProfile.status == RiderStatus.active)
+        .order_by(RiderProfile.rating.desc())
+        .all()
+    )
+    return [
+        {
+            "rider_id": str(r.id),
+            "full_name": r.user.full_name if r.user else "Unknown",
+            "phone": r.user.phone if r.user else None,
+            "vehicle_type": r.vehicle_type,
+            "is_available": r.is_available or False,
+            "rating": r.rating,
+            "cod_wallet_locked": r.cod_wallet_locked or False,
+        }
+        for r in riders
+    ]
+
+
+@router.patch("/orders/{order_id}/assign-rider/{rider_id}")
+def hub_assign_last_mile_rider(
+    order_id: str,
+    rider_id: str,
+    branch_id: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
+):
+    """Manually offers a specific rider the last-mile leg of a parcel that's
+    arrived at this hub. Available regardless of the branch's automatic/
+    manual setting - automatic just means hub staff don't have to do this."""
+    bid = _resolve_branch_id(current_user, branch_id)
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if str(order.branch_id) != bid:
+        raise HTTPException(status_code=403, detail="This parcel does not belong to your branch")
+    if order.status != OrderStatus.dest_hub:
+        raise HTTPException(status_code=400, detail="Only parcels that have arrived at this hub can be assigned a last-mile rider")
+
+    rider = (
+        db.query(RiderProfile)
+        .options(joinedload(RiderProfile.user))
+        .filter(RiderProfile.id == rider_id, RiderProfile.status == RiderStatus.active, RiderProfile.branch_id == bid)
+        .first()
+    )
+    if not rider:
+        raise HTTPException(status_code=404, detail="Active rider not found at this branch")
+    if rider.cod_wallet_locked and order.payment and order.payment.method.value == "cash":
+        raise HTTPException(status_code=400, detail="This rider's COD wallet is locked and cannot accept new COD parcels")
+
+    offer_last_mile_rider(
+        db,
+        order,
+        rider,
+        actor=current_user,
+        note=f"Manually assigned by {current_user.full_name} at branch {bid}",
+    )
+    db.commit()
+    db.refresh(order)
+    return _last_mile_order_out(order)
+
+
+# ============================================================
+# HUB SETTINGS (manual / automatic last-mile assignment)
+# ============================================================
+class HubSettingsIn(BaseModel):
+    rider_assignment_mode: Literal["manual", "automatic"]
+
+
+def _hub_settings_out(branch: Branch) -> dict:
+    return {"branch_id": str(branch.id), "rider_assignment_mode": branch.rider_assignment_mode}
+
+
+@router.get("/settings")
+def get_hub_settings(
+    branch_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
+):
+    bid = _resolve_branch_id(current_user, branch_id)
+    branch = db.query(Branch).filter(Branch.id == bid).first()
+    if not branch:
+        raise HTTPException(status_code=404, detail="Branch not found")
+    return _hub_settings_out(branch)
+
+
+@router.patch("/settings")
+def update_hub_settings(
+    payload: HubSettingsIn,
+    db: Session = Depends(get_db),
+    # Toggling how the hub assigns riders is a branch-operating-policy call,
+    # not a routine staff action.
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+):
+    bid = _resolve_branch_id(current_user, None)
+    branch = db.query(Branch).filter(Branch.id == bid).first()
+    if not branch:
+        raise HTTPException(status_code=404, detail="Branch not found")
+    branch.rider_assignment_mode = payload.rider_assignment_mode
+    db.commit()
+    db.refresh(branch)
+    return _hub_settings_out(branch)

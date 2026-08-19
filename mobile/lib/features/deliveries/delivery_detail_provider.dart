@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../models/order.dart';
+import '../../models/order_message.dart';
 import '../../services/location_service.dart';
 import '../../services/offline_queue_service.dart';
 import '../../services/rider_service.dart';
@@ -174,7 +177,48 @@ class DeliveryDetailProvider extends ChangeNotifier {
   /// GPS is best-effort here (not strictly required to report a failed
   /// delivery attempt) - if it can't be resolved, submits without coordinates
   /// rather than blocking the rider from recording the failure at all.
-  Future<ActionResult> markFailed({required String reason}) async {
+  /// [photo] is required by the backend once this is the 3rd attempt (see
+  /// `order.nextFailedAttemptIsFinal`) - the screen is responsible for
+  /// capturing it before calling this.
+  Future<ActionResult> markFailed({required String reason, File? photo}) async {
+    Position? position;
+    try {
+      position = await _locationService.getCurrentPosition();
+    } catch (_) {
+      position = null;
+    }
+
+    isActing = true;
+    actionError = null;
+    actionErrorNeedsLocationSettings = false;
+    notifyListeners();
+
+    try {
+      final outcome = await _offlineQueueService.submitDeliveryFailed(
+        orderId: orderId,
+        note: reason,
+        lat: position?.latitude,
+        lng: position?.longitude,
+        photo: photo,
+      );
+      if (outcome == QueuedActionOutcome.sent) {
+        await load();
+        return ActionResult.success;
+      } else {
+        isActing = false;
+        notifyListeners();
+        return ActionResult.queued;
+      }
+    } catch (e) {
+      actionError = e.toString();
+      isActing = false;
+      notifyListeners();
+      return ActionResult.failed;
+    }
+  }
+
+  /// Moves a failed delivery back to out_for_delivery for another attempt.
+  Future<ActionResult> retryDelivery() async {
     Position? position;
     try {
       position = await _locationService.getCurrentPosition();
@@ -182,12 +226,15 @@ class DeliveryDetailProvider extends ChangeNotifier {
       position = null;
     }
     return _submitStatusUpdate(
-      newStatus: OrderStatus.failed,
-      note: reason,
+      newStatus: OrderStatus.outForDelivery,
       lat: position?.latitude,
       lng: position?.longitude,
     );
   }
+
+  Future<List<OrderMessage>> loadOrderMessages() => _riderService.getOrderMessages(orderId);
+
+  Future<OrderMessage> sendOrderMessage(String body) => _riderService.sendOrderMessage(orderId, body);
 
   Future<void> openLocationSettings() => _locationService.openLocationSettings();
 

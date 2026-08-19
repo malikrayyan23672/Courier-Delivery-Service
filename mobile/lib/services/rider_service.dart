@@ -12,6 +12,7 @@ import '../models/manifest_item.dart';
 import '../models/support_ticket.dart';
 import '../models/earnings.dart';
 import '../models/notification.dart';
+import '../models/order_message.dart';
 
 class RiderService {
   final Dio _dio = ApiClient.instance.dio;
@@ -205,7 +206,8 @@ class RiderService {
     }
   }
 
-  /// [newStatus] must be one of the rider-settable statuses: picked_up, out_for_delivery, failed.
+  /// [newStatus] must be one of the rider-settable statuses: picked_up, out_for_delivery.
+  /// `failed` and `delivered` each have their own dedicated endpoints instead.
   Future<void> updateDeliveryStatus(
     String orderId, {
     required String newStatus,
@@ -223,6 +225,31 @@ class RiderService {
           if (lng != null) 'lng': lng,
         },
       );
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// Reports a failed doorstep delivery attempt. [photo] is required once
+  /// this would be the 3rd attempt (see Order.nextFailedAttemptIsFinal) -
+  /// the backend rejects the request without one and auto-returns the
+  /// parcel to origin when it's supplied.
+  Future<Order> reportDeliveryFailed(
+    String orderId, {
+    required String note,
+    double? lat,
+    double? lng,
+    File? photo,
+  }) async {
+    try {
+      final formData = FormData.fromMap({
+        'note': note,
+        if (lat != null) 'lat': lat,
+        if (lng != null) 'lng': lng,
+        if (photo != null) 'photo': await MultipartFile.fromFile(photo.path, filename: 'failure_$orderId.jpg'),
+      });
+      final response = await _dio.post('/rider/deliveries/$orderId/delivery-failed', data: formData);
+      return Order.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
@@ -256,6 +283,26 @@ class RiderService {
       });
       final response = await _dio.post('/rider/deliveries/$orderId/proof-of-delivery', data: formData);
       return Order.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// Order-scoped chat with the parcel's seller (e.g. to explain a
+  /// repeatedly failed delivery before it's returned to origin).
+  Future<List<OrderMessage>> getOrderMessages(String orderId) async {
+    try {
+      final response = await _dio.get('/rider/deliveries/$orderId/messages');
+      return (response.data as List).map((e) => OrderMessage.fromJson(e as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<OrderMessage> sendOrderMessage(String orderId, String body) async {
+    try {
+      final response = await _dio.post('/rider/deliveries/$orderId/messages', data: {'body': body});
+      return OrderMessage.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

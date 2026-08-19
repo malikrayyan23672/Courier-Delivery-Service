@@ -20,6 +20,8 @@ from app.models.rating import Rating
 from app.models.rnp import RNPPartner
 from app.models.seller_upload import SellerUpload
 from app.models.tracking_event import TrackingEvent
+from app.models.delivery_attempt import DeliveryAttempt
+from app.models.order_message import OrderMessage
 from app.models.wallet import WalletTransaction
 from app.models.settlement import Settlement
 from app.utils.uploads import save_seller_upload, save_product_image
@@ -33,7 +35,9 @@ from app.schemas.order import OrderOut, TrackingEventOut
 from app.schemas.rnp import RNPCreateIn, RNPOut
 from app.schemas.wallet import WalletTransactionOut
 from app.schemas.marketplace import ProductIn, ProductUpdateIn, ProductOut, RatingOut, RatingSummaryOut
+from app.schemas.order_message import OrderMessageCreate, OrderMessageOut
 from app.services.order_service import create_order, get_or_create_guest_customer
+from app.services import notification_service
 
 router = APIRouter(prefix="/seller", tags=["Seller Portal"])
 
@@ -690,6 +694,13 @@ def seller_returns(
         # A return batch is a manifest crate labeled RTO- for this order (see the hub's Returns view).
         item = db.query(ManifestItem).filter(ManifestItem.order_id == o.id, ManifestItem.crate_label.ilike("RTO-%")).first()
 
+        last_attempt = (
+            db.query(DeliveryAttempt)
+            .filter(DeliveryAttempt.order_id == o.id)
+            .order_by(DeliveryAttempt.attempt_number.desc())
+            .first()
+        )
+
         rows.append({
             "id": str(o.id),
             "tracking_number": o.tracking_number,
@@ -700,5 +711,68 @@ def seller_returns(
             "sla_hours_left": hours_left,
             "sla_breached": hours_left < 0,
             "batch_id": item.crate_label if item else None,
+            "failure_note": last_attempt.notes if last_attempt else None,
+            "failure_photo_url": last_attempt.photo_url if last_attempt else None,
         })
     return rows
+
+
+# ---------------------------------------------------------------
+# ORDER MESSAGES (seller <-> rider chat)
+# ---------------------------------------------------------------
+def _order_message_out(m: OrderMessage) -> OrderMessageOut:
+    return OrderMessageOut(
+        id=str(m.id),
+        order_id=str(m.order_id),
+        sender_id=str(m.sender_id),
+        sender_name=m.sender.full_name if m.sender else None,
+        sender_role=m.sender.role.name if m.sender and m.sender.role else None,
+        body=m.body,
+        created_at=m.created_at,
+    )
+
+
+def _seller_order(db: Session, current_user: User, order_id: str) -> Order:
+    business = _require_business(db, current_user)
+    order = db.query(Order).filter(Order.id == order_id, Order.seller_business_id == business.id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
+
+
+@router.get("/orders/{order_id}/messages", response_model=list[OrderMessageOut])
+def list_seller_order_messages(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("business")),
+):
+    order = _seller_order(db, current_user, order_id)
+    messages = (
+        db.query(OrderMessage)
+        .filter(OrderMessage.order_id == order.id)
+        .order_by(OrderMessage.created_at)
+        .all()
+    )
+    return [_order_message_out(m) for m in messages]
+
+
+@router.post("/orders/{order_id}/messages", response_model=OrderMessageOut)
+def send_seller_order_message(
+    order_id: str,
+    payload: OrderMessageCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("business")),
+):
+    order = _seller_order(db, current_user, order_id)
+    message = OrderMessage(order_id=order.id, sender_id=current_user.id, body=payload.body.strip())
+    db.add(message)
+
+    if order.rider and order.rider.user_id:
+        notification_service.notify(
+            db, user_id=order.rider.user_id, title=f"New message about {order.tracking_number}",
+            message=message.body[:200], order_id=order.id,
+        )
+
+    db.commit()
+    db.refresh(message)
+    return _order_message_out(message)
