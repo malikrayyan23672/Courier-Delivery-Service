@@ -55,6 +55,11 @@ class DeliveryDetailProvider extends ChangeNotifier {
       errorMessage = e.toString();
     } finally {
       isLoading = false;
+      // Every action method's success path reloads via this function instead
+      // of clearing `isActing` itself - reset it here too, or a button gated
+      // on `isActing` (Confirm Pickup, Accept/Decline, ...) stays stuck
+      // showing its busy spinner forever after a successful action.
+      isActing = false;
       notifyListeners();
     }
   }
@@ -171,6 +176,24 @@ class DeliveryDetailProvider extends ChangeNotifier {
       newStatus: OrderStatus.pickedUp,
       lat: position.latitude,
       lng: position.longitude,
+    );
+  }
+
+  /// Local (no-hub) route only: the same rider who picked up also does the
+  /// last mile, with no hub hand-off in between (see `order.branchName ==
+  /// null` on the picked_up screen). Falls back to the offline queue if
+  /// there's no connectivity right now, same as [confirmPickup].
+  Future<ActionResult> markOutForDelivery() async {
+    Position? position;
+    try {
+      position = await _locationService.getCurrentPosition();
+    } catch (_) {
+      position = null;
+    }
+    return _submitStatusUpdate(
+      newStatus: OrderStatus.outForDelivery,
+      lat: position?.latitude,
+      lng: position?.longitude,
     );
   }
 

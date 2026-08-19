@@ -261,7 +261,7 @@ def my_deliveries(
 
     return (
         db.query(Order)
-        .options(joinedload(Order.pickup_address), joinedload(Order.dropoff_address))
+        .options(joinedload(Order.pickup_address), joinedload(Order.dropoff_address), joinedload(Order.branch))
         .filter(Order.rider_id == rider_profile.id)
         .order_by(Order.created_at.desc())
         .all()
@@ -282,6 +282,7 @@ def my_delivery_detail(
             joinedload(Order.dropoff_address),
             joinedload(Order.tracking_events),
             joinedload(Order.payment),
+            joinedload(Order.branch),
         )
         .filter(Order.id == order_id, Order.rider_id == rider_profile.id)
         .first()
@@ -306,6 +307,9 @@ def my_delivery_detail(
         discount_id=str(order.discount_id) if order.discount_id else None,
         discount_amount=order.discount_amount,
         rider_accepted=order.rider_accepted,
+        branch_name=order.branch.name if order.branch else None,
+        branch_address=order.branch.address if order.branch else None,
+        branch_phone=order.branch.phone if order.branch else None,
         created_at=order.created_at,
         proof_of_delivery_url=order.proof_of_delivery_url,
         proof_of_delivery_recipient_name=order.proof_of_delivery_recipient_name,

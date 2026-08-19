@@ -82,6 +82,23 @@ class Order(Base, TimestampMixin):
     zone = relationship("Zone")
     branch = relationship("Branch")
 
+    # Which physical branch this parcel is currently associated with - the
+    # rider-app's "drop off at this hub" prompt after pickup. Set at booking
+    # to the origin branch; updated to the destination branch on dest_hub
+    # arrival (see order_service.handle_dest_hub_arrival), so it always
+    # reflects wherever the parcel is actually routed through right now.
+    @property
+    def branch_name(self) -> str | None:
+        return self.branch.name if self.branch else None
+
+    @property
+    def branch_address(self) -> str | None:
+        return self.branch.address if self.branch else None
+
+    @property
+    def branch_phone(self) -> str | None:
+        return self.branch.phone if self.branch else None
+
     estimated_price = Column(Float, nullable=True)
     final_price = Column(Float, nullable=True)
 

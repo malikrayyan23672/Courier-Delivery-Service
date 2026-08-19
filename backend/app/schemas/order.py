@@ -94,6 +94,12 @@ class OrderOut(BaseModel):
     rider_accepted: Optional[bool] = None
     zone_id: Optional[str] = None
     branch_id: Optional[str] = None
+    # The branch this parcel is currently routed through - where the rider
+    # who just picked it up should drop it off (origin branch), or where a
+    # last-mile rider is picking it up from after dest_hub arrival.
+    branch_name: Optional[str] = None
+    branch_address: Optional[str] = None
+    branch_phone: Optional[str] = None
     created_at: Optional[datetime] = None
     proof_of_delivery_url: Optional[str] = None
     proof_of_delivery_recipient_name: Optional[str] = None

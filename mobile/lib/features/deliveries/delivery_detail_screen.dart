@@ -398,6 +398,71 @@ class _ActionArea extends StatelessWidget {
       );
     }
 
+    if (order.status == OrderStatus.pickedUp) {
+      final hub = order.branchName;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Card(
+            color: const Color(0xFFEAF1FC),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(hub != null ? Icons.warehouse_outlined : Icons.local_shipping_outlined, size: 18, color: AppColors.navy),
+                      const SizedBox(width: 8),
+                      Text(
+                        hub != null ? 'Drop off at hub' : 'Direct delivery - no hub on this route',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                  if (hub != null) ...[
+                    const SizedBox(height: 8),
+                    Text(hub, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    if (order.branchAddress != null) Text(order.branchAddress!),
+                    if (order.branchPhone != null)
+                      Text(order.branchPhone!, style: TextStyle(color: Colors.grey.shade700, fontSize: 12.5)),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Hand this parcel to hub staff to scan it in - it\'ll be routed onward from there.',
+                      style: TextStyle(fontSize: 12.5),
+                    ),
+                  ] else
+                    const Text('No hub is assigned on this route - deliver this parcel yourself once you\'re ready.'),
+                ],
+              ),
+            ),
+          ),
+          if (hub == null) ...[
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      final result = await context.read<DeliveryDetailProvider>().markOutForDelivery();
+                      if (!context.mounted) return;
+                      if (result == ActionResult.queued) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('No connection - saved and will sync automatically')),
+                        );
+                      } else if (result == ActionResult.failed) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(context.read<DeliveryDetailProvider>().actionError ?? 'Failed to update')),
+                        );
+                      }
+                    },
+              icon: busy ? const _BusyIndicator() : const Icon(Icons.local_shipping_outlined),
+              label: const Text('Start Delivery'),
+            ),
+          ],
+        ],
+      );
+    }
+
     if (order.status == OrderStatus.inHub || order.status == OrderStatus.inTransit) {
       return Card(
         color: const Color(0xFFEAF1FC),

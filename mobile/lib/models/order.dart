@@ -38,6 +38,14 @@ class Order {
   final String? proofOfDeliveryUrl;
   final String? proofOfDeliveryRecipientName;
 
+  // The branch this parcel is currently routed through - where to drop it
+  // off after pickup (origin), or where a last-mile rider picks it up from
+  // (destination, once it's arrived at dest_hub). Null means no hub on this
+  // order's route - a local, single-rider delivery.
+  final String? branchName;
+  final String? branchAddress;
+  final String? branchPhone;
+
   // Detail-only fields (populated via GET /rider/deliveries/{id})
   final List<TrackingEvent> trackingEvents;
   final Payment? payment;
@@ -58,6 +66,9 @@ class Order {
     this.createdAt,
     this.proofOfDeliveryUrl,
     this.proofOfDeliveryRecipientName,
+    this.branchName,
+    this.branchAddress,
+    this.branchPhone,
     this.trackingEvents = const [],
     this.payment,
     this.failedAttemptCount = 0,
@@ -90,6 +101,9 @@ class Order {
       createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'] as String) : null,
       proofOfDeliveryUrl: json['proof_of_delivery_url'] as String?,
       proofOfDeliveryRecipientName: json['proof_of_delivery_recipient_name'] as String?,
+      branchName: json['branch_name'] as String?,
+      branchAddress: json['branch_address'] as String?,
+      branchPhone: json['branch_phone'] as String?,
       trackingEvents: json['tracking_events'] != null
           ? (json['tracking_events'] as List).map((e) => TrackingEvent.fromJson(e)).toList()
           : const [],
