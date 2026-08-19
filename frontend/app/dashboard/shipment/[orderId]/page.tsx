@@ -5,7 +5,11 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RoleGuard } from '@/components/RoleGuard';
 import { Logo } from '@/components/Logo';
-import { getMyOrder, OrderDetail, ApiError } from '@/lib/api';
+import { getMyOrder, cancelMyOrder, OrderDetail, ApiError } from '@/lib/api';
+
+// Mirrors the backend's CANCELLABLE_STATUSES (order_service.py) - cancellation
+// is only legal before the parcel enters the hub network.
+const CANCELLABLE_STATUSES = ['created', 'assigned', 'picked_up'];
 
 const STATUS_ORDER = ['created', 'assigned', 'picked_up', 'in_transit', 'delivered'];
 
@@ -118,6 +122,8 @@ function ShipmentTrackingContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState('');
 
   useEffect(() => {
     if (!isLoading && !token) {
@@ -140,6 +146,22 @@ function ShipmentTrackingContent() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
+  }
+
+  async function handleCancel() {
+    if (!order || !token) return;
+    if (!window.confirm('Cancel this shipment? This cannot be undone.')) return;
+    const reason = window.prompt('Reason for cancelling (optional):') || undefined;
+    setCancelling(true);
+    setCancelError('');
+    try {
+      const updated = await cancelMyOrder(order.id, token, reason);
+      setOrder({ ...order, status: updated.status });
+    } catch (err) {
+      setCancelError(err instanceof ApiError ? err.message : 'Could not cancel this shipment.');
+    } finally {
+      setCancelling(false);
+    }
   }
 
   if (isLoading || !token) return null;
@@ -186,10 +208,22 @@ function ShipmentTrackingContent() {
                     {copied && <span className="text-xs text-success font-semibold">Copied!</span>}
                   </div>
                 </div>
-                <span className={`px-3 py-1.5 rounded-full text-xs font-semibold ${STATUS_COLORS[order.status] || 'bg-line text-ink'}`}>
-                  {formatStatus(order.status)}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className={`px-3 py-1.5 rounded-full text-xs font-semibold ${STATUS_COLORS[order.status] || 'bg-line text-ink'}`}>
+                    {formatStatus(order.status)}
+                  </span>
+                  {CANCELLABLE_STATUSES.includes(order.status) && (
+                    <button
+                      onClick={handleCancel}
+                      disabled={cancelling}
+                      className="text-xs font-semibold text-[#db2203] hover:underline disabled:opacity-50"
+                    >
+                      {cancelling ? 'Cancelling…' : 'Cancel Order'}
+                    </button>
+                  )}
+                </div>
               </div>
+              {cancelError && <p className="text-xs text-[#db2203] mt-2">{cancelError}</p>}
             </div>
 
             {/* Route + progress */}

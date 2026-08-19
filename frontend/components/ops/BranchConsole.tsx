@@ -43,6 +43,13 @@ import {
   HubRiderOption,
   HubSettings,
   RiderAssignmentMode,
+  markRtoCollected,
+  getHubWarehouse,
+  HubWarehouseOccupancy,
+  listHubIncidents,
+  createHubIncident,
+  resolveHubIncident,
+  HubIncident,
   listBusSchedules,
   createBusManifest,
   addManifestItem,
@@ -373,20 +380,15 @@ export function BranchConsole() {
   const [hubSettings, setHubSettings] = useState<HubSettings | null>(null);
   const [lastMileBusy, setLastMileBusy] = useState(false);
 
+  // Real warehouse occupancy (replaces the former Math.random() shelf grid)
+  // and hub incident tracking (damaged/missing parcels, manifest count mismatches).
+  const [warehouseOccupancy, setWarehouseOccupancy] = useState<HubWarehouseOccupancy | null>(null);
+  const [incidents, setIncidents] = useState<HubIncident[]>([]);
+
   const [pickupSearch, setPickupSearch] = useState('');
   const [pickupStatusFilter, setPickupStatusFilter] = useState('');
   const [deliverySearch, setDeliverySearch] = useState('');
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState('');
-
-  const [shelfCells, setShelfCells] = useState<('low' | 'mid' | 'high')[]>([]);
-  useEffect(() => {
-    const cells: ('low' | 'mid' | 'high')[] = [];
-    for (let i = 0; i < 60; i++) {
-      const r = Math.random();
-      cells.push(r < 0.35 ? 'low' : r < 0.75 ? 'mid' : 'high');
-    }
-    setShelfCells(cells);
-  }, []);
 
   useEffect(() => {
     if (!token || !role) return;
@@ -474,8 +476,10 @@ export function BranchConsole() {
       getHubLastMileQueue(token, branchId),
       getHubRiders(token, branchId),
       getHubSettings(token, branchId),
+      getHubWarehouse(token, branchId),
+      listHubIncidents(token, branchId),
     ])
-      .then(([inbound, dispatch, history, aging, analytics, rto, allSchedules, lastMile, hubRiders, settings]) => {
+      .then(([inbound, dispatch, history, aging, analytics, rto, allSchedules, lastMile, hubRiders, settings, warehouse, incidentList]) => {
         setInboundQueue(inbound);
         setDispatchQueue(dispatch);
         setManifestHistory(history);
@@ -486,6 +490,8 @@ export function BranchConsole() {
         setLastMileQueue(lastMile);
         setHubRiderOptions(hubRiders);
         setHubSettings(settings);
+        setWarehouseOccupancy(warehouse);
+        setIncidents(incidentList);
       })
       .catch((err) => setHubError(err instanceof ApiError ? err.message : 'Could not load hub operations data.'))
       .finally(() => setHubLoading(false));
@@ -680,6 +686,44 @@ export function BranchConsole() {
       toast(err instanceof ApiError ? err.message : 'Could not update assignment setting.');
     } finally {
       setLastMileBusy(false);
+    }
+  }
+
+  // ---- Parcel incidents (damaged / missing / manifest count mismatch) ----
+  async function handleReportIncident(type: 'damaged' | 'missing') {
+    if (!token) return;
+    const trackingNumber = window.prompt(`Tracking number for the ${type} parcel (leave blank if unknown):`) || undefined;
+    const note = window.prompt('Details (optional):') || undefined;
+    try {
+      await createHubIncident({ type, tracking_number: trackingNumber, note }, token, branchId);
+      toast(`${type === 'damaged' ? 'Damaged parcel' : 'Missing parcel'} incident logged.`);
+      loadHubData();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not log incident.');
+    }
+  }
+
+  async function handleResolveIncident(incidentId: string) {
+    if (!token) return;
+    const note = window.prompt('Resolution note (optional):') || undefined;
+    try {
+      await resolveHubIncident(incidentId, token, note, branchId);
+      toast('Incident resolved.');
+      loadHubData();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not resolve incident.');
+    }
+  }
+
+  // ---- RTO closure: hub confirms the seller collected a returned parcel ----
+  async function handleMarkRtoCollected(orderId: string) {
+    if (!token) return;
+    try {
+      await markRtoCollected(orderId, token, branchId);
+      toast('Return marked as collected.');
+      loadHubData();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not mark this return as collected.');
     }
   }
 
@@ -910,6 +954,7 @@ export function BranchConsole() {
               lastMileQueue={lastMileQueue} hubRiderOptions={hubRiderOptions} hubSettings={hubSettings}
               lastMileBusy={lastMileBusy} canManageAssignmentMode={role === 'manager' || role === 'admin' || role === 'super_admin'}
               onAssignLastMileRider={handleAssignLastMileRider} onToggleAssignmentMode={handleToggleAssignmentMode}
+              incidents={incidents} onReportIncident={handleReportIncident} onResolveIncident={handleResolveIncident}
             />
           )}
 
@@ -926,7 +971,7 @@ export function BranchConsole() {
             <ReturnsView
               rtoQueue={rtoQueue} manifestHistory={manifestHistory} hubLoading={hubLoading} busy={manifestBusy}
               onCreateManifest={handleCreateManifest} onLoadCrate={handleLoadCrate}
-              onDepart={handleDepartManifest}
+              onDepart={handleDepartManifest} onMarkCollected={handleMarkRtoCollected}
             />
           )}
 
@@ -937,7 +982,7 @@ export function BranchConsole() {
             />
           )}
 
-          {view === 'warehouse' && <WarehouseView shelfCells={shelfCells} agingParcels={agingParcels} hubLoading={hubLoading} />}
+          {view === 'warehouse' && <WarehouseView occupancy={warehouseOccupancy} agingParcels={agingParcels} hubLoading={hubLoading} hubAnalytics={hubAnalytics} />}
 
           {view === 'riders' && (
             <RidersView
@@ -1337,6 +1382,7 @@ function ParcelOpsView({
   inboundQueue, dispatchQueue, manifestHistory, hubLoading, hubError, onScan, toast, switchView,
   lastMileQueue, hubRiderOptions, hubSettings, lastMileBusy, canManageAssignmentMode,
   onAssignLastMileRider, onToggleAssignmentMode,
+  incidents, onReportIncident, onResolveIncident,
 }: {
   scanInput: string; setScanInput: (v: string) => void; scanning: boolean;
   scanAction: HubScanAction; setScanAction: (v: HubScanAction) => void; lastScan: HubScanResult | null;
@@ -1347,6 +1393,9 @@ function ParcelOpsView({
   lastMileBusy: boolean; canManageAssignmentMode: boolean;
   onAssignLastMileRider: (orderId: string, riderId: string) => void;
   onToggleAssignmentMode: (mode: RiderAssignmentMode) => void;
+  incidents: HubIncident[];
+  onReportIncident: (type: 'damaged' | 'missing') => void;
+  onResolveIncident: (incidentId: string) => void;
 }) {
   const mode = SCAN_MODES.find((m) => m.value === scanAction) || SCAN_MODES[0];
   return (
@@ -1495,8 +1544,8 @@ function ParcelOpsView({
             <CardDescription>Bus manifests through this hub</CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => toast('Damaged parcel report submitted.')}>Report Damaged</Button>
-            <Button size="sm" variant="outline" onClick={() => toast('Missing parcel alert raised to ops team.')}>Report Missing</Button>
+            <Button size="sm" variant="outline" onClick={() => onReportIncident('damaged')}>Report Damaged</Button>
+            <Button size="sm" variant="outline" onClick={() => onReportIncident('missing')}>Report Missing</Button>
           </div>
         </div>
         <Table>
@@ -1517,6 +1566,39 @@ function ParcelOpsView({
             ))}
             {!hubLoading && manifestHistory.length === 0 && (
               <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No manifests through this hub yet.</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+
+      <Card className="p-5">
+        <CardHeader className="p-0 mb-3">
+          <CardTitle className="text-base">Incidents</CardTitle>
+          <CardDescription>Damaged/missing parcel reports and manifest count mismatches</CardDescription>
+        </CardHeader>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/30">
+              <TableHead>Type</TableHead><TableHead>Parcel</TableHead><TableHead>Note</TableHead><TableHead>Reported By</TableHead><TableHead>Status</TableHead><TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {incidents.map((i) => (
+              <TableRow key={i.id}>
+                <TableCell className="capitalize">{i.type.replace('_', ' ')}</TableCell>
+                <TableCell className="font-mono text-xs">{i.tracking_number || '—'}</TableCell>
+                <TableCell className="text-muted-foreground max-w-[260px] truncate">{i.note || '—'}</TableCell>
+                <TableCell>{i.reported_by}</TableCell>
+                <TableCell><Pill status={i.status} /></TableCell>
+                <TableCell>
+                  {i.status === 'open' && (
+                    <Button size="sm" variant="outline" onClick={() => onResolveIncident(i.id)}>Resolve</Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+            {incidents.length === 0 && (
+              <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">No incidents reported.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -1729,12 +1811,13 @@ function ManifestItemsTable({ items }: { items: HubManifestItem[] }) {
 // VIEW: RETURNS / RTO
 // ============================================================
 function ReturnsView({
-  rtoQueue, manifestHistory, hubLoading, busy, onCreateManifest, onLoadCrate, onDepart,
+  rtoQueue, manifestHistory, hubLoading, busy, onCreateManifest, onLoadCrate, onDepart, onMarkCollected,
 }: {
   rtoQueue: HubRtoOrder[]; manifestHistory: HubManifestSummary[]; hubLoading: boolean; busy: boolean;
   onCreateManifest: (scheduleId: string, coachNumber: string, departureAt?: string) => Promise<string | undefined>;
   onLoadCrate: (manifestId: string, trackingNumber: string, source: HubOrderSummary[], crateLabelPrefix?: string) => void;
   onDepart: (manifestId: string) => void;
+  onMarkCollected: (orderId: string) => void;
 }) {
   const [selectedManifest, setSelectedManifest] = useState('');
   const [scanInput, setScanInput] = useState('');
@@ -1761,7 +1844,7 @@ function ReturnsView({
         </CardHeader>
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/30"><TableHead>Tracking ID</TableHead><TableHead>Origin</TableHead><TableHead>Status</TableHead><TableHead>Failure Proof</TableHead></TableRow>
+            <TableRow className="bg-muted/30"><TableHead>Tracking ID</TableHead><TableHead>Origin</TableHead><TableHead>Status</TableHead><TableHead>Failure Proof</TableHead><TableHead>Return</TableHead></TableRow>
           </TableHeader>
           <TableBody>
             {rtoQueue.map((r) => (
@@ -1783,10 +1866,15 @@ function ReturnsView({
                     <span className="text-xs text-muted-foreground">—</span>
                   )}
                 </TableCell>
+                <TableCell>
+                  <Button size="sm" variant="outline" onClick={() => onMarkCollected(r.id)}>
+                    Mark Collected by Seller
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
             {!hubLoading && rtoQueue.length === 0 && (
-              <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No parcels awaiting return right now.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No parcels awaiting return right now.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -1989,54 +2077,42 @@ function VendorsView({
 // ============================================================
 // VIEW: WAREHOUSE
 // ============================================================
-function WarehouseView({ shelfCells, agingParcels, hubLoading }: { shelfCells: ('low' | 'mid' | 'high')[]; agingParcels: HubAgingOrder[]; hubLoading: boolean }) {
-  const shelfColor = { low: '#EAF7EF', mid: '#FDF1DD', high: '#FBEAE7' };
-  const shelfBorder = { low: '#1E8E5A', mid: '#F2A93B', high: '#E6350F' };
+function WarehouseView({ occupancy, agingParcels, hubLoading, hubAnalytics }: {
+  occupancy: HubWarehouseOccupancy | null; agingParcels: HubAgingOrder[]; hubLoading: boolean; hubAnalytics: HubAnalytics | null;
+}) {
+  const pct = occupancy?.occupancy_pct ?? 0;
+  const gaugeColor = pct >= 85 ? '#E6350F' : pct >= 60 ? '#F2A93B' : '#2563EB';
   return (
     <>
       <div className="grid lg:grid-cols-2 gap-6">
         <Card className="p-5">
           <CardHeader className="p-0 mb-4">
-            <CardTitle className="text-base">Storage Capacity</CardTitle>
-            <CardDescription>Rack occupancy across the warehouse floor</CardDescription>
+            <CardTitle className="text-base">Warehouse Capacity</CardTitle>
+            <CardDescription>Parcels physically at this branch right now (in-hub, arrived, or awaiting return collection) vs its configured capacity</CardDescription>
           </CardHeader>
-          <div className="grid grid-cols-10 gap-1.5">
-            {shelfCells.length === 0
-              ? Array.from({ length: 60 }).map((_, i) => <div key={i} className="aspect-square rounded bg-line animate-pulse" />)
-              : shelfCells.map((c, i) => (
-                <div key={i} className="aspect-square rounded" style={{ background: shelfColor[c], border: `1px solid ${shelfBorder[c]}` }} />
-              ))}
-          </div>
-          <div className="flex gap-4 mt-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: shelfColor.low, border: `1px solid ${shelfBorder.low}` }} />Low</span>
-            <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: shelfColor.mid, border: `1px solid ${shelfBorder.mid}` }} />Mid</span>
-            <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: shelfColor.high, border: `1px solid ${shelfBorder.high}` }} />Near capacity</span>
+          <div className="flex items-center gap-6">
+            <div className="w-28 h-28 rounded-full flex items-center justify-center flex-none" style={{ background: `conic-gradient(${gaugeColor} 0% ${pct}%, #E4E8F0 ${pct}% 100%)` }}>
+              <div className="w-20 h-20 rounded-full bg-white flex flex-col items-center justify-center">
+                <b className="text-lg font-display">{hubLoading ? '—' : `${pct}%`}</b><span className="text-xs text-muted-foreground">used</span>
+              </div>
+            </div>
+            <ul className="text-sm space-y-1.5">
+              <li className="flex items-center gap-2"><i className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: gaugeColor }} />Occupied <b>{hubLoading ? '—' : occupancy?.current_count ?? 0}</b></li>
+              <li className="flex items-center gap-2"><i className="w-2.5 h-2.5 rounded-sm inline-block bg-line" />Capacity <b>{hubLoading ? '—' : occupancy?.capacity ?? 0}</b></li>
+            </ul>
           </div>
         </Card>
 
         <Card className="p-5">
           <CardHeader className="p-0 mb-4">
-            <CardTitle className="text-base">Capacity Usage</CardTitle>
+            <CardTitle className="text-base">Today's Movement</CardTitle>
           </CardHeader>
-          <div className="flex items-center gap-6">
-            <div className="w-28 h-28 rounded-full flex items-center justify-center flex-none" style={{ background: 'conic-gradient(#2563EB 0% 72%, #E4E8F0 72% 100%)' }}>
-              <div className="w-20 h-20 rounded-full bg-white flex flex-col items-center justify-center">
-                <b className="text-lg font-display">72%</b><span className="text-xs text-muted-foreground">used</span>
-              </div>
-            </div>
-            <ul className="text-sm space-y-1.5">
-              <li className="flex items-center gap-2"><i className="w-2.5 h-2.5 rounded-sm inline-block bg-[#2563EB]" />Occupied <b>72%</b></li>
-              <li className="flex items-center gap-2"><i className="w-2.5 h-2.5 rounded-sm inline-block bg-line" />Free <b>28%</b></li>
-            </ul>
-          </div>
-          <div className="mt-5">
-            <StatStrip items={[
-              { num: '1,860', label: 'Total Stored Parcels' },
-              { num: 140, label: 'Incoming Inventory' },
-              { num: 158, label: 'Outgoing Inventory' },
-              { num: agingParcels.length, label: 'Aging Parcels' },
-            ]} />
-          </div>
+          <StatStrip items={[
+            { num: hubLoading ? '—' : hubAnalytics?.snapshot?.parcels_in_today ?? 0, label: 'Parcels In Today' },
+            { num: hubLoading ? '—' : hubAnalytics?.snapshot?.parcels_out_today ?? 0, label: 'Parcels Out Today' },
+            { num: hubLoading ? '—' : occupancy?.current_count ?? 0, label: 'Currently Stored' },
+            { num: agingParcels.length, label: 'Aging Parcels' },
+          ]} />
         </Card>
       </div>
 

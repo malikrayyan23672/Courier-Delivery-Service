@@ -3,7 +3,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -18,7 +18,9 @@ from app.models.staff import StaffProfile
 from app.models.branch_service_area import BranchServiceArea
 from app.models.settlement import Settlement
 from app.models.support_ticket import SupportTicket
+from app.models.parcel_incident import ParcelIncident, IncidentType, IncidentStatus
 from app.models.branch import Branch
+from app.services import notification_service
 from app.services.order_service import transition, offer_last_mile_rider, handle_dest_hub_arrival
 from app.services.settlement_service import (
     rider_wallet_limit,
@@ -251,18 +253,21 @@ def manifest_history(
 @router.get("/rto-queue")
 def rto_queue(
     branch_id: str | None = Query(None),
+    include_collected: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
-    """Parcels at this branch that exhausted delivery attempts and are awaiting a return dispatch."""
+    """Parcels at this branch that exhausted delivery attempts and are awaiting
+    a return dispatch. Excludes parcels already handed back to the seller
+    (`rto_collected_at` set) by default - that's the closed end of the RTO
+    loop, not something still needing action."""
     bid = _resolve_branch_id(current_user, branch_id)
-    orders = (
-        db.query(Order)
-        .options(joinedload(Order.dropoff_address))
-        .filter(Order.branch_id == bid, Order.status == OrderStatus.rto)
-        .order_by(Order.updated_at.desc())
-        .all()
+    query = db.query(Order).options(joinedload(Order.dropoff_address)).filter(
+        Order.branch_id == bid, Order.status == OrderStatus.rto
     )
+    if not include_collected:
+        query = query.filter(Order.rto_collected_at.is_(None))
+    orders = query.order_by(Order.updated_at.desc()).all()
     rows = []
     for o in orders:
         summary = _order_summary(o)
@@ -274,8 +279,46 @@ def rto_queue(
         )
         summary["failure_note"] = last_attempt.notes if last_attempt else None
         summary["failure_photo_url"] = last_attempt.photo_url if last_attempt else None
+        summary["rto_collected_at"] = o.rto_collected_at
         rows.append(summary)
     return rows
+
+
+@router.patch("/orders/{order_id}/rto-collected")
+def mark_rto_collected(
+    order_id: str,
+    branch_id: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
+):
+    """Closes the RTO loop: hub staff confirm the seller has physically
+    picked up a returned parcel from this branch. `rto` stays a terminal
+    order status - this just records that the return is done."""
+    bid = _resolve_branch_id(current_user, branch_id)
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if str(order.branch_id) != bid:
+        raise HTTPException(status_code=403, detail="This parcel does not belong to your branch")
+    if order.status != OrderStatus.rto:
+        raise HTTPException(status_code=400, detail="Only RTO parcels can be marked collected")
+    if order.rto_collected_at:
+        raise HTTPException(status_code=400, detail="This parcel was already marked collected")
+
+    order.rto_collected_at = datetime.now(timezone.utc)
+    transition(db, order, order.status, actor=current_user, note="Returned parcel collected by seller")
+
+    if order.seller_business_id:
+        for owner in db.query(User).filter(User.business_id == order.seller_business_id).all():
+            notification_service.notify(
+                db, user_id=owner.id, title="Return collected",
+                message=f"{order.tracking_number} has been marked as collected from the branch.",
+                order_id=order.id,
+            )
+
+    db.commit()
+    db.refresh(order)
+    return {**_order_summary(order), "rto_collected_at": order.rto_collected_at}
 
 
 @router.get("/aging-parcels")
@@ -303,6 +346,43 @@ def aging_parcels(
         {**_order_summary(o), "hours_aging": round((now - o.updated_at).total_seconds() / 3600, 1)}
         for o in orders
     ]
+
+
+# Falls back to this when a branch has no `warehouse_capacity` set.
+DEFAULT_WAREHOUSE_CAPACITY = 500
+
+
+@router.get("/warehouse")
+def warehouse_occupancy(
+    branch_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
+):
+    """Real occupancy for the hub console's warehouse view - previously a
+    `Math.random()`-generated shelf grid on the frontend with nothing behind
+    it. Counts every parcel physically sitting at this branch right now:
+    scanned in awaiting dispatch (`in_hub`), arrived awaiting last-mile
+    (`dest_hub`), and RTO parcels not yet collected by the seller."""
+    bid = _resolve_branch_id(current_user, branch_id)
+    branch = db.query(Branch).filter(Branch.id == bid).first()
+    if not branch:
+        raise HTTPException(status_code=404, detail="Branch not found")
+
+    current_count = (
+        db.query(func.count(Order.id))
+        .filter(
+            Order.branch_id == bid,
+            or_(
+                Order.status.in_([OrderStatus.in_hub, OrderStatus.dest_hub]),
+                and_(Order.status == OrderStatus.rto, Order.rto_collected_at.is_(None)),
+            ),
+        )
+        .scalar()
+        or 0
+    )
+    capacity = branch.warehouse_capacity or DEFAULT_WAREHOUSE_CAPACITY
+    occupancy_pct = round(min(current_count / capacity, 1.0) * 100, 1) if capacity else 0.0
+    return {"current_count": current_count, "capacity": capacity, "occupancy_pct": occupancy_pct}
 
 
 @router.get("/vendor-scores")
@@ -821,3 +901,107 @@ def update_hub_settings(
     db.commit()
     db.refresh(branch)
     return _hub_settings_out(branch)
+
+
+# ============================================================
+# PARCEL INCIDENTS (damaged / missing / manifest count mismatch)
+# ============================================================
+def _incident_out(incident: ParcelIncident) -> dict:
+    return {
+        "id": str(incident.id),
+        "type": incident.type.value if hasattr(incident.type, "value") else incident.type,
+        "status": incident.status.value if hasattr(incident.status, "value") else incident.status,
+        "note": incident.note,
+        "order_id": str(incident.order_id) if incident.order_id else None,
+        "tracking_number": incident.order.tracking_number if incident.order else None,
+        "manifest_id": str(incident.manifest_id) if incident.manifest_id else None,
+        "reported_by": incident.reported_by.full_name if incident.reported_by else "System",
+        "resolution_note": incident.resolution_note,
+        "resolved_by": incident.resolved_by.full_name if incident.resolved_by else None,
+        "resolved_at": incident.resolved_at,
+        "created_at": incident.created_at,
+    }
+
+
+class IncidentCreateIn(BaseModel):
+    type: Literal["damaged", "missing"]
+    tracking_number: Optional[str] = None
+    note: Optional[str] = None
+
+
+@router.get("/incidents")
+def list_incidents(
+    branch_id: str | None = Query(None),
+    status_filter: str | None = Query(None, alias="status"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
+):
+    bid = _resolve_branch_id(current_user, branch_id)
+    query = (
+        db.query(ParcelIncident)
+        .options(joinedload(ParcelIncident.order), joinedload(ParcelIncident.reported_by), joinedload(ParcelIncident.resolved_by))
+        .filter(ParcelIncident.branch_id == bid)
+    )
+    if status_filter:
+        query = query.filter(ParcelIncident.status == status_filter)
+    incidents = query.order_by(ParcelIncident.created_at.desc()).limit(100).all()
+    return [_incident_out(i) for i in incidents]
+
+
+@router.post("/incidents", status_code=201)
+def create_incident(
+    payload: IncidentCreateIn,
+    branch_id: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
+):
+    """Real backend behind the branch console's "Report Damaged"/"Report
+    Missing" actions - these used to just show a toast with nothing saved."""
+    bid = _resolve_branch_id(current_user, branch_id)
+    order = None
+    if payload.tracking_number:
+        order = db.query(Order).filter(Order.tracking_number == payload.tracking_number.strip().upper()).first()
+        if not order:
+            raise HTTPException(status_code=404, detail="No parcel found with that tracking number")
+
+    incident = ParcelIncident(
+        branch_id=bid,
+        order_id=order.id if order else None,
+        type=IncidentType(payload.type),
+        note=payload.note,
+        reported_by_id=current_user.id,
+    )
+    db.add(incident)
+    db.commit()
+    db.refresh(incident)
+    return _incident_out(incident)
+
+
+class IncidentResolveIn(BaseModel):
+    resolution_note: Optional[str] = None
+
+
+@router.patch("/incidents/{incident_id}/resolve")
+def resolve_incident(
+    incident_id: str,
+    payload: IncidentResolveIn = IncidentResolveIn(),
+    branch_id: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
+):
+    bid = _resolve_branch_id(current_user, branch_id)
+    incident = db.query(ParcelIncident).filter(ParcelIncident.id == incident_id).first()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    if str(incident.branch_id) != bid:
+        raise HTTPException(status_code=403, detail="This incident does not belong to your branch")
+    if incident.status == IncidentStatus.resolved:
+        raise HTTPException(status_code=400, detail="This incident is already resolved")
+
+    incident.status = IncidentStatus.resolved
+    incident.resolution_note = payload.resolution_note
+    incident.resolved_by_id = current_user.id
+    incident.resolved_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(incident)
+    return _incident_out(incident)

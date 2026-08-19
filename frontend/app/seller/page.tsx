@@ -27,6 +27,7 @@ import {
   bookSellerOrder,
   listSellerParcels,
   getSellerParcelDetail,
+  cancelSellerParcel,
   bulkUploadTemplateUrl,
   previewBulkUpload,
   confirmBulkUpload,
@@ -1195,6 +1196,7 @@ function ParcelsTab({ token }: { token: string }) {
   const [status, setStatus] = useState('');
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -1205,7 +1207,7 @@ function ParcelsTab({ token }: { token: string }) {
         .finally(() => setLoading(false));
     }, 250);
     return () => clearTimeout(handle);
-  }, [token, status, q]);
+  }, [token, status, q, reloadTick]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -1252,18 +1254,43 @@ function ParcelsTab({ token }: { token: string }) {
         )}
       </div>
 
-      {selected && <ParcelDetailDialog trackingNumber={selected} token={token} onClose={() => setSelected(null)} />}
+      {selected && (
+        <ParcelDetailDialog
+          trackingNumber={selected}
+          token={token}
+          onClose={() => setSelected(null)}
+          onCancelled={() => { setSelected(null); setReloadTick((t) => t + 1); }}
+        />
+      )}
     </div>
   );
 }
 
-function ParcelDetailDialog({ trackingNumber, token, onClose }: { trackingNumber: string; token: string; onClose: () => void }) {
+// Mirrors the backend's CANCELLABLE_STATUSES (order_service.py) - cancellation
+// is only legal before the parcel enters the hub network.
+const CANCELLABLE_PARCEL_STATUSES = ['created', 'assigned', 'picked_up'];
+
+function ParcelDetailDialog({ trackingNumber, token, onClose, onCancelled }: { trackingNumber: string; token: string; onClose: () => void; onCancelled: () => void }) {
   const [detail, setDetail] = useState<SellerParcelDetail | null>(null);
   const [error, setError] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     getSellerParcelDetail(trackingNumber, token).then(setDetail).catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load this parcel.'));
   }, [trackingNumber, token]);
+
+  async function handleCancel() {
+    if (!window.confirm('Cancel this parcel? This cannot be undone.')) return;
+    const reason = window.prompt('Reason for cancelling (optional):') || undefined;
+    setCancelling(true);
+    try {
+      await cancelSellerParcel(trackingNumber, token, reason);
+      onCancelled();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not cancel this parcel.');
+      setCancelling(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-start md:items-center justify-center p-3 md:p-6 overflow-y-auto" onClick={onClose}>
@@ -1278,6 +1305,15 @@ function ParcelDetailDialog({ trackingNumber, token, onClose }: { trackingNumber
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <div className="flex flex-col gap-4">
+            {CANCELLABLE_PARCEL_STATUSES.includes(detail.status) && (
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="self-start text-xs font-semibold text-[#db2203] hover:underline disabled:opacity-50"
+              >
+                {cancelling ? 'Cancelling…' : 'Cancel this parcel'}
+              </button>
+            )}
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div><p className="text-xs text-muted-foreground">Receiver</p><p className="text-ink font-semibold">{detail.receiver_name}</p><p className="text-xs text-muted-foreground">{detail.receiver_phone}</p></div>
               <div><p className="text-xs text-muted-foreground">Status</p><p className="text-ink font-semibold capitalize">{detail.status.replace(/_/g, ' ')}</p></div>
@@ -1374,9 +1410,15 @@ function ReturnsTab({ token }: { token: string }) {
                   )}
                 </td>
                 <td className="px-6 py-3.5 text-right">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${r.sla_breached ? 'bg-[#FBEAE7] text-[#db2203]' : r.sla_hours_left < 12 ? 'bg-[#FBF0DC] text-[#B9770E]' : 'bg-[#EAF7EF] text-success'}`}>
-                    {r.sla_breached ? 'SLA breached' : `${r.sla_hours_left}h left`}
-                  </span>
+                  {r.collected_at ? (
+                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-[#EAF7EF] text-success">
+                      Collected {new Date(r.collected_at).toLocaleDateString()}
+                    </span>
+                  ) : (
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${r.sla_breached ? 'bg-[#FBEAE7] text-[#db2203]' : r.sla_hours_left < 12 ? 'bg-[#FBF0DC] text-[#B9770E]' : 'bg-[#EAF7EF] text-success'}`}>
+                      {r.sla_breached ? 'SLA breached' : `${r.sla_hours_left}h left`}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3.5 text-right">
                   <button

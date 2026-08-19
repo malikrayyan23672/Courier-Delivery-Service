@@ -282,6 +282,10 @@ export function getMyOrder(orderId: string, token: string) {
   return request<OrderDetail>(`/customer/orders/${orderId}`, { method: 'GET' }, token);
 }
 
+export function cancelMyOrder(orderId: string, token: string, reason?: string) {
+  return request<Order>(`/customer/orders/${orderId}/cancel`, { method: 'PATCH', body: JSON.stringify({ reason }) }, token);
+}
+
 // ---- Customer profile ----
 
 export interface MyProfile {
@@ -1502,6 +1506,14 @@ export function getSellerParcelDetail(trackingNumber: string, token: string) {
   return request<SellerParcelDetail>(`/seller/parcels/${trackingNumber}`, { method: 'GET' }, token);
 }
 
+export function cancelSellerParcel(trackingNumber: string, token: string, reason?: string) {
+  return request<{ message: string; status: string }>(
+    `/seller/parcels/${trackingNumber}/cancel`,
+    { method: 'PATCH', body: JSON.stringify({ reason }) },
+    token
+  );
+}
+
 export function bulkUploadTemplateUrl() {
   return `${API_ORIGIN}/api/v1/seller/bulk-upload/template`;
 }
@@ -1561,6 +1573,7 @@ export interface SellerReturnRow {
   batch_id: string | null;
   failure_note: string | null;
   failure_photo_url: string | null;
+  collected_at: string | null;
 }
 
 export function listSellerReturns(token: string) {
@@ -1605,6 +1618,7 @@ export interface HubAgingOrder extends HubOrderSummary {
 export interface HubRtoOrder extends HubOrderSummary {
   failure_note: string | null;
   failure_photo_url: string | null;
+  rto_collected_at: string | null;
 }
 
 export interface HubManifestItem {
@@ -1765,8 +1779,67 @@ export function getHubAnalytics(token: string, branchId?: string, days = 14) {
   return request<HubAnalytics>(`/hub/analytics?${params.toString()}`, { method: 'GET' }, token);
 }
 
-export function getHubRtoQueue(token: string, branchId?: string) {
-  return request<HubRtoOrder[]>(`/hub/rto-queue${branchQuery(branchId)}`, { method: 'GET' }, token);
+export function getHubRtoQueue(token: string, branchId?: string, includeCollected = false) {
+  const params = new URLSearchParams({
+    ...(branchId ? { branch_id: branchId } : {}),
+    ...(includeCollected ? { include_collected: 'true' } : {}),
+  });
+  const qs = params.toString();
+  return request<HubRtoOrder[]>(`/hub/rto-queue${qs ? `?${qs}` : ''}`, { method: 'GET' }, token);
+}
+
+export function markRtoCollected(orderId: string, token: string, branchId?: string) {
+  return request<HubRtoOrder>(`/hub/orders/${orderId}/rto-collected${branchQuery(branchId)}`, { method: 'PATCH' }, token);
+}
+
+export interface HubWarehouseOccupancy {
+  current_count: number;
+  capacity: number;
+  occupancy_pct: number;
+}
+
+export function getHubWarehouse(token: string, branchId?: string) {
+  return request<HubWarehouseOccupancy>(`/hub/warehouse${branchQuery(branchId)}`, { method: 'GET' }, token);
+}
+
+export interface HubIncident {
+  id: string;
+  type: 'damaged' | 'missing' | 'count_mismatch';
+  status: 'open' | 'resolved';
+  note: string | null;
+  order_id: string | null;
+  tracking_number: string | null;
+  manifest_id: string | null;
+  reported_by: string;
+  resolution_note: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+}
+
+export function listHubIncidents(token: string, branchId?: string, status?: string) {
+  const params = new URLSearchParams({
+    ...(branchId ? { branch_id: branchId } : {}),
+    ...(status ? { status } : {}),
+  });
+  const qs = params.toString();
+  return request<HubIncident[]>(`/hub/incidents${qs ? `?${qs}` : ''}`, { method: 'GET' }, token);
+}
+
+export function createHubIncident(
+  payload: { type: 'damaged' | 'missing'; tracking_number?: string; note?: string },
+  token: string,
+  branchId?: string
+) {
+  return request<HubIncident>(`/hub/incidents${branchQuery(branchId)}`, { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function resolveHubIncident(incidentId: string, token: string, resolutionNote?: string, branchId?: string) {
+  return request<HubIncident>(
+    `/hub/incidents/${incidentId}/resolve${branchQuery(branchId)}`,
+    { method: 'PATCH', body: JSON.stringify({ resolution_note: resolutionNote }) },
+    token
+  );
 }
 
 // ---- Hub last-mile rider assignment ----
@@ -1816,6 +1889,23 @@ export function getHubSettings(token: string, branchId?: string) {
 
 export function updateHubSettings(mode: RiderAssignmentMode, token: string) {
   return request<HubSettings>('/hub/settings', { method: 'PATCH', body: JSON.stringify({ rider_assignment_mode: mode }) }, token);
+}
+
+// ---- Network settings (superadmin "Network Defaults") ----
+
+export interface NetworkSettings {
+  default_currency: string;
+  manual_review_cod_threshold: number;
+  auto_assign_enabled: boolean;
+  default_assignment_radius_km: number;
+}
+
+export function getNetworkSettings(token: string) {
+  return request<NetworkSettings>('/admin/network/settings', { method: 'GET' }, token);
+}
+
+export function updateNetworkSettings(payload: NetworkSettings, token: string) {
+  return request<NetworkSettings>('/admin/network/settings', { method: 'PUT', body: JSON.stringify(payload) }, token);
 }
 
 // ---- Finance & COD Engine ----

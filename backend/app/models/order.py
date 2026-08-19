@@ -2,7 +2,7 @@ import enum
 import random
 import string
 
-from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey, Enum
+from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -125,6 +125,12 @@ class Order(Base, TimestampMixin):
 
     proof_of_delivery_url = Column(String(500), nullable=True)
     proof_of_delivery_recipient_name = Column(String(150), nullable=True)
+
+    # Closes the RTO loop: set once hub staff confirm the seller has actually
+    # collected a returned parcel. `status` stays `rto` (terminal in the state
+    # machine) - this timestamp is the only record of the physical hand-back
+    # ever happening, distinct from the return manifest merely "arriving".
+    rto_collected_at = Column(DateTime(timezone=True), nullable=True)
 
     payment = relationship("Payment", back_populates="order", uselist=False)
     settlement = relationship("Settlement", back_populates="order", uselist=False)

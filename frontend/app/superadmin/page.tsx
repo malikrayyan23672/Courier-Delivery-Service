@@ -39,6 +39,9 @@ import {
   MessageTemplate,
   listSellersAdmin,
   AdminSeller,
+  getNetworkSettings,
+  updateNetworkSettings,
+  NetworkSettings,
 } from '@/lib/api';
 import {
   Pill, AvatarChip, KpiCard, StatStrip, Toasts, NavIcon, NavBadge, Modal, inputCls,
@@ -468,7 +471,7 @@ function AdminDashboardContent() {
 
           {view === 'alerts' && <AlertsView notifications={notifications} />}
 
-          {view === 'settings' && <SettingsView toast={toast} />}
+          {view === 'settings' && <SettingsView toast={toast} token={token!} />}
         </div>
       </div>
 
@@ -1374,17 +1377,50 @@ function AlertCard({ alert }: { alert: { sev: 'high' | 'medium' | 'low'; title: 
 // ============================================================
 // SETTINGS
 // ============================================================
-function SettingsView({ toast }: { toast: (msg: string) => void }) {
+function SettingsView({ toast, token }: { toast: (msg: string) => void; token: string }) {
   const [currency, setCurrency] = useState('PKR');
   const [codLimit, setCodLimit] = useState('15000');
   const [autoAssign, setAutoAssign] = useState(true);
   const [assignRadius, setAssignRadius] = useState('3');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getNetworkSettings(token)
+      .then((s) => {
+        setCurrency(s.default_currency);
+        setCodLimit(String(s.manual_review_cod_threshold));
+        setAutoAssign(s.auto_assign_enabled);
+        setAssignRadius(String(s.default_assignment_radius_km));
+      })
+      .catch((err) => toast(err instanceof ApiError ? err.message : 'Could not load network settings.'))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const payload: NetworkSettings = {
+      default_currency: currency,
+      manual_review_cod_threshold: parseFloat(codLimit) || 0,
+      auto_assign_enabled: autoAssign,
+      default_assignment_radius_km: parseFloat(assignRadius) || 0,
+    };
+    setSaving(true);
+    try {
+      await updateNetworkSettings(payload, token);
+      toast('Settings saved.');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not save settings.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <section className="bg-white border border-line rounded-2xl p-5 max-w-2xl">
       <h2 className="font-display font-bold text-base mb-1">Network Defaults</h2>
       <p className="text-xs text-muted-foreground mb-5">These apply to every branch unless a branch overrides them</p>
-      <form onSubmit={(e) => { e.preventDefault(); toast('Settings saved.'); }} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Field label="Default currency">
           <select className={inputCls} value={currency} onChange={(e) => setCurrency(e.target.value)}>
             <option value="PKR">PKR — Pakistani Rupee</option>
@@ -1407,7 +1443,9 @@ function SettingsView({ toast }: { toast: (msg: string) => void }) {
           <input className={inputCls} type="number" value={assignRadius} onChange={(e) => setAssignRadius(e.target.value)} disabled={!autoAssign} />
         </Field>
         <div className="flex justify-end mt-2">
-          <button type="submit" className="text-sm font-bold px-5 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white">Save Settings</button>
+          <button type="submit" disabled={loading || saving} className="text-sm font-bold px-5 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white disabled:opacity-60">
+            {saving ? 'Saving…' : 'Save Settings'}
+          </button>
         </div>
       </form>
     </section>

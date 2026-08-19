@@ -18,6 +18,7 @@ from app.models.branch import Branch
 from app.models.order import Order, OrderStatus
 from app.services import log_service
 from app.models.messaging import AssignmentRule, MessageTemplate
+from app.models.system_setting import SystemSetting
 from app.services import notification_service
 
 router = APIRouter(prefix="/admin", tags=["Admin - Network"])
@@ -645,3 +646,73 @@ def delete_message_template(
         raise HTTPException(status_code=404, detail="Message template not found")
     db.delete(template)
     db.commit()
+
+
+# ============================================================
+# NETWORK SETTINGS - key/value backed by SystemSetting, previously a dead
+# model with no endpoints (the Super Admin "Network Defaults" form saved
+# nothing - it called only a local toast). `auto_assign_enabled` actually
+# gates order_service.create_order's automatic rider assignment; the other
+# three persist correctly but aren't yet enforced elsewhere.
+# ============================================================
+NETWORK_SETTING_DEFAULTS = {
+    "default_currency": "PKR",
+    "manual_review_cod_threshold": "15000",
+    "auto_assign_enabled": "true",
+    "default_assignment_radius_km": "3",
+}
+
+
+class NetworkSettingsOut(BaseModel):
+    default_currency: str
+    manual_review_cod_threshold: float
+    auto_assign_enabled: bool
+    default_assignment_radius_km: float
+
+
+class NetworkSettingsIn(BaseModel):
+    default_currency: str
+    manual_review_cod_threshold: float
+    auto_assign_enabled: bool
+    default_assignment_radius_km: float
+
+
+def _read_settings(db: Session) -> dict:
+    rows = db.query(SystemSetting).filter(SystemSetting.key.in_(NETWORK_SETTING_DEFAULTS.keys())).all()
+    values = {**NETWORK_SETTING_DEFAULTS, **{r.key: r.value for r in rows}}
+    return {
+        "default_currency": values["default_currency"],
+        "manual_review_cod_threshold": float(values["manual_review_cod_threshold"]),
+        "auto_assign_enabled": values["auto_assign_enabled"] == "true",
+        "default_assignment_radius_km": float(values["default_assignment_radius_km"]),
+    }
+
+
+@router.get("/network/settings", response_model=NetworkSettingsOut)
+def get_network_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    return NetworkSettingsOut(**_read_settings(db))
+
+
+@router.put("/network/settings", response_model=NetworkSettingsOut)
+def update_network_settings(
+    payload: NetworkSettingsIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    values = {
+        "default_currency": payload.default_currency,
+        "manual_review_cod_threshold": str(payload.manual_review_cod_threshold),
+        "auto_assign_enabled": "true" if payload.auto_assign_enabled else "false",
+        "default_assignment_radius_km": str(payload.default_assignment_radius_km),
+    }
+    for key, value in values.items():
+        row = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+        if row:
+            row.value = value
+        else:
+            db.add(SystemSetting(key=key, value=value))
+    db.commit()
+    return NetworkSettingsOut(**_read_settings(db))

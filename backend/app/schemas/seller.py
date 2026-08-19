@@ -85,3 +85,7 @@ class BulkUploadPreviewOut(BaseModel):
 class BulkUploadConfirmRequest(BaseModel):
     upload_id: str
     rows: list[BulkUploadRowIn]
+
+
+class ParcelCancelRequest(BaseModel):
+    reason: Optional[str] = None

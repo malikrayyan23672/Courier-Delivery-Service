@@ -14,6 +14,7 @@ from app.models.tracking_event import TrackingEvent
 from app.models.staff import StaffProfile
 from app.models.branch import Branch
 from app.models.bus_network import BusManifest, ManifestItem, ManifestStatus, ScanStatus
+from app.models.system_setting import SystemSetting
 from app.models.zone import Zone
 from app.models.discount import Discount
 from app.models.user import User
@@ -222,10 +223,19 @@ def create_order(
     db.commit()
     db.refresh(order)
 
-    _auto_assign_rider(db, order)
+    if _network_auto_assign_enabled(db):
+        _auto_assign_rider(db, order)
     db.commit()
     db.refresh(order)
     return order
+
+
+def _network_auto_assign_enabled(db: Session) -> bool:
+    """Reads the superadmin Network Defaults toggle (admin_network.py's
+    /admin/network/settings). Defaults to True (the prior always-on
+    behavior) when the setting has never been saved."""
+    row = db.query(SystemSetting).filter(SystemSetting.key == "auto_assign_enabled").first()
+    return row.value != "false" if row else True
 
 
 def get_or_create_guest_customer(db: Session, full_name: str, phone: str, email: str | None = None) -> User:
@@ -374,6 +384,38 @@ def handle_dest_hub_arrival(db: Session, order: Order, branch_id: str, actor: Us
     branch runs automatic assignment."""
     order.branch_id = branch_id
     maybe_auto_assign_last_mile_rider(db, order, actor=actor)
+
+
+# Cancellation is only a legal edge up through `picked_up` (see
+# ALLOWED_TRANSITIONS) - once a parcel is scanned into a hub it's physically
+# committed to the bus network, so "cancelled" has no `in_hub`-onward edge
+# and a failed/RTO parcel is handled through the return flow instead.
+CANCELLABLE_STATUSES = {OrderStatus.created, OrderStatus.assigned, OrderStatus.picked_up}
+
+
+def cancel_order(db: Session, order: Order, actor: User | None = None, reason: str | None = None) -> Order:
+    """Cancels an order on behalf of whoever booked it (customer or seller).
+    Notifies the assigned rider, if any, so they don't show up for a pickup
+    that's off."""
+    current = order.status if isinstance(order.status, OrderStatus) else OrderStatus(order.status)
+    if current not in CANCELLABLE_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"An order can only be cancelled before it enters the hub network - currently '{current.value}'.",
+        )
+
+    rider_id = order.rider_id
+    transition(db, order, OrderStatus.cancelled, actor=actor, note=f"Cancelled{f' - {reason}' if reason else ''}")
+
+    if rider_id:
+        rider = db.query(RiderProfile).filter(RiderProfile.id == rider_id).first()
+        if rider:
+            notification_service.notify(
+                db, user_id=rider.user_id, title="Delivery cancelled",
+                message=f"Order {order.tracking_number} was cancelled - no pickup/delivery needed.",
+                type="warning", order_id=order.id,
+            )
+    return order
 
 
 def _auto_assign_rider(db: Session, order: Order) -> RiderProfile | None:

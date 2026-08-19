@@ -33,6 +33,7 @@ from app.models.product import Product
 from app.models.rating import Rating
 from app.models.rider_status_request import RiderStatusRequest
 from app.models.parcel_unlock_request import ParcelUnlockRequest
+from app.models.parcel_incident import ParcelIncident
 from app.models.support_ticket import SupportTicket, SupportTicketMessage
 from app.models.messaging import AssignmentRule, MessageTemplate
 from app.models.branch_service_area import BranchServiceArea

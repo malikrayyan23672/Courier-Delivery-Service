@@ -26,6 +26,11 @@ class Branch(Base, TimestampMixin):
     # origin-pickup logic).
     rider_assignment_mode = Column(String(20), nullable=False, default="manual")
 
+    # Rough capacity for the hub console's warehouse occupancy view (count of
+    # parcels physically at this branch vs this number). Null falls back to a
+    # network-wide default rather than treating the branch as zero-capacity.
+    warehouse_capacity = Column(Integer, nullable=True)
+
     zone_id = Column(UUID_TYPE, ForeignKey("zones.id"), nullable=True)
     zone = relationship("Zone", back_populates="branches")
     staff_members = relationship("StaffProfile", back_populates="branch")

@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
+from pydantic import BaseModel
+
 from app.database import get_db
 from app.core.permissions import require_roles
 from app.models.user import User
@@ -16,7 +18,7 @@ from app.schemas.order import (
     PaymentOut,
 )
 from app.schemas.user import UserOut
-from app.services.order_service import create_order
+from app.services.order_service import create_order, cancel_order
 from app.services.invoice_pdf_service import generate_invoice_pdf
 
 router = APIRouter(prefix="/customer", tags=["Customer"])
@@ -57,6 +59,27 @@ def list_my_orders(
     current_user: User = Depends(require_roles("customer")),
 ):
     return sorted(current_user.orders_placed, key=lambda o: o.created_at, reverse=True)
+
+
+class OrderCancelRequest(BaseModel):
+    reason: str | None = None
+
+
+@router.patch("/orders/{order_id}/cancel", response_model=OrderOut)
+def cancel_my_order(
+    order_id: str,
+    payload: OrderCancelRequest = OrderCancelRequest(),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("customer")),
+):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order or order.customer_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    cancel_order(db, order, actor=current_user, reason=payload.reason)
+    db.commit()
+    db.refresh(order)
+    return order
 
 
 @router.get("/orders/{order_id}", response_model=OrderDetailOut)

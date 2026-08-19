@@ -33,9 +33,11 @@ def rider_wallet_warning_at(rider) -> float:
 def create_cod_settlement(db: Session, order: Order, delivered_by: User | None = None) -> Settlement | None:
     """
     Called when a COD order is marked delivered. Records the payout that is
-    guaranteed on the next morning (T+1). The payout target is the customer's
-    business account (seller) when the customer is a seller - otherwise the
-    retail customer (business_id stays None and the payout is handled manually).
+    guaranteed on the next morning (T+1). The payout target is the seller's
+    business account (`order.seller_business_id` - the canonical seller link
+    set on every seller-portal/marketplace order) when there is one -
+    otherwise the retail customer's own business account, if any (business_id
+    stays None and the payout is handled manually).
     Also credits the delivering rider's cash-in-hand wallet and auto-locks it
     at WALLET_LOCK_THRESHOLD.
     """
@@ -48,7 +50,15 @@ def create_cod_settlement(db: Session, order: Order, delivered_by: User | None =
         return existing
 
     business = None
-    if order.customer and order.customer.business_id:
+    if order.seller_business_id:
+        # The seller-portal/marketplace path: `order.customer` here is an
+        # auto-created guest receiver with no `business_id` of its own (see
+        # order_service.get_or_create_guest_customer) - the seller link lives
+        # on the order, not the customer. Using `order.customer.business_id`
+        # here silently dropped every one of these settlements to business_id
+        # NULL, so they could never be paid out or seen on the seller's wallet.
+        business = db.query(Business).filter(Business.id == order.seller_business_id).first()
+    elif order.customer and order.customer.business_id:
         business = db.query(Business).filter(Business.id == order.customer.business_id).first()
 
     amount = order.final_price or order.estimated_price or 0.0

@@ -17,6 +17,7 @@ from app.models.bus_network import (
     ScanStatus,
 )
 from app.models.order import Order, OrderStatus
+from app.models.parcel_incident import ParcelIncident, IncidentType
 from app.services.order_service import transition, handle_dest_hub_arrival
 from app.services import log_service
 from app.schemas.bus_network import (
@@ -274,15 +275,33 @@ def update_manifest_status(
         missing = [i for i in manifest.items if str(i.id) not in scanned_ids]
         items_to_advance = [i for i in manifest.items if str(i.id) in scanned_ids]
         if missing:
+            missing_desc = ", ".join(i.crate_label or str(i.id) for i in missing)
             log_service.create_log(
                 db,
                 action="manifest_count_mismatch",
                 user_id=str(current_user.id),
                 entity_type="BusManifest",
                 entity_id=str(manifest.id),
-                details=f"Expected {len(manifest.items)} crates, scanned {len(items_to_advance)}. Missing: "
-                        + ", ".join(i.crate_label or str(i.id) for i in missing),
+                details=f"Expected {len(manifest.items)} crates, scanned {len(items_to_advance)}. Missing: {missing_desc}",
             )
+            # A first-class, resolvable record (TRD: "discrepancy triggers
+            # INCIDENT") - the log line above is audit trail, this is what
+            # the hub console's Incidents view actually works off of.
+            incident_branch_id = (
+                (manifest.schedule.destination_branch_id if manifest.schedule else None)
+                or manifest.origin_branch_id
+            )
+            if incident_branch_id:
+                db.add(
+                    ParcelIncident(
+                        branch_id=incident_branch_id,
+                        manifest_id=manifest.id,
+                        type=IncidentType.count_mismatch,
+                        note=f"Manifest {manifest.manifest_number}: expected {len(manifest.items)} crates, "
+                             f"scanned {len(items_to_advance)}. Missing: {missing_desc}",
+                        reported_by_id=current_user.id,
+                    )
+                )
 
     manifest.status = new_manifest_status
 

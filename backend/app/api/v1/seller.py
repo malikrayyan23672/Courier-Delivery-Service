@@ -29,14 +29,14 @@ from app.schemas.order import AddressInput
 from app.schemas.seller import (
     SellerMeOut, SellerUploadOut, SellerOrderCreateRequest, ParcelRowOut,
     BulkUploadRowIn, BulkUploadPreviewOut, BulkUploadRowPreview, BulkUploadConfirmRequest,
-    PHONE_REGEX,
+    ParcelCancelRequest, PHONE_REGEX,
 )
 from app.schemas.order import OrderOut, TrackingEventOut
 from app.schemas.rnp import RNPCreateIn, RNPOut
 from app.schemas.wallet import WalletTransactionOut
 from app.schemas.marketplace import ProductIn, ProductUpdateIn, ProductOut, RatingOut, RatingSummaryOut
 from app.schemas.order_message import OrderMessageCreate, OrderMessageOut
-from app.services.order_service import create_order, get_or_create_guest_customer
+from app.services.order_service import create_order, get_or_create_guest_customer, cancel_order
 from app.services import notification_service
 
 router = APIRouter(prefix="/seller", tags=["Seller Portal"])
@@ -525,6 +525,27 @@ def seller_parcel_detail(
     }
 
 
+@router.patch("/parcels/{tracking_number}/cancel")
+def cancel_seller_parcel(
+    tracking_number: str,
+    payload: ParcelCancelRequest = ParcelCancelRequest(),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("business")),
+):
+    business = _require_business(db, current_user)
+    order = (
+        db.query(Order)
+        .filter(Order.tracking_number == tracking_number.strip().upper(), Order.seller_business_id == business.id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Parcel not found")
+
+    cancel_order(db, order, actor=current_user, reason=payload.reason)
+    db.commit()
+    return {"message": "Order cancelled", "status": order.status.value if hasattr(order.status, "value") else order.status}
+
+
 # ============================== BULK UPLOAD (CSV) ==============================
 
 @router.get("/bulk-upload/template")
@@ -713,6 +734,7 @@ def seller_returns(
             "batch_id": item.crate_label if item else None,
             "failure_note": last_attempt.notes if last_attempt else None,
             "failure_photo_url": last_attempt.photo_url if last_attempt else None,
+            "collected_at": o.rto_collected_at,
         })
     return rows
 
