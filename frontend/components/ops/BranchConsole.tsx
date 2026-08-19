@@ -76,6 +76,7 @@ import {
   ActivityItem as AuditActivityItem,
   listBranchStaff,
   updateStaffAttendance,
+  updateStaffShift,
   BranchStaffMember,
   listServiceAreas,
   createServiceArea,
@@ -2278,12 +2279,42 @@ function StaffView({ staff, loading, canManage, token, onChanged, toast }: {
   onChanged: React.Dispatch<React.SetStateAction<BranchStaffMember[]>>;
   toast: (msg: string) => void;
 }) {
+  const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
+  const [shiftForm, setShiftForm] = useState({ shift_start: '', shift_end: '', shift_days: '' });
+
   async function handleAttendanceChange(member: BranchStaffMember, status: BranchStaffMember['attendance_status']) {
     try {
       const updated = await updateStaffAttendance(member.id, status, token);
       onChanged((prev) => prev.map((s) => (s.id === member.id ? updated : s)));
     } catch (err) {
       toast(err instanceof ApiError ? err.message : 'Could not update attendance.');
+    }
+  }
+
+  function startShiftEdit(member: BranchStaffMember) {
+    setEditingShiftId(member.id);
+    setShiftForm({
+      shift_start: member.shift_start || '',
+      shift_end: member.shift_end || '',
+      shift_days: member.shift_days || '',
+    });
+  }
+
+  async function handleShiftSave(member: BranchStaffMember) {
+    try {
+      const updated = await updateStaffShift(
+        member.id,
+        {
+          shift_start: shiftForm.shift_start || null,
+          shift_end: shiftForm.shift_end || null,
+          shift_days: shiftForm.shift_days || null,
+        },
+        token
+      );
+      onChanged((prev) => prev.map((s) => (s.id === member.id ? updated : s)));
+      setEditingShiftId(null);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update shift.');
     }
   }
 
@@ -2303,14 +2334,14 @@ function StaffView({ staff, loading, canManage, token, onChanged, toast }: {
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/30">
-            <TableHead>Name</TableHead><TableHead>Role</TableHead><TableHead>Attendance</TableHead><TableHead>Contact</TableHead><TableHead>Employee Code</TableHead>
+            <TableHead>Name</TableHead><TableHead>Role</TableHead><TableHead>Attendance</TableHead><TableHead>Shift</TableHead><TableHead>Contact</TableHead><TableHead>Employee Code</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading ? (
-            <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">Loading staff roster…</TableCell></TableRow>
+            <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">Loading staff roster…</TableCell></TableRow>
           ) : staff.length === 0 ? (
-            <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">No staff assigned to this branch yet.</TableCell></TableRow>
+            <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">No staff assigned to this branch yet.</TableCell></TableRow>
           ) : (
             staff.map((s) => (
               <TableRow key={s.id}>
@@ -2329,6 +2360,30 @@ function StaffView({ staff, loading, canManage, token, onChanged, toast }: {
                     </select>
                   ) : (
                     <Pill status={s.attendance_status} label={titleStatus(s.attendance_status)} />
+                  )}
+                </TableCell>
+                <TableCell>
+                  {editingShiftId === s.id ? (
+                    <div className="flex flex-col gap-1.5 min-w-[180px]">
+                      <div className="flex gap-1.5">
+                        <Input className="h-8 text-xs" placeholder="Start (09:00 AM)" value={shiftForm.shift_start} onChange={(e) => setShiftForm({ ...shiftForm, shift_start: e.target.value })} />
+                        <Input className="h-8 text-xs" placeholder="End (06:00 PM)" value={shiftForm.shift_end} onChange={(e) => setShiftForm({ ...shiftForm, shift_end: e.target.value })} />
+                      </div>
+                      <Input className="h-8 text-xs" placeholder="Days (Mon,Tue,Wed)" value={shiftForm.shift_days} onChange={(e) => setShiftForm({ ...shiftForm, shift_days: e.target.value })} />
+                      <div className="flex gap-1.5">
+                        <Button size="sm" variant="navy" onClick={() => handleShiftSave(s)}>Save</Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingShiftId(null)}>Cancel</Button>
+                      </div>
+                    </div>
+                  ) : s.shift_start || s.shift_end || s.shift_days ? (
+                    <button onClick={() => canManage && startShiftEdit(s)} className="text-left text-xs">
+                      <div className="text-ink font-medium">{s.shift_start || '—'} – {s.shift_end || '—'}</div>
+                      <div className="text-muted-foreground">{s.shift_days || '—'}</div>
+                    </button>
+                  ) : canManage ? (
+                    <button onClick={() => startShiftEdit(s)} className="text-xs font-semibold text-navy hover:underline">Set shift</button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Not set</span>
                   )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">{s.phone || '—'}</TableCell>

@@ -52,6 +52,8 @@ from app.schemas.rider import (
     SupportTicketMessageOut,
     EarningsDayOut,
     EarningsBreakdownOut,
+    PerformanceDayOut,
+    PerformanceOut,
 )
 
 router = APIRouter(prefix="/rider", tags=["Rider"])
@@ -1005,5 +1007,60 @@ def my_earnings(
     return EarningsBreakdownOut(
         total_earnings=round(sum(d.earnings for d in daily), 2),
         total_deliveries=sum(d.deliveries for d in daily),
+        daily=daily,
+    )
+
+
+@router.get("/performance", response_model=PerformanceOut)
+def my_performance(
+    days: int = 30,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("rider")),
+):
+    """Day-bucketed delivered-vs-returned trend, so a rider can actually see
+    how their performance moves over time - previously the only performance
+    signal anywhere was the single static `rating` number, which nothing in
+    the codebase ever recalculates (no rider-rating flow exists yet), so a
+    real trend has to come from delivery outcomes instead."""
+    rider_profile = _rider_profile(db, current_user)
+    days = max(1, min(days, 90))
+    window_start = datetime.now(timezone.utc) - timedelta(days=days - 1)
+    window_start = window_start.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # `delivered` and `rto` are this rider's only terminal outcomes for a
+    # doorstep attempt - `failed` alone can still be retried, so it isn't
+    # counted here as a completed negative outcome yet.
+    outcomes = (
+        db.query(Order)
+        .filter(
+            Order.rider_id == rider_profile.id,
+            Order.status.in_([OrderStatus.delivered, OrderStatus.rto]),
+            Order.updated_at >= window_start,
+        )
+        .all()
+    )
+
+    by_date: dict[str, dict[str, int]] = {}
+    for order in outcomes:
+        key = order.updated_at.date().isoformat()
+        bucket = by_date.setdefault(key, {"delivered": 0, "failed": 0})
+        if order.status == OrderStatus.delivered:
+            bucket["delivered"] += 1
+        else:
+            bucket["failed"] += 1
+
+    daily = [
+        PerformanceDayOut(date=key, delivered=val["delivered"], failed=val["failed"])
+        for key, val in sorted(by_date.items())
+    ]
+    total_delivered = sum(d.delivered for d in daily)
+    total_failed = sum(d.failed for d in daily)
+    total = total_delivered + total_failed
+
+    return PerformanceOut(
+        rating=rider_profile.rating,
+        total_delivered=total_delivered,
+        total_failed=total_failed,
+        success_rate=round((total_delivered / total) * 100, 1) if total else 0.0,
         daily=daily,
     )

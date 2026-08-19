@@ -28,6 +28,7 @@ dependencies:
 
   # Location
   geolocator: ^13.0.2
+  url_launcher: ^6.3.1
 
   # Camera / photo capture for proof of delivery
   image_picker: ^1.1.2

@@ -45,17 +45,22 @@ import {
   createBranch,
   updateBranch,
   resetUserPassword,
+  getRiderLeaderboard,
+  RiderLeaderboardRow,
 } from '@/lib/api';
 import {
   Pill, AvatarChip, KpiCard, StatStrip, Toasts, NavIcon, NavBadge, Modal, inputCls,
 } from './components';
+import { RequestsView } from '@/components/ops/RequestsView';
+import { BusNetworkTab, DiscountsTab } from '@/app/admin/components';
 
 type View =
   | 'overview' | 'orders' | 'map'
-  | 'riders' | 'assignment'
-  | 'branches' | 'zones'
+  | 'riders' | 'assignment' | 'requests' | 'leaderboard'
+  | 'branches' | 'zones' | 'bus'
   | 'staff' | 'business'
   | 'messaging'
+  | 'discounts'
   | 'reports' | 'alerts'
   | 'settings';
 
@@ -67,11 +72,14 @@ const NAV_SECTIONS: { label: string; items: { view: View; label: string; icon: s
   ]},
   { label: 'Rider Ops', items: [
     { view: 'riders', label: 'Rider Fleet', icon: 'riders' },
+    { view: 'leaderboard', label: 'Leaderboard', icon: 'check' },
     { view: 'assignment', label: 'Assignment Rules', icon: 'target' },
+    { view: 'requests', label: 'Rider Requests', icon: 'alert' },
   ]},
   { label: 'Network', items: [
     { view: 'branches', label: 'Branches', icon: 'building' },
     { view: 'zones', label: 'Service Zones', icon: 'zone' },
+    { view: 'bus', label: 'Bus Network', icon: 'truck' },
   ]},
   { label: 'Accounts', items: [
     { view: 'staff', label: 'Staff & Admins', icon: 'staff' },
@@ -79,6 +87,7 @@ const NAV_SECTIONS: { label: string; items: { view: View; label: string; icon: s
   ]},
   { label: 'Engagement', items: [
     { view: 'messaging', label: 'Messaging Templates', icon: 'message' },
+    { view: 'discounts', label: 'Discounts', icon: 'dollar' },
   ]},
   { label: 'Insights', items: [
     { view: 'reports', label: 'Reports', icon: 'reports' },
@@ -95,11 +104,15 @@ const PAGE_META: Record<View, { title: string; sub: string }> = {
   map: { title: 'Live Operations Map', sub: 'Branches and riders across the whole network' },
   riders: { title: 'Rider Fleet', sub: 'Every rider, every branch, live status' },
   assignment: { title: 'Rider Assignment', sub: 'Automatic rules, proximity logic and manual overrides' },
+  requests: { title: 'Rider Requests', sub: 'Availability changes, parcel unlocks and support tickets across every branch' },
+  leaderboard: { title: 'Rider Leaderboard', sub: 'Full network ranking by deliveries, earnings and success rate' },
   branches: { title: 'Branches', sub: 'Manage every branch in the network' },
   zones: { title: 'Service Zones', sub: 'Coverage areas and delivery capabilities' },
+  bus: { title: 'Bus Network', sub: 'Operators, corridors and manifests across every branch' },
   staff: { title: 'Staff & Admins', sub: 'Every internal account and its role' },
   business: { title: 'Business Accounts', sub: 'Corporate and merchant shipping accounts' },
   messaging: { title: 'Messaging Templates', sub: 'Automatic SMS, WhatsApp, email and push notifications' },
+  discounts: { title: 'Discounts', sub: 'Signup offers and promo codes' },
   reports: { title: 'Reports & Analytics', sub: 'Network performance trends' },
   alerts: { title: 'Alerts & Notifications', sub: 'Everything flagged for super admin review' },
   settings: { title: 'System Settings', sub: 'Defaults that apply across the whole network' },
@@ -467,6 +480,14 @@ function AdminDashboardContent() {
             <AssignmentView rules={assignmentRules} onToggle={toggleRule} unassignedOrders={unassignedOrders}
               openAssign={(o) => setAssignModalOrder(o)} />
           )}
+
+          {view === 'requests' && <RequestsView />}
+
+          {view === 'leaderboard' && <LeaderboardView token={token!} toast={toast} />}
+
+          {view === 'bus' && <BusNetworkTab token={token!} />}
+
+          {view === 'discounts' && <DiscountsTab token={token!} />}
 
           {view === 'branches' && (
             <BranchesView branches={branches} zones={zones} token={token!} toast={toast} setBranches={setBranches} />
@@ -1150,6 +1171,73 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
 // ============================================================
 // STAFF & ADMINS
 // ============================================================
+// ============================================================
+// RIDER LEADERBOARD
+// ============================================================
+function LeaderboardView({ token, toast }: { token: string; toast: (msg: string) => void }) {
+  const [rows, setRows] = useState<RiderLeaderboardRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(30);
+  const [sortBy, setSortBy] = useState<'deliveries' | 'earnings' | 'success_rate'>('deliveries');
+
+  useEffect(() => {
+    setLoading(true);
+    getRiderLeaderboard(token, days, sortBy)
+      .then(setRows)
+      .catch((err) => toast(err instanceof ApiError ? err.message : 'Could not load leaderboard.'))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, days, sortBy]);
+
+  return (
+    <section className="bg-white border border-line rounded-2xl p-5">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div>
+          <h2 className="font-display font-bold text-base">Rider Leaderboard</h2>
+          <p className="text-xs text-muted-foreground">{rows.length} riders with completed deliveries in this window</p>
+        </div>
+        <div className="flex gap-2">
+          <select value={days} onChange={(e) => setDays(Number(e.target.value))} className={inputCls + ' w-auto'}>
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+          </select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className={inputCls + ' w-auto'}>
+            <option value="deliveries">Sort by deliveries</option>
+            <option value="earnings">Sort by earnings</option>
+            <option value="success_rate">Sort by success rate</option>
+          </select>
+        </div>
+      </div>
+      <table className="w-full text-sm">
+        <thead><tr className="text-left text-muted-foreground text-xs border-b border-line">
+          <th className="py-2 pr-4">#</th><th className="py-2 pr-4">Rider</th><th className="py-2 pr-4">Branch</th>
+          <th className="py-2 pr-4">Rating</th><th className="py-2 pr-4">Deliveries</th><th className="py-2 pr-4">RTOs</th>
+          <th className="py-2 pr-4">Success Rate</th><th className="py-2">Earnings</th>
+        </tr></thead>
+        <tbody>
+          {loading ? (
+            <tr><td colSpan={8} className="py-8 text-center text-sm text-muted-foreground">Loading…</td></tr>
+          ) : rows.length === 0 ? (
+            <tr><td colSpan={8} className="py-8 text-center text-sm text-muted-foreground">No completed deliveries in this window.</td></tr>
+          ) : rows.map((r, i) => (
+            <tr key={r.rider_id} className="border-b border-line last:border-0">
+              <td className="py-3 pr-4 text-muted-foreground">{i + 1}</td>
+              <td className="py-3 pr-4"><AvatarChip name={r.full_name} /></td>
+              <td className="py-3 pr-4 text-muted-foreground">{r.branch_name || '—'}</td>
+              <td className="py-3 pr-4 text-ink">⭐ {r.rating.toFixed(1)}</td>
+              <td className="py-3 pr-4 text-ink font-semibold">{r.deliveries}</td>
+              <td className="py-3 pr-4 text-muted-foreground">{r.rto_count}</td>
+              <td className="py-3 pr-4"><Pill status={r.success_rate >= 90 ? 'green' : r.success_rate >= 75 ? 'yellow' : 'red'} label={`${r.success_rate}%`} /></td>
+              <td className="py-3 text-ink">Rs {r.earnings.toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
 function StaffView({ users, roleFilter, setRoleFilter, onDelete, onResetPassword }: {
   users: AdminUser[]; roleFilter: string; setRoleFilter: (v: string) => void; onDelete: (u: AdminUser) => void;
   onResetPassword: (u: AdminUser) => void;

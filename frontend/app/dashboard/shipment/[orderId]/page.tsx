@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RoleGuard } from '@/components/RoleGuard';
 import { Logo } from '@/components/Logo';
-import { getMyOrder, cancelMyOrder, OrderDetail, ApiError } from '@/lib/api';
+import { getMyOrder, cancelMyOrder, downloadMyInvoice, OrderDetail, ApiError } from '@/lib/api';
 
 // Mirrors the backend's CANCELLABLE_STATUSES (order_service.py) - cancellation
 // is only legal before the parcel enters the hub network.
@@ -124,6 +124,7 @@ function ShipmentTrackingContent() {
   const [copied, setCopied] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState('');
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !token) {
@@ -146,6 +147,18 @@ function ShipmentTrackingContent() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
+  }
+
+  async function handleDownloadInvoice() {
+    if (!order || !token) return;
+    setDownloading(true);
+    try {
+      await downloadMyInvoice(order.id, token, order.tracking_number);
+    } catch (err) {
+      setCancelError(err instanceof ApiError ? err.message : 'Could not download invoice.');
+    } finally {
+      setDownloading(false);
+    }
   }
 
   async function handleCancel() {
@@ -212,6 +225,13 @@ function ShipmentTrackingContent() {
                   <span className={`px-3 py-1.5 rounded-full text-xs font-semibold ${STATUS_COLORS[order.status] || 'bg-line text-ink'}`}>
                     {formatStatus(order.status)}
                   </span>
+                  <button
+                    onClick={handleDownloadInvoice}
+                    disabled={downloading}
+                    className="text-xs font-semibold text-navy hover:underline disabled:opacity-50"
+                  >
+                    {downloading ? 'Downloading…' : 'Download Invoice'}
+                  </button>
                   {CANCELLABLE_STATUSES.includes(order.status) && (
                     <button
                       onClick={handleCancel}

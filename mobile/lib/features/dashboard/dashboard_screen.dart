@@ -6,6 +6,7 @@ import '../../core/widgets/async_state_view.dart';
 import '../auth/auth_provider.dart';
 import '../deliveries/deliveries_screen.dart';
 import '../earnings/earnings_screen.dart';
+import '../performance/performance_screen.dart';
 import '../manifest/manifest_scan_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../parcels/nearby_parcels_screen.dart';
@@ -265,6 +266,13 @@ class DashboardScreen extends StatelessWidget {
                       label: 'Earnings',
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const EarningsScreen()),
+                      ),
+                    ),
+                    _QuickAction(
+                      icon: Icons.insights_outlined,
+                      label: 'Performance',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PerformanceScreen()),
                       ),
                     ),
                     _QuickAction(

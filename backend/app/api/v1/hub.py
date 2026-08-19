@@ -624,6 +624,9 @@ def _staff_out(staff: StaffProfile) -> dict:
         "employee_code": staff.employee_code,
         "phone": staff.user.phone if staff.user else None,
         "attendance_status": staff.attendance_status,
+        "shift_start": staff.shift_start,
+        "shift_end": staff.shift_end,
+        "shift_days": staff.shift_days,
     }
 
 
@@ -667,6 +670,39 @@ def update_staff_attendance(
         raise HTTPException(status_code=403, detail="This staff member does not belong to your branch")
 
     staff.attendance_status = payload.status
+    db.commit()
+    db.refresh(staff)
+    return _staff_out(staff)
+
+
+class StaffShiftIn(BaseModel):
+    shift_start: Optional[str] = None
+    shift_end: Optional[str] = None
+    shift_days: Optional[str] = None
+
+
+@router.patch("/staff/{staff_profile_id}/shift")
+def update_staff_shift(
+    staff_profile_id: str,
+    payload: StaffShiftIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+):
+    bid = _resolve_branch_id(current_user, None)
+    staff = (
+        db.query(StaffProfile)
+        .options(joinedload(StaffProfile.user))
+        .filter(StaffProfile.id == staff_profile_id)
+        .first()
+    )
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff member not found")
+    if str(staff.branch_id) != bid:
+        raise HTTPException(status_code=403, detail="This staff member does not belong to your branch")
+
+    staff.shift_start = payload.shift_start
+    staff.shift_end = payload.shift_end
+    staff.shift_days = payload.shift_days
     db.commit()
     db.refresh(staff)
     return _staff_out(staff)

@@ -86,3 +86,24 @@ def toggle_discount(
     db.commit()
     db.refresh(discount)
     return DiscountOut.model_validate(discount)
+
+
+@router.delete("/{discount_id}", status_code=204)
+def delete_discount(
+    discount_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    """Only safe to hard-delete a discount nobody has ever redeemed - once
+    `uses_count` is nonzero, orders reference it (Order.discount_id), so
+    pause it (toggle inactive) instead."""
+    discount = db.query(Discount).filter(Discount.id == discount_id).first()
+    if not discount:
+        raise HTTPException(status_code=404, detail="Discount not found")
+    if discount.uses_count:
+        raise HTTPException(
+            status_code=400,
+            detail="This discount has been used by orders and can't be deleted - pause it instead.",
+        )
+    db.delete(discount)
+    db.commit()

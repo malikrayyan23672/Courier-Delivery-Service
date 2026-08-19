@@ -4,6 +4,8 @@ class Address {
   final String? city;
   final String? contactName;
   final String? contactPhone;
+  final double? lat;
+  final double? lng;
 
   Address({
     this.label,
@@ -11,6 +13,8 @@ class Address {
     this.city,
     this.contactName,
     this.contactPhone,
+    this.lat,
+    this.lng,
   });
 
   factory Address.fromJson(Map<String, dynamic> json) {
@@ -20,6 +24,8 @@ class Address {
       city: json['city'] as String?,
       contactName: json['contact_name'] as String?,
       contactPhone: json['contact_phone'] as String?,
+      lat: (json['lat'] as num?)?.toDouble(),
+      lng: (json['lng'] as num?)?.toDouble(),
     );
   }
 }

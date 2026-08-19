@@ -19,6 +19,8 @@ import {
   createBusOperator,
   listBusSchedules,
   createBusSchedule,
+  updateBusSchedule,
+  deleteBusSchedule,
   listBusManifests,
   createBusManifest,
   addManifestItem,
@@ -32,6 +34,7 @@ import {
   listDiscounts,
   createDiscount,
   toggleDiscount,
+  deleteDiscount,
   Discount,
 } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
@@ -399,6 +402,8 @@ function SchedulesSection({ token }: { token: string }) {
   const [operators, setOperators] = useState<BusOperator[]>([]);
   const [form, setForm] = useState({ operator_id: '', origin_city: '', destination_city: '', departure_time: '', departure_interval_min: 30, fare: '' });
   const [error, setError] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ origin_city: '', destination_city: '', departure_time: '', departure_interval_min: 30, fare: '' });
   const { data: schedules, loading } = useApi((t) => listBusSchedules(t), token, reload);
 
   useEffect(() => {
@@ -425,6 +430,59 @@ function SchedulesSection({ token }: { token: string }) {
       setReload((r) => r + 1);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not add schedule.');
+    }
+  }
+
+  function startEdit(s: BusSchedule) {
+    setEditingId(s.id);
+    setEditForm({
+      origin_city: s.origin_city,
+      destination_city: s.destination_city,
+      departure_time: s.departure_time || '',
+      departure_interval_min: s.departure_interval_min || 30,
+      fare: s.fare != null ? String(s.fare) : '',
+    });
+  }
+
+  async function handleSaveEdit(scheduleId: string) {
+    setError('');
+    try {
+      await updateBusSchedule(
+        scheduleId,
+        {
+          origin_city: editForm.origin_city,
+          destination_city: editForm.destination_city,
+          departure_time: editForm.departure_time || null,
+          departure_interval_min: Number(editForm.departure_interval_min),
+          fare: editForm.fare ? Number(editForm.fare) : null,
+        },
+        token
+      );
+      setEditingId(null);
+      setReload((r) => r + 1);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not save changes.');
+    }
+  }
+
+  async function handleToggleStatus(s: BusSchedule) {
+    setError('');
+    try {
+      await updateBusSchedule(s.id, { status: s.status === 'active' ? 'inactive' : 'active' }, token);
+      setReload((r) => r + 1);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update status.');
+    }
+  }
+
+  async function handleDelete(s: BusSchedule) {
+    if (!confirm(`Delete the ${s.origin_city} → ${s.destination_city} corridor? This can't be undone.`)) return;
+    setError('');
+    try {
+      await deleteBusSchedule(s.id, token);
+      setReload((r) => r + 1);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not delete schedule - it may have manifest history; try deactivating instead.');
     }
   }
 
@@ -462,17 +520,48 @@ function SchedulesSection({ token }: { token: string }) {
                   <th className={thCls}>Corridor</th>
                   <th className={thCls}>Operator</th>
                   <th className={thCls}>Interval</th>
+                  <th className={thCls}>Status</th>
+                  <th className={thCls}></th>
                 </tr>
               </thead>
               <tbody>
                 {schedules?.map((s: BusSchedule) => (
-                  <tr key={s.id} className={rowCls}>
-                    <td className={`${tdCls} font-semibold text-ink`}>{s.origin_city} → {s.destination_city}</td>
-                    <td className={`${tdCls} text-muted-foreground`}>{s.operator_name || '—'}</td>
-                    <td className={`${tdCls} text-muted-foreground`}>{s.departure_interval_min ? `Every ${s.departure_interval_min} min` : '—'}</td>
-                  </tr>
+                  editingId === s.id ? (
+                    <tr key={s.id} className={rowCls}>
+                      <td className={tdCls} colSpan={5}>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Input className="w-32" value={editForm.origin_city} onChange={(e) => setEditForm({ ...editForm, origin_city: e.target.value })} placeholder="Origin" />
+                          <span className="text-muted-foreground">→</span>
+                          <Input className="w-32" value={editForm.destination_city} onChange={(e) => setEditForm({ ...editForm, destination_city: e.target.value })} placeholder="Destination" />
+                          <Input className="w-24" value={editForm.departure_time} onChange={(e) => setEditForm({ ...editForm, departure_time: e.target.value })} placeholder="Time" />
+                          <Input className="w-24" type="number" value={editForm.departure_interval_min} onChange={(e) => setEditForm({ ...editForm, departure_interval_min: Number(e.target.value) })} placeholder="Interval" />
+                          <Input className="w-24" value={editForm.fare} onChange={(e) => setEditForm({ ...editForm, fare: e.target.value })} placeholder="Fare" />
+                          <Button size="sm" variant="navy" onClick={() => handleSaveEdit(s.id)}>Save</Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={s.id} className={rowCls}>
+                      <td className={`${tdCls} font-semibold text-ink`}>{s.origin_city} → {s.destination_city}</td>
+                      <td className={`${tdCls} text-muted-foreground`}>{s.operator_name || '—'}</td>
+                      <td className={`${tdCls} text-muted-foreground`}>{s.departure_interval_min ? `Every ${s.departure_interval_min} min` : '—'}</td>
+                      <td className={tdCls}>
+                        <Badge variant={s.status === 'active' ? 'success' : 'secondary'} className="capitalize">{s.status || 'active'}</Badge>
+                      </td>
+                      <td className={tdCls}>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" onClick={() => startEdit(s)}>Edit</Button>
+                          <Button size="sm" variant="outline" onClick={() => handleToggleStatus(s)}>
+                            {s.status === 'active' ? 'Deactivate' : 'Activate'}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleDelete(s)}>Delete</Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
                 ))}
-                {!schedules?.length && <tr><td colSpan={3} className="p-6 text-sm text-muted-foreground">No departures yet.</td></tr>}
+                {!schedules?.length && <tr><td colSpan={5} className="p-6 text-sm text-muted-foreground">No departures yet.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -923,6 +1012,16 @@ export function DiscountsTab({ token }: { token: string }) {
     }
   }
 
+  async function handleDelete(d: Discount) {
+    if (!confirm(`Delete "${d.title}"? This can't be undone.`)) return;
+    try {
+      await deleteDiscount(d.id, token);
+      setReload((r) => r + 1);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not delete discount.');
+    }
+  }
+
   return (
     <div className="grid gap-5 lg:grid-cols-2 animate-fade-in">
       <Card className="p-6">
@@ -974,9 +1073,14 @@ export function DiscountsTab({ token }: { token: string }) {
                     {' · '}{d.uses_count ?? 0}/{d.max_uses ?? '∞'} used
                   </p>
                 </div>
-                <Button size="sm" variant={d.is_active ? 'success' : 'secondary'} onClick={() => handleToggle(d)}>
-                  {d.is_active ? 'Active' : 'Paused'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant={d.is_active ? 'success' : 'secondary'} onClick={() => handleToggle(d)}>
+                    {d.is_active ? 'Active' : 'Paused'}
+                  </Button>
+                  {!d.uses_count && (
+                    <Button size="sm" variant="ghost" onClick={() => handleDelete(d)}>Delete</Button>
+                  )}
+                </div>
               </div>
             ))}
             {!discounts?.length && <p className="p-6 text-sm text-muted-foreground">No discounts yet.</p>}

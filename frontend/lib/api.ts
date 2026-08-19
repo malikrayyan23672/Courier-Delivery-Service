@@ -286,6 +286,26 @@ export function cancelMyOrder(orderId: string, token: string, reason?: string) {
   return request<Order>(`/customer/orders/${orderId}/cancel`, { method: 'PATCH', body: JSON.stringify({ reason }) }, token);
 }
 
+export async function downloadMyInvoice(orderId: string, token: string, trackingNumber: string) {
+  const res = await fetch(`${API_ORIGIN}/api/v1/customer/orders/${orderId}/invoice.pdf`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    let detail: unknown = 'Could not download invoice.';
+    try { detail = (await res.json())?.detail ?? detail; } catch { /* non-JSON error body */ }
+    throw new ApiError(res.status, detail);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${trackingNumber}-invoice.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ---- Customer profile ----
 
 export interface MyProfile {
@@ -849,6 +869,21 @@ export function getAdminAnalytics(token: string) {
   return request<AdminAnalytics>('/admin/analytics', { method: 'GET' }, token);
 }
 
+export interface RiderLeaderboardRow {
+  rider_id: string;
+  full_name: string;
+  branch_name: string | null;
+  rating: number;
+  deliveries: number;
+  rto_count: number;
+  earnings: number;
+  success_rate: number;
+}
+
+export function getRiderLeaderboard(token: string, days = 30, sortBy: 'deliveries' | 'earnings' | 'success_rate' = 'deliveries') {
+  return request<RiderLeaderboardRow[]>(`/admin/riders/leaderboard?days=${days}&sort_by=${sortBy}`, { method: 'GET' }, token);
+}
+
 // ---- COD Settlements (Layer 1: T+1 payout) ----
 
 export interface Settlement {
@@ -1063,6 +1098,14 @@ export function createBusSchedule(
   return request<BusSchedule>('/admin/bus/schedules', { method: 'POST', body: JSON.stringify(payload) }, token);
 }
 
+export function updateBusSchedule(scheduleId: string, payload: Partial<BusScheduleCreate>, token: string) {
+  return request<BusSchedule>(`/admin/bus/schedules/${scheduleId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
+export function deleteBusSchedule(scheduleId: string, token: string) {
+  return request<void>(`/admin/bus/schedules/${scheduleId}`, { method: 'DELETE' }, token);
+}
+
 export function listBusManifests(token: string) {
   return request<BusManifest[]>('/admin/bus/manifests', { method: 'GET' }, token);
 }
@@ -1175,6 +1218,10 @@ export function createDiscount(payload: DiscountCreate, token: string) {
 
 export function toggleDiscount(discountId: string, isActive: boolean, token: string) {
   return request<Discount>(`/discounts/${discountId}/toggle?is_active=${isActive}`, { method: 'PATCH' }, token);
+}
+
+export function deleteDiscount(discountId: string, token: string) {
+  return request<void>(`/discounts/${discountId}`, { method: 'DELETE' }, token);
 }
 
 // ---- Seller Portal ----
@@ -1736,6 +1783,9 @@ export interface BranchStaffMember {
   employee_code: string | null;
   phone: string | null;
   attendance_status: 'present' | 'on_leave' | 'absent';
+  shift_start: string | null;
+  shift_end: string | null;
+  shift_days: string | null;
 }
 
 export function listBranchStaff(token: string, branchId?: string) {
@@ -1744,6 +1794,14 @@ export function listBranchStaff(token: string, branchId?: string) {
 
 export function updateStaffAttendance(staffProfileId: string, status: BranchStaffMember['attendance_status'], token: string) {
   return request<BranchStaffMember>(`/hub/staff/${staffProfileId}/attendance`, { method: 'PATCH', body: JSON.stringify({ status }) }, token);
+}
+
+export function updateStaffShift(
+  staffProfileId: string,
+  payload: { shift_start?: string | null; shift_end?: string | null; shift_days?: string | null },
+  token: string
+) {
+  return request<BranchStaffMember>(`/hub/staff/${staffProfileId}/shift`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
 }
 
 export interface BranchServiceArea {

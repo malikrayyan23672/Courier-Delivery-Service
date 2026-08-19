@@ -484,6 +484,65 @@ def analytics(
     }
 
 
+@router.get("/riders/leaderboard")
+def rider_leaderboard(
+    days: int = 30,
+    sort_by: str = "deliveries",  # deliveries | earnings | success_rate
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    """Full network-wide rider ranking, not just the dashboard's top-5 -
+    deliveries, earnings, and success rate (delivered vs delivered+rto) over
+    a selectable window."""
+    days = max(1, min(days, 365))
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    outcome_rows = (
+        db.query(RiderProfile.id, Order.status, func.count(Order.id), func.sum(Order.final_price))
+        .join(Order, Order.rider_id == RiderProfile.id)
+        .filter(Order.status.in_([OrderStatus.delivered, OrderStatus.rto]), Order.updated_at >= since)
+        .group_by(RiderProfile.id, Order.status)
+        .all()
+    )
+
+    by_rider: dict[str, dict] = {}
+    for rider_id, status, count, revenue in outcome_rows:
+        bucket = by_rider.setdefault(str(rider_id), {"delivered": 0, "rto": 0, "earnings": 0.0})
+        if status == OrderStatus.delivered:
+            bucket["delivered"] = count
+            bucket["earnings"] = round(revenue or 0.0, 2)
+        else:
+            bucket["rto"] = count
+
+    if not by_rider:
+        return []
+
+    riders = (
+        db.query(RiderProfile)
+        .options(joinedload(RiderProfile.user))
+        .filter(RiderProfile.id.in_(by_rider.keys()))
+        .all()
+    )
+    rows = []
+    for rider in riders:
+        stats = by_rider[str(rider.id)]
+        total = stats["delivered"] + stats["rto"]
+        rows.append({
+            "rider_id": str(rider.id),
+            "full_name": rider.user.full_name if rider.user else "Unknown",
+            "branch_name": rider.branch.name if rider.branch else None,
+            "rating": rider.rating,
+            "deliveries": stats["delivered"],
+            "rto_count": stats["rto"],
+            "earnings": stats["earnings"],
+            "success_rate": round((stats["delivered"] / total) * 100, 1) if total else 0.0,
+        })
+
+    sort_key = sort_by if sort_by in ("deliveries", "earnings", "success_rate") else "deliveries"
+    rows.sort(key=lambda r: r[sort_key], reverse=True)
+    return rows
+
+
 @router.get("/zones")
 def list_zones(
     db: Session = Depends(get_db),

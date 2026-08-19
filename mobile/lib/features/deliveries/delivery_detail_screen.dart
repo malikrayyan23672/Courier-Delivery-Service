@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/env.dart';
 import '../../core/theme/app_theme.dart';
@@ -294,6 +295,19 @@ class _AddressCard extends StatelessWidget {
 
   const _AddressCard({required this.title, required this.address});
 
+  Future<void> _openInMaps() async {
+    final addr = address;
+    if (addr == null) return;
+    // Coordinates when the address was geocoded server-side, otherwise fall
+    // back to a text search on the full address - either way the rider gets
+    // turn-by-turn directions in their phone's own maps app rather than no
+    // navigation help at all.
+    final uri = addr.lat != null && addr.lng != null
+        ? Uri.parse('https://www.google.com/maps/search/?api=1&query=${addr.lat},${addr.lng}')
+        : Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(addr.fullAddress)}');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -302,7 +316,24 @@ class _AddressCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.orange)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.orange)),
+                if (address != null)
+                  GestureDetector(
+                    onTap: _openInMaps,
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.directions_outlined, size: 16, color: AppColors.navy),
+                        SizedBox(width: 3),
+                        Text('Directions', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.navy)),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 6),
             Text(address?.fullAddress ?? '—'),
             if (address?.contactName != null) ...[

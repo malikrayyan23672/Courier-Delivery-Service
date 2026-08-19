@@ -25,6 +25,7 @@ from app.schemas.bus_network import (
     BusOperatorOut,
     BusOperatorStatusIn,
     BusScheduleIn,
+    BusScheduleUpdateIn,
     BusScheduleOut,
     BusManifestIn,
     BusManifestOut,
@@ -130,6 +131,54 @@ def create_schedule(
     db.commit()
     db.refresh(schedule)
     return _schedule_out(schedule)
+
+
+@router.patch("/schedules/{schedule_id}", response_model=BusScheduleOut)
+def update_schedule(
+    schedule_id: str,
+    payload: BusScheduleUpdateIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    """Edits a corridor, or soft-removes it via `status` (existing manifests
+    keep referencing the row, same pattern as update_operator_status)."""
+    schedule = db.query(BusSchedule).filter(BusSchedule.id == schedule_id).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Bus schedule not found")
+
+    updates = payload.model_dump(exclude_unset=True)
+    if "operator_id" in updates:
+        operator = db.query(BusOperator).filter(BusOperator.id == updates["operator_id"]).first()
+        if not operator:
+            raise HTTPException(status_code=404, detail="Bus operator not found")
+    for field, value in updates.items():
+        setattr(schedule, field, value)
+
+    db.commit()
+    db.refresh(schedule)
+    return _schedule_out(schedule)
+
+
+@router.delete("/schedules/{schedule_id}", status_code=204)
+def delete_schedule(
+    schedule_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    """Hard delete - only safe while no manifest has ever used this corridor
+    (a manifest keeps a nullable FK to schedule_id, but deleting a schedule
+    still-referenced by history would orphan those rows)."""
+    schedule = db.query(BusSchedule).filter(BusSchedule.id == schedule_id).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Bus schedule not found")
+    in_use = db.query(BusManifest).filter(BusManifest.schedule_id == schedule_id).first()
+    if in_use:
+        raise HTTPException(
+            status_code=400,
+            detail="This corridor has manifest history and can't be deleted - set it to inactive instead.",
+        )
+    db.delete(schedule)
+    db.commit()
 
 
 # ---- Manifests (crate tracking) ----

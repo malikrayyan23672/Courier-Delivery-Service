@@ -186,3 +186,17 @@ class EarningsBreakdownOut(BaseModel):
     total_earnings: float
     total_deliveries: int
     daily: list[EarningsDayOut]
+
+
+class PerformanceDayOut(BaseModel):
+    date: str
+    delivered: int
+    failed: int
+
+
+class PerformanceOut(BaseModel):
+    rating: float
+    total_delivered: int
+    total_failed: int
+    success_rate: float
+    daily: list[PerformanceDayOut]

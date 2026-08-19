@@ -32,6 +32,18 @@ class BusScheduleIn(BaseModel):
     status: Optional[str] = "active"
 
 
+class BusScheduleUpdateIn(BaseModel):
+    operator_id: Optional[str] = None
+    origin_city: Optional[str] = None
+    destination_city: Optional[str] = None
+    origin_branch_id: Optional[str] = None
+    destination_branch_id: Optional[str] = None
+    departure_time: Optional[str] = None
+    departure_interval_min: Optional[int] = None
+    fare: Optional[float] = None
+    status: Optional[str] = None
+
+
 class BusScheduleOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str

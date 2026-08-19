@@ -13,6 +13,8 @@ import '../models/support_ticket.dart';
 import '../models/earnings.dart';
 import '../models/notification.dart';
 import '../models/order_message.dart';
+import '../models/wallet_history_entry.dart';
+import '../models/performance.dart';
 
 class RiderService {
   final Dio _dio = ApiClient.instance.dio;
@@ -193,6 +195,24 @@ class RiderService {
     try {
       final response = await _dio.get('/rider/earnings', queryParameters: {'days': days});
       return EarningsBreakdown.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<Performance> getPerformance({int days = 30}) async {
+    try {
+      final response = await _dio.get('/rider/performance', queryParameters: {'days': days});
+      return Performance.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<List<WalletHistoryEntry>> getWalletHistory() async {
+    try {
+      final response = await _dio.get('/rider/wallet/history');
+      return (response.data as List).map((e) => WalletHistoryEntry.fromJson(e as Map<String, dynamic>)).toList();
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

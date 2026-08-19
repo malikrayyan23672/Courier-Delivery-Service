@@ -4,8 +4,15 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/async_state_view.dart';
 import '../../models/rider_profile.dart';
+import '../../models/wallet_history_entry.dart';
 import '../../services/rider_service.dart';
 import '../dashboard/widgets/cod_wallet_card.dart';
+
+const _walletActionLabels = {
+  'rider_wallet_locked': 'Wallet locked',
+  'rider_wallet_unlocked': 'Cash deposited - wallet unlocked',
+  'rider_wallet_limit_updated': 'Holding limit changed',
+};
 
 /// Dedicated COD wallet screen - reuses the same CodWalletCard shown on the
 /// dashboard, plus the explicit lock/warning thresholds spelled out, since
@@ -21,6 +28,7 @@ class _WalletScreenState extends State<WalletScreen> {
   final _riderService = RiderService();
 
   RiderProfile? _profile;
+  List<WalletHistoryEntry> _history = [];
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -36,8 +44,11 @@ class _WalletScreenState extends State<WalletScreen> {
       _errorMessage = null;
     });
     try {
-      final profile = await _riderService.getMe();
-      setState(() => _profile = profile);
+      final results = await Future.wait([_riderService.getMe(), _riderService.getWalletHistory()]);
+      setState(() {
+        _profile = results[0] as RiderProfile;
+        _history = results[1] as List<WalletHistoryEntry>;
+      });
     } catch (e) {
       setState(() => _errorMessage = e.toString());
     } finally {
@@ -87,6 +98,48 @@ class _WalletScreenState extends State<WalletScreen> {
                           text:
                               'At ${Formatters.currency(profile.codWalletLimit)}, your wallet auto-locks and you can no longer be assigned new COD deliveries until finance verifies a cash deposit at the hub.',
                         ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Wallet History', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                        const SizedBox(height: 10),
+                        if (_history.isEmpty)
+                          Text('No lock, unlock or limit changes yet.', style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5))
+                        else
+                          ..._history.map((h) => Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      h.action == 'rider_wallet_locked' ? Icons.lock_outline : Icons.history,
+                                      size: 16,
+                                      color: h.action == 'rider_wallet_locked' ? AppColors.danger : AppColors.navy,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(_walletActionLabels[h.action] ?? h.action, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5)),
+                                          if (h.details != null)
+                                            Text(h.details!, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                                          if (h.createdAt != null)
+                                            Text(Formatters.dateTime(h.createdAt!), style: TextStyle(color: Colors.grey.shade400, fontSize: 11)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )),
                       ],
                     ),
                   ),

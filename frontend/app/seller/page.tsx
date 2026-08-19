@@ -28,6 +28,7 @@ import {
   listSellerParcels,
   getSellerParcelDetail,
   cancelSellerParcel,
+  downloadSellerInvoice,
   bulkUploadTemplateUrl,
   previewBulkUpload,
   confirmBulkUpload,
@@ -1274,6 +1275,7 @@ function ParcelDetailDialog({ trackingNumber, token, onClose, onCancelled }: { t
   const [detail, setDetail] = useState<SellerParcelDetail | null>(null);
   const [error, setError] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     getSellerParcelDetail(trackingNumber, token).then(setDetail).catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load this parcel.'));
@@ -1292,6 +1294,17 @@ function ParcelDetailDialog({ trackingNumber, token, onClose, onCancelled }: { t
     }
   }
 
+  async function handleDownloadInvoice() {
+    setDownloading(true);
+    try {
+      await downloadSellerInvoice(trackingNumber, token);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not download invoice.');
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-start md:items-center justify-center p-3 md:p-6 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-card shadow-card max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
@@ -1305,15 +1318,24 @@ function ParcelDetailDialog({ trackingNumber, token, onClose, onCancelled }: { t
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <div className="flex flex-col gap-4">
-            {CANCELLABLE_PARCEL_STATUSES.includes(detail.status) && (
+            <div className="flex items-center gap-4">
               <button
-                onClick={handleCancel}
-                disabled={cancelling}
-                className="self-start text-xs font-semibold text-[#db2203] hover:underline disabled:opacity-50"
+                onClick={handleDownloadInvoice}
+                disabled={downloading}
+                className="self-start text-xs font-semibold text-navy hover:underline disabled:opacity-50"
               >
-                {cancelling ? 'Cancelling…' : 'Cancel this parcel'}
+                {downloading ? 'Downloading…' : 'Download Invoice'}
               </button>
-            )}
+              {CANCELLABLE_PARCEL_STATUSES.includes(detail.status) && (
+                <button
+                  onClick={handleCancel}
+                  disabled={cancelling}
+                  className="self-start text-xs font-semibold text-[#db2203] hover:underline disabled:opacity-50"
+                >
+                  {cancelling ? 'Cancelling…' : 'Cancel this parcel'}
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div><p className="text-xs text-muted-foreground">Receiver</p><p className="text-ink font-semibold">{detail.receiver_name}</p><p className="text-xs text-muted-foreground">{detail.receiver_phone}</p></div>
               <div><p className="text-xs text-muted-foreground">Status</p><p className="text-ink font-semibold capitalize">{detail.status.replace(/_/g, ' ')}</p></div>

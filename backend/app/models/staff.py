@@ -24,6 +24,15 @@ class StaffProfile(Base, TimestampMixin):
     # present / on_leave / absent - set by the branch manager from the staff roster.
     attendance_status = Column(String(20), nullable=False, default="present")
 
+    # Shift roster - free-text time strings (matches Branch.opening_time's
+    # convention, e.g. "09:00 AM") rather than a separate shift-table model,
+    # since a branch manager just needs to record/see one recurring slot per
+    # staff member, not build arbitrary per-day schedules.
+    shift_start = Column(String(10), nullable=True)
+    shift_end = Column(String(10), nullable=True)
+    # Comma-separated weekday abbreviations, e.g. "Mon,Tue,Wed,Thu,Fri".
+    shift_days = Column(String(50), nullable=True)
+
     branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=True)
     branch = relationship("Branch", back_populates="staff_members")
 
