@@ -624,44 +624,166 @@ def rider_leaderboard(
     return rows
 
 
+def _zone_out(db: Session, zone: Zone) -> dict:
+    branch_count = db.query(func.count(Branch.id)).filter(Branch.zone_id == zone.id).scalar() or 0
+    active_branch_count = (
+        db.query(func.count(Branch.id)).filter(Branch.zone_id == zone.id, Branch.status == "active").scalar() or 0
+    )
+    return {
+        "id": str(zone.id),
+        "name": zone.name,
+        "description": zone.description,
+        "is_active": zone.is_active,
+        "base_rate": zone.base_rate,
+        "cod_fee_percentage": zone.cod_fee_percentage,
+        "branch_count": branch_count,
+        # A zone with zero active branches can never be matched to a rider/hub
+        # at booking time (order_service.create_order requires an active
+        # Branch in the zone) - orders still get created, just unrouted. This
+        # is what the "add a city" flow exists to prevent.
+        "is_live": active_branch_count > 0,
+    }
+
+
 @router.get("/zones")
 def list_zones(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
-    return db.query(Zone).all()
+    return [_zone_out(db, z) for z in db.query(Zone).order_by(Zone.name).all()]
+
 
 @router.delete("/zones/delete/{zone_id}")
-def delete_zone(zone_id: str, db: Session = Depends(get_db)):
-
+def delete_zone(
+    zone_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
     zone = db.query(Zone).filter(Zone.id == zone_id).first()
-    if zone:
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    # SQLAlchemy would otherwise silently null out zone_id on every branch
+    # that references this zone (passive_deletes isn't set) rather than
+    # blocking or cascading - quietly un-routing a whole city's branches.
+    branch_count = db.query(func.count(Branch.id)).filter(Branch.zone_id == zone_id).scalar() or 0
+    if branch_count:
+        raise HTTPException(
+            status_code=400,
+            detail=f"This city still has {branch_count} branch(es) - reassign or remove them first.",
+        )
+    db.delete(zone)
+    db.commit()
 
-        db.delete(zone)
-        db.commit()
 
 @router.post("/zones", status_code=201)
 def create_zone(
-    # payload: ZoneCreateRequest,
     payload: dict,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
-    name = payload.get("name")
-    description = payload.get("description")
-    is_active = payload.get("is_active")
+    name = (payload.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Zone name is required")
-    
-    existing = db.query(Zone).filter(Zone.name == name).first()
+
+    # Case-insensitive, matching how every booking/pricing lookup actually
+    # matches a city (func.lower(Zone.name) == func.lower(address.city)) -
+    # an exact-match-only check here let "Lahore" and "lahore" coexist as two
+    # rows that lookup code can then pick between arbitrarily.
+    existing = db.query(Zone).filter(func.lower(Zone.name) == name.lower()).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Zone name already exists")
-    
-    zone = Zone(name=name, description=description)
+        raise HTTPException(status_code=400, detail="A zone with this city name already exists")
+
+    zone = Zone(
+        name=name,
+        description=payload.get("description"),
+        is_active=payload.get("is_active", True),
+        base_rate=payload.get("base_rate") or 5.0,
+        cod_fee_percentage=payload.get("cod_fee_percentage") or 3.0,
+    )
     db.add(zone)
     db.commit()
     db.refresh(zone)
-    return zone
+    return _zone_out(db, zone)
+
+
+class AddCityRequest(BaseModel):
+    """Bundles what a city actually needs to be bookable in one step: the
+    Zone that lets addresses in that city match a service area, and at
+    least one active Branch in it - a Zone alone routes nothing (see
+    order_service.create_order)."""
+    city_name: str
+    description: Optional[str] = None
+    base_rate: Optional[float] = None
+    cod_fee_percentage: Optional[float] = None
+    branch_name: str
+    branch_address: Optional[str] = None
+    branch_phone: Optional[str] = None
+    branch_email: Optional[str] = None
+    opening_time: Optional[str] = None
+    closing_time: Optional[str] = None
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
+
+
+@router.post("/cities", status_code=201)
+def add_city(
+    payload: AddCityRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    """Single entry point for "add a new city" - creates the Zone and its
+    first Branch together, atomically, so a city can never end up half-set-up
+    (a Zone nobody can book through, or a Branch nothing points a customer
+    at). Pricing (base_rate/cod_fee_percentage) is taken here too since it
+    already lives on the Zone row; per-weight pricing slabs and inter-city
+    corridors are separate, deliberately not bundled here (see
+    /admin/pricing/rules and /admin/corridors) - they're pairwise/optional,
+    not part of making one city live."""
+    city_name = payload.city_name.strip()
+    if not city_name:
+        raise HTTPException(status_code=400, detail="City name is required")
+    branch_name = payload.branch_name.strip()
+    if not branch_name:
+        raise HTTPException(status_code=400, detail="Branch name is required")
+
+    existing = db.query(Zone).filter(func.lower(Zone.name) == city_name.lower()).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="A zone with this city name already exists")
+
+    zone = Zone(
+        name=city_name,
+        description=payload.description,
+        is_active=True,
+        base_rate=payload.base_rate or 5.0,
+        cod_fee_percentage=payload.cod_fee_percentage or 3.0,
+    )
+    db.add(zone)
+    db.flush()  # need zone.id for the branch FK, before committing either
+
+    branch = Branch(
+        name=branch_name,
+        address=payload.branch_address,
+        phone=payload.branch_phone,
+        email=payload.branch_email,
+        opening_time=payload.opening_time,
+        closing_time=payload.closing_time,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        zone_id=zone.id,
+        status="active",
+    )
+    db.add(branch)
+    db.commit()
+    db.refresh(zone)
+    db.refresh(branch)
+
+    log_service.create_log(
+        db, action="admin_add_city", user_id=str(current_user.id),
+        entity_type="Zone", entity_id=str(zone.id),
+        details=f"Added city '{city_name}' with branch '{branch_name}'",
+    )
+
+    return {"zone": _zone_out(db, zone), "branch": _branch_out(branch)}
 
 
 def _branch_out(b: Branch) -> dict:

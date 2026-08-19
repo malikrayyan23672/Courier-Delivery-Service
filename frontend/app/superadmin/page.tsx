@@ -24,8 +24,8 @@ import {
   AdminCreateUserPayload,
   assignRider,
   deleteUserbyAdmin,
-  ZoneCreatePayload,
-  addNewZone,
+  AddCityPayload,
+  addCity,
   deleteZoneByAdmin,
   listMyNotifications,
   NotificationItem,
@@ -270,20 +270,18 @@ function AdminDashboardContent() {
     }
   }
 
-  async function handleAddZone(payload: ZoneCreatePayload){
+  async function handleAddCity(payload: AddCityPayload){
     if(!token){
       return;
     }
 
     try{
-
-      await addNewZone(payload, token);
-      toast(`zone added`);
+      await addCity(payload, token);
+      toast(`${payload.city_name} added with branch "${payload.branch_name}".`);
       setShowAddNewZone(false);
       loadAll()
-
     }catch(err){
-      toast(err instanceof ApiError ? err.message : 'could not add zone.');
+      toast(err instanceof ApiError ? err.message : 'Could not add city.');
     }
   }
 
@@ -443,7 +441,7 @@ function AdminDashboardContent() {
           <NotificationBell token={token!} className="text-ink" />
           {view === 'zones' && (
             <button onClick={() => setShowAddNewZone(true)} className="hidden sm:flex items-center gap-1.5 bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-sm px-4 py-2.5 rounded-[10px] transition-colors whitespace-nowrap">
-              <NavIcon name="plus" size={14} color="#fff" /> Add new Zone
+              <NavIcon name="plus" size={14} color="#fff" /> Add City
             </button>
           )}
           {view === 'staff' && (
@@ -527,7 +525,7 @@ function AdminDashboardContent() {
       )}
 
       {showAddNewZone && (
-        <CreateZoneModel branches={branches} zones={zones} onClose={() => setShowAddNewZone(false)} onCreate={handleAddZone} />
+        <AddCityModal onClose={() => setShowAddNewZone(false)} onCreate={handleAddCity} />
       )}
 
       {showCreateUser && (
@@ -1138,11 +1136,8 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-display font-bold text-base">Service Zones</h2>
-          <p className="text-xs text-muted-foreground">Coverage areas grouping branches together</p>
+          <p className="text-xs text-muted-foreground">Coverage areas grouping branches together - each is a city (use "Add City" to create one with its first branch)</p>
         </div>
-        {/* <button onClick={() => ((e) => !e)} className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
-          <NavIcon name="plus" size={13} color="#fff" /> Add Zone
-        </button> */}
       </div>
       <table className="w-full text-sm">
         <thead>
@@ -1151,6 +1146,7 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
             <th className="py-2">Description</th>
             <th className="py-2">Branches</th>
             <th className="py-2">Status</th>
+            <th className="py-2">Live</th>
             <th className='py-2'>Actions</th>
           </tr>
           </thead>
@@ -1159,8 +1155,17 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
             <tr key={z.id} className="border-b border-line last:border-0">
               <td className="py-3 font-bold text-ink">{z.name}</td>
               <td className="py-3 text-muted-foreground text-xs max-w-sm">{z.description}</td>
-              <td className="py-3">{branchCount(z.id)}</td>
+              <td className="py-3">{z.branch_count ?? branchCount(z.id)}</td>
               <td className="py-3"><Pill status={z.is_active ? 'green' : 'gray'} label={z.is_active ? 'Active' : 'Inactive'} /></td>
+              <td className="py-3">
+                {z.is_live === false ? (
+                  <span title="No active branch in this zone - bookings won't route through it">
+                    <Pill status="amber" label="No branch" />
+                  </span>
+                ) : (
+                  <Pill status="green" label="Live" />
+                )}
+              </td>
               <td className="py-3">
                 <button onClick={
                   () => onDelete(z)
@@ -1301,66 +1306,57 @@ function StaffView({ users, roleFilter, setRoleFilter, onDelete, onResetPassword
   );
 }
 
-function CreateZoneModel({branches, zones, onClose, onCreate}: {
-  branches: Branch[], zones: Zone[]; onClose: () => void; onCreate: (payload: ZoneCreatePayload) => void;
-}){
-
-  const [activeToggle, setActiveToggle] = useState(false)
-
-  const [form, setForm] = useState<ZoneCreatePayload>({
-    name: '',
+// A city needs both a Zone (so addresses in it can match a service area) and
+// at least one active Branch pointed at that zone (so a booking actually
+// routes somewhere) - see order_service.create_order. Bundling both into one
+// form/request (POST /admin/cities) means a city can't be half set up the
+// way separately creating a bare Zone always could be.
+function AddCityModal({ onClose, onCreate }: { onClose: () => void; onCreate: (payload: AddCityPayload) => void }) {
+  const [form, setForm] = useState<AddCityPayload>({
+    city_name: '',
     description: '',
-    is_active: false,
+    base_rate: 5,
+    cod_fee_percentage: 3,
+    branch_name: '',
+    branch_address: '',
+    branch_phone: '',
+    branch_email: '',
+    opening_time: '',
+    closing_time: '',
   });
 
-  function update<K extends keyof ZoneCreatePayload>(key: K, value: ZoneCreatePayload[K]){
-    setForm((f) => ({...f, [key]: value}))
+  function update<K extends keyof AddCityPayload>(key: K, value: AddCityPayload[K]) {
+    setForm((f) => ({ ...f, [key]: value }));
   }
 
   return (
-    <Modal title='Add new Zone' onClose={onClose} wide>
-      <form onSubmit={(e) => {
-        e.preventDefault(); 
-        // console.log("Hello world from zone form")
-        onCreate(form)
-        }
-        } className='grid sm:grid-cols-2 gap-4'>
+    <Modal title="Add City" onClose={onClose} wide>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onCreate(form);
+        }}
+        className="grid sm:grid-cols-2 gap-4"
+      >
+        <Field label="City Name"><input required className={inputCls} value={form.city_name} onChange={(e) => update('city_name', e.target.value)} /></Field>
+        <Field label="Description (optional)"><input className={inputCls} value={form.description} onChange={(e) => update('description', e.target.value)} /></Field>
+        <Field label="Base delivery rate (PKR)"><input type="number" min={0} className={inputCls} value={form.base_rate} onChange={(e) => update('base_rate', Number(e.target.value))} /></Field>
+        <Field label="COD fee (%)"><input type="number" min={0} step={0.1} className={inputCls} value={form.cod_fee_percentage} onChange={(e) => update('cod_fee_percentage', Number(e.target.value))} /></Field>
 
-        <Field label="Zone Name"><input required className={inputCls} value={form.name} onChange={(e) => update('name', e.target.value)} /></Field>
-        <Field label="Description">
-          <textarea required className={inputCls} value={form.description} onChange={(e) => update('description', e.target.value)}></textarea></Field>
+        <div className="sm:col-span-2 border-t border-line pt-3 mt-1">
+          <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1">First branch in this city</p>
+          <p className="text-xs text-muted-foreground">A city needs at least one active branch to actually receive bookings.</p>
+        </div>
+        <Field label="Branch Name"><input required className={inputCls} value={form.branch_name} onChange={(e) => update('branch_name', e.target.value)} /></Field>
+        <Field label="Branch Address"><input className={inputCls} value={form.branch_address} onChange={(e) => update('branch_address', e.target.value)} /></Field>
+        <Field label="Branch Phone"><input className={inputCls} value={form.branch_phone} onChange={(e) => update('branch_phone', e.target.value)} /></Field>
+        <Field label="Branch Email"><input type="email" className={inputCls} value={form.branch_email} onChange={(e) => update('branch_email', e.target.value)} /></Field>
+        <Field label="Opening Time"><input placeholder="09:00 AM" className={inputCls} value={form.opening_time} onChange={(e) => update('opening_time', e.target.value)} /></Field>
+        <Field label="Closing Time"><input placeholder="09:00 PM" className={inputCls} value={form.closing_time} onChange={(e) => update('closing_time', e.target.value)} /></Field>
 
-          <button
-          type='button'
-            onClick={
-              (e) => {setActiveToggle(!activeToggle); update('is_active', activeToggle)}
-
-            }
-            // disabled={profileLoading || togglingAvailability}
-            className="flex items-center gap-3 disabled:opacity-60"
-          >
-            {/* <span className={`text-sm font-semibold ${profile?.is_available ? 'text-success' : 'text-muted-foreground'}`}> */}
-            <span className={`text-sm font-semibold text-success`}>
-              {activeToggle ? 'Active' : 'In-Active'}
-              {/* Online */}
-            </span>
-            <span
-              className={`relative w-12 h-7 rounded-full transition-colors ${
-                activeToggle ? 'bg-success' : 'bg-line'
-                // 'bg-success'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${
-                  activeToggle ? 'translate-x-5' : 'translate-x-0'
-                  // 'translate-x-5'
-                }`}
-              />
-            </span>
-          </button>
         <div className="sm:col-span-2 flex justify-end gap-2 mt-2">
           <button type="button" onClick={onClose} className="text-sm font-bold px-4 py-2.5 rounded-lg border border-line text-ink hover:bg-page">Cancel</button>
-          <button type="submit" className="text-sm font-bold px-4 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white">Add new Zone</button>
+          <button type="submit" className="text-sm font-bold px-4 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white">Add City</button>
         </div>
       </form>
     </Modal>

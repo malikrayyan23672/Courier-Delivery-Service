@@ -752,13 +752,36 @@ export interface Zone{
   name: string;
   description: string;
   is_active: boolean
-
+  base_rate?: number;
+  cod_fee_percentage?: number;
+  // How many branches route through this zone/city, and whether at least
+  // one of them is active - a zone with none is a "city" nothing can
+  // actually book through yet (see order_service.create_order).
+  branch_count?: number;
+  is_live?: boolean;
 }
 
 export interface ZoneCreatePayload{
   name: string;
   description: string;
   is_active: boolean
+}
+
+export interface AddCityPayload {
+  city_name: string;
+  description?: string;
+  base_rate?: number;
+  cod_fee_percentage?: number;
+  branch_name: string;
+  branch_address?: string;
+  branch_phone?: string;
+  branch_email?: string;
+  opening_time?: string;
+  closing_time?: string;
+}
+
+export function addCity(payload: AddCityPayload, token: string) {
+  return request<{ zone: Zone; branch: Branch }>('/admin/cities', { method: 'POST', body: JSON.stringify(payload) }, token);
 }
 
 export interface Branch{
