@@ -37,3 +37,5 @@ class Branch(Base, TimestampMixin):
     riders = relationship("RiderProfile", back_populates="branch")
     warehouses = relationship("Warehouse", back_populates="branch")
     service_areas = relationship("BranchServiceArea", back_populates="branch", cascade="all, delete-orphan")
+    hubs = relationship("Hub", back_populates="branch")
+    local_offices = relationship("LocalOffice", back_populates="branch")

@@ -953,7 +953,7 @@ export function BranchConsole() {
               hubLoading={hubLoading} hubError={hubError}
               onScan={handleScan} toast={toast} switchView={switchView}
               lastMileQueue={lastMileQueue} hubRiderOptions={hubRiderOptions} hubSettings={hubSettings}
-              lastMileBusy={lastMileBusy} canManageAssignmentMode={role === 'manager' || role === 'admin' || role === 'super_admin'}
+              lastMileBusy={lastMileBusy} canManageAssignmentMode={role === 'manager' || role === 'hub_manager' || role === 'admin' || role === 'super_admin'}
               onAssignLastMileRider={handleAssignLastMileRider} onToggleAssignmentMode={handleToggleAssignmentMode}
               incidents={incidents} onReportIncident={handleReportIncident} onResolveIncident={handleResolveIncident}
             />
@@ -988,7 +988,7 @@ export function BranchConsole() {
           {view === 'riders' && (
             <RidersView
               riders={riders} onlineRiders={onlineRiders} busyRiders={busyRiders} offlineRiders={offlineRiders}
-              staffRiders={staffRiders} canManageWallet={role === 'manager' || role === 'admin' || role === 'super_admin'}
+              staffRiders={staffRiders} canManageWallet={role === 'manager' || role === 'hub_manager' || role === 'admin' || role === 'super_admin'}
               onLock={handleWalletLock} onUnlock={handleWalletUnlock} onSetLimit={handleWalletSetLimit} toast={toast}
             />
           )}
@@ -997,7 +997,7 @@ export function BranchConsole() {
             <StaffView
               staff={staffRoster}
               loading={staffRosterLoading}
-              canManage={role === 'manager' || role === 'admin' || role === 'super_admin'}
+              canManage={role === 'manager' || role === 'hub_manager' || role === 'admin' || role === 'super_admin'}
               token={token!}
               onChanged={setStaffRoster}
               toast={toast}
@@ -1010,7 +1010,7 @@ export function BranchConsole() {
             <ServiceAreaView
               areas={serviceAreas}
               loading={serviceAreasLoading}
-              canManage={role === 'manager' || role === 'admin' || role === 'super_admin'}
+              canManage={role === 'manager' || role === 'hub_manager' || role === 'admin' || role === 'super_admin'}
               token={token!}
               onChanged={loadServiceAreas}
               toast={toast}

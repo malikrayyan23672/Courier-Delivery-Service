@@ -11,6 +11,8 @@ ROLES = [
     ("rider", "Delivery partner who fulfills orders"),
     ("admin", "Operations staff with broad management access"),
     ("manager", "Manages branch operations"),
+    ("hub_manager", "Manages a single hub's inbound/outbound operations"),
+    ("local_office_manager", "Manages a local office's walk-in bookings"),
     ("business", "Seller/enterprise account with access to the seller portal"),
     ("finance", "Manages COD settlements, payouts, rider wallets, and disputes"),
     ("super_admin", "Full system access including pricing and config"),

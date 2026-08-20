@@ -125,12 +125,14 @@ class RegisterRequest(BaseModel):
 class AdminCreateUserRequest(RegisterRequest):
     """Used by admins to onboard staff/rider/admin accounts directly.
     Skips OTP verification since the admin is vouching for this person in person."""
-    role: str = Field(..., pattern="^(staff|rider|admin|customer|super_admin)$")
+    role: str = Field(..., pattern="^(staff|rider|admin|manager|hub_manager|local_office_manager|customer|super_admin)$")
     zone_id: str | None = Field(None, description="Zone ID for staff/rider assignment")
     branch_id: str | None = Field(None, description="Branch ID for staff/rider assignment")
     designation: str | None = Field(None, description="Designation of each staff")
     branch_name: str | None = Field(None, description="Branch name for staff/rider assignment")
     branch_location: str | None = Field(None, description="Branch location for staff/rider assignmet")
+    hub_id: str | None = Field(None, description="Hub ID for hub_manager assignment")
+    local_office_id: str | None = Field(None, description="Local office ID for local_office_manager assignment")
 
 
 class LoginRequest(BaseModel):

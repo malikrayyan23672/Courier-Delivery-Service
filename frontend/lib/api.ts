@@ -375,6 +375,43 @@ export function bookStaffOrder(payload: StaffOrderPayload, token: string) {
   return request<Order>('/staff/orders', { method: 'POST', body: JSON.stringify(payload) }, token);
 }
 
+// ---- Local Office (guest walk-in booking counter) ----
+
+export function bookLocalOfficeOrder(payload: StaffOrderPayload, token: string) {
+  return request<Order>('/local-office/orders', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+async function fetchLocalOfficeReceiptBlob(orderId: string, token: string): Promise<Blob> {
+  const res = await fetch(`${API_ORIGIN}/api/v1/local-office/orders/${orderId}/receipt.pdf`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    let detail: unknown = 'Could not load receipt.';
+    try { detail = (await res.json())?.detail ?? detail; } catch { /* non-JSON error body */ }
+    throw new ApiError(res.status, detail);
+  }
+  return res.blob();
+}
+
+/** Object URL for inline preview (e.g. an <iframe>) - caller owns it and
+ * should URL.revokeObjectURL it when done. */
+export async function getLocalOfficeReceiptPreviewUrl(orderId: string, token: string): Promise<string> {
+  const blob = await fetchLocalOfficeReceiptBlob(orderId, token);
+  return URL.createObjectURL(blob);
+}
+
+export async function downloadLocalOfficeReceipt(orderId: string, token: string, trackingNumber: string) {
+  const blob = await fetchLocalOfficeReceiptBlob(orderId, token);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${trackingNumber}-receipt.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function getBranchDetails(token: string){
   return request<BranchDetails>('/manager/branch/location', {method: 'GET'}, token);
 }
@@ -847,6 +884,70 @@ export function updateBranch(branchId: string, payload: Partial<BranchInput>, to
   return request<Branch>(`/admin/branches/${branchId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
 }
 
+// ---- Hubs & Local Offices (sub-locations under a Branch) ----
+
+export interface Hub {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  status: string;
+  branch_id: string;
+  branch_name: string | null;
+  manager_id: string | null;
+  manager_name: string | null;
+}
+
+export interface HubInput {
+  name: string;
+  branch_id: string;
+  address?: string;
+  phone?: string;
+}
+
+export function listHubs(token: string, branchId?: string) {
+  return request<Hub[]>(`/admin/hubs${branchId ? `?branch_id=${branchId}` : ''}`, { method: 'GET' }, token);
+}
+
+export function createHub(payload: HubInput, token: string) {
+  return request<Hub>('/admin/hubs', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function updateHub(hubId: string, payload: Partial<HubInput>, token: string) {
+  return request<Hub>(`/admin/hubs/${hubId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
+export interface LocalOffice {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  status: string;
+  branch_id: string;
+  branch_name: string | null;
+  manager_id: string | null;
+  manager_name: string | null;
+}
+
+export interface LocalOfficeInput {
+  name: string;
+  branch_id: string;
+  address?: string;
+  phone?: string;
+}
+
+export function listLocalOffices(token: string, branchId?: string) {
+  return request<LocalOffice[]>(`/admin/local-offices${branchId ? `?branch_id=${branchId}` : ''}`, { method: 'GET' }, token);
+}
+
+export function createLocalOffice(payload: LocalOfficeInput, token: string) {
+  return request<LocalOffice>('/admin/local-offices', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function updateLocalOffice(officeId: string, payload: Partial<LocalOfficeInput>, token: string) {
+  return request<LocalOffice>(`/admin/local-offices/${officeId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
 export function resetUserPassword(userId: string, token: string) {
   return request<{ id: string; full_name: string; temporary_password: string }>(
     `/admin/users/${userId}/reset-password`,
@@ -861,10 +962,12 @@ export interface AdminCreateUserPayload {
   phone: string;
   cnic: string;
   password: string;
-  role: 'staff' | 'rider' | 'admin' | 'customer';
+  role: 'staff' | 'rider' | 'admin' | 'manager' | 'hub_manager' | 'local_office_manager' | 'customer';
   designation: string;
   zone_id: string;
-  branch_id: string
+  branch_id: string;
+  hub_id?: string;
+  local_office_id?: string;
 }
 
 export function addNewZone(payload: ZoneCreatePayload, token: string){

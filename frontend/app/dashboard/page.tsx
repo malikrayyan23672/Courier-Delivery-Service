@@ -200,7 +200,7 @@ function DashboardContent() {
     const nextErrors: Record<string, string> = {};
 
     if (!nextForm.pickup_address.trim()) nextErrors.pickup_address = 'Pickup address is required';
-    if (!nextForm.pickup_contact_name.tim()) nextErrors.pickup_address = 'Pickup address is required';
+    if (!nextForm.pickup_contact_name.trim()) nextErrors.pickup_address = 'Pickup address is required';
     if (!nextForm.pickup_city.trim()) nextErrors.pickup_city = 'Pickup city is required';
     if (!nextForm.dropoff_address.trim()) nextErrors.dropoff_address = 'Drop-off address is required';
     if (!nextForm.dropoff_city.trim()) nextErrors.dropoff_city = 'Drop-off city is required';

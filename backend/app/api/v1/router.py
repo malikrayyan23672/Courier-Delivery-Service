@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import auth, customer, staff, rider, admin, tracking, manager
 from app.api.v1 import settlements, wallets, rnp as rnp_admin, bus_network, seller, discounts
-from app.api.v1 import hub, finance, marketplace, admin_network, ws, notifications
+from app.api.v1 import hub, finance, marketplace, admin_network, ws, notifications, local_office
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -27,3 +27,4 @@ api_router.include_router(admin_network.router)
 api_router.include_router(ws.router)
 api_router.include_router(notifications.router)
 api_router.include_router(notifications.admin_router)
+api_router.include_router(local_office.router)

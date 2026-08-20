@@ -47,6 +47,16 @@ import {
   resetUserPassword,
   getRiderLeaderboard,
   RiderLeaderboardRow,
+  Hub,
+  HubInput,
+  listHubs,
+  createHub,
+  updateHub,
+  LocalOffice,
+  LocalOfficeInput,
+  listLocalOffices,
+  createLocalOffice,
+  updateLocalOffice,
 } from '@/lib/api';
 import {
   Pill, AvatarChip, KpiCard, StatStrip, Toasts, NavIcon, NavBadge, Modal, inputCls,
@@ -57,7 +67,7 @@ import { BusNetworkTab, DiscountsTab, AdminOrderDetailModal } from '@/app/admin/
 type View =
   | 'overview' | 'orders' | 'map'
   | 'riders' | 'assignment' | 'requests' | 'leaderboard'
-  | 'branches' | 'zones' | 'bus'
+  | 'branches' | 'zones' | 'hubops' | 'bus'
   | 'staff' | 'business'
   | 'messaging'
   | 'discounts'
@@ -78,6 +88,7 @@ const NAV_SECTIONS: { label: string; items: { view: View; label: string; icon: s
   ]},
   { label: 'Network', items: [
     { view: 'branches', label: 'Branches', icon: 'building' },
+    { view: 'hubops', label: 'Hubs & Offices', icon: 'building' },
     { view: 'zones', label: 'Service Zones', icon: 'zone' },
     { view: 'bus', label: 'Bus Network', icon: 'truck' },
   ]},
@@ -107,6 +118,7 @@ const PAGE_META: Record<View, { title: string; sub: string }> = {
   requests: { title: 'Rider Requests', sub: 'Availability changes, parcel unlocks and support tickets across every branch' },
   leaderboard: { title: 'Rider Leaderboard', sub: 'Full network ranking by deliveries, earnings and success rate' },
   branches: { title: 'Branches', sub: 'Manage every branch in the network' },
+  hubops: { title: 'Hubs & Local Offices', sub: 'Sorting hubs and guest booking counters within each branch' },
   zones: { title: 'Service Zones', sub: 'Coverage areas and delivery capabilities' },
   bus: { title: 'Bus Network', sub: 'Operators, corridors and manifests across every branch' },
   staff: { title: 'Staff & Admins', sub: 'Every internal account and its role' },
@@ -493,6 +505,8 @@ function AdminDashboardContent() {
           )}
 
           {view === 'zones' && <ZonesView zones={zones} branches={branches} onDelete={handleDeleteZone} />}
+
+          {view === 'hubops' && <HubsAndOfficesView branches={branches} token={token!} toast={toast} />}
 
           {view === 'staff' && (
             <StaffView users={filteredUsers} roleFilter={userRoleFilter} setRoleFilter={setUserRoleFilter}
@@ -1111,6 +1125,222 @@ function BranchesView({ branches, zones, token, toast, setBranches }: {
               </tr>
             ))}
             {branches.length === 0 && <tr><td colSpan={7} className="py-8 text-center text-sm text-muted-foreground">No branches yet.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// HUBS & LOCAL OFFICES (sub-locations under a branch)
+// ============================================================
+const INITIAL_HUB_FORM = { name: '', branch_id: '', address: '', phone: '' };
+const INITIAL_OFFICE_FORM = { name: '', branch_id: '', address: '', phone: '' };
+
+function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; token: string; toast: (msg: string) => void }) {
+  const [tab, setTab] = useState<'hubs' | 'offices'>('hubs');
+  const [hubs, setHubs] = useState<Hub[]>([]);
+  const [localOffices, setLocalOffices] = useState<LocalOffice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showHubForm, setShowHubForm] = useState(false);
+  const [showOfficeForm, setShowOfficeForm] = useState(false);
+  const [hubForm, setHubForm] = useState(INITIAL_HUB_FORM);
+  const [officeForm, setOfficeForm] = useState(INITIAL_OFFICE_FORM);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([listHubs(token), listLocalOffices(token)])
+      .then(([h, o]) => { setHubs(h); setLocalOffices(o); })
+      .catch((err) => toast(err instanceof ApiError ? err.message : 'Could not load hubs/offices.'))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const branchName = (id: string) => branches.find((b) => b.id === id)?.name || '—';
+
+  async function handleCreateHub(e: React.FormEvent) {
+    e.preventDefault();
+    if (!hubForm.name.trim() || !hubForm.branch_id) { toast('Hub name and branch are required.'); return; }
+    setSaving(true);
+    try {
+      const created = await createHub(
+        { name: hubForm.name.trim(), branch_id: hubForm.branch_id, address: hubForm.address || undefined, phone: hubForm.phone || undefined },
+        token
+      );
+      setHubs((prev) => [...prev, created]);
+      setShowHubForm(false);
+      setHubForm(INITIAL_HUB_FORM);
+      toast('Hub created.');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not create hub.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleHubStatus(h: Hub) {
+    const newStatus = h.status === 'active' ? 'inactive' : 'active';
+    try {
+      const updated = await updateHub(h.id, { status: newStatus } as Partial<HubInput> & { status: string }, token);
+      setHubs((prev) => prev.map((x) => (x.id === h.id ? updated : x)));
+      toast(`${h.name} marked ${newStatus}.`);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update hub status.');
+    }
+  }
+
+  async function handleCreateOffice(e: React.FormEvent) {
+    e.preventDefault();
+    if (!officeForm.name.trim() || !officeForm.branch_id) { toast('Local office name and branch are required.'); return; }
+    setSaving(true);
+    try {
+      const created = await createLocalOffice(
+        { name: officeForm.name.trim(), branch_id: officeForm.branch_id, address: officeForm.address || undefined, phone: officeForm.phone || undefined },
+        token
+      );
+      setLocalOffices((prev) => [...prev, created]);
+      setShowOfficeForm(false);
+      setOfficeForm(INITIAL_OFFICE_FORM);
+      toast('Local office created.');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not create local office.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleOfficeStatus(o: LocalOffice) {
+    const newStatus = o.status === 'active' ? 'inactive' : 'active';
+    try {
+      const updated = await updateLocalOffice(o.id, { status: newStatus } as Partial<LocalOfficeInput> & { status: string }, token);
+      setLocalOffices((prev) => prev.map((x) => (x.id === o.id ? updated : x)));
+      toast(`${o.name} marked ${newStatus}.`);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update local office status.');
+    }
+  }
+
+  return (
+    <section className="bg-white border border-line rounded-2xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex gap-1 rounded-lg bg-page p-1 w-fit">
+          <button onClick={() => setTab('hubs')} className={`px-4 py-2 text-sm font-semibold rounded-md ${tab === 'hubs' ? 'bg-white shadow-sm text-ink' : 'text-muted-foreground'}`}>
+            Hubs ({hubs.length})
+          </button>
+          <button onClick={() => setTab('offices')} className={`px-4 py-2 text-sm font-semibold rounded-md ${tab === 'offices' ? 'bg-white shadow-sm text-ink' : 'text-muted-foreground'}`}>
+            Local Offices ({localOffices.length})
+          </button>
+        </div>
+        {tab === 'hubs' ? (
+          <button onClick={() => setShowHubForm((s) => !s)} className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
+            <NavIcon name="plus" size={13} color="#fff" /> {showHubForm ? 'Cancel' : 'Add Hub'}
+          </button>
+        ) : (
+          <button onClick={() => setShowOfficeForm((s) => !s)} className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
+            <NavIcon name="plus" size={13} color="#fff" /> {showOfficeForm ? 'Cancel' : 'Add Local Office'}
+          </button>
+        )}
+      </div>
+
+      {tab === 'hubs' && showHubForm && (
+        <form onSubmit={handleCreateHub} className="bg-page rounded-xl p-5 mb-5">
+          <h3 className="font-display font-bold text-sm mb-3">New Hub</h3>
+          <div className="grid md:grid-cols-2 gap-x-6 gap-y-3">
+            <Field label="Hub Name">
+              <input type="text" required className={inputCls} value={hubForm.name} onChange={(e) => setHubForm({ ...hubForm, name: e.target.value })} />
+            </Field>
+            <Field label="Branch">
+              <select className={inputCls} value={hubForm.branch_id} onChange={(e) => setHubForm({ ...hubForm, branch_id: e.target.value })}>
+                <option value="">Select branch</option>
+                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Address">
+              <input type="text" className={inputCls} value={hubForm.address} onChange={(e) => setHubForm({ ...hubForm, address: e.target.value })} />
+            </Field>
+            <Field label="Phone">
+              <input type="text" className={inputCls} value={hubForm.phone} onChange={(e) => setHubForm({ ...hubForm, phone: e.target.value })} />
+            </Field>
+          </div>
+          <div className="flex justify-end mt-4">
+            <button type="submit" disabled={saving} className="text-sm font-bold px-5 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white disabled:opacity-60">
+              {saving ? 'Saving…' : 'Create Hub'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {tab === 'offices' && showOfficeForm && (
+        <form onSubmit={handleCreateOffice} className="bg-page rounded-xl p-5 mb-5">
+          <h3 className="font-display font-bold text-sm mb-3">New Local Office</h3>
+          <div className="grid md:grid-cols-2 gap-x-6 gap-y-3">
+            <Field label="Office Name">
+              <input type="text" required className={inputCls} value={officeForm.name} onChange={(e) => setOfficeForm({ ...officeForm, name: e.target.value })} />
+            </Field>
+            <Field label="Branch">
+              <select className={inputCls} value={officeForm.branch_id} onChange={(e) => setOfficeForm({ ...officeForm, branch_id: e.target.value })}>
+                <option value="">Select branch</option>
+                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Address">
+              <input type="text" className={inputCls} value={officeForm.address} onChange={(e) => setOfficeForm({ ...officeForm, address: e.target.value })} />
+            </Field>
+            <Field label="Phone">
+              <input type="text" className={inputCls} value={officeForm.phone} onChange={(e) => setOfficeForm({ ...officeForm, phone: e.target.value })} />
+            </Field>
+          </div>
+          <div className="flex justify-end mt-4">
+            <button type="submit" disabled={saving} className="text-sm font-bold px-5 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white disabled:opacity-60">
+              {saving ? 'Saving…' : 'Create Local Office'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="text-left text-muted-foreground text-xs border-b border-line">
+            <th className="py-2 pr-4">Name</th><th className="py-2 pr-4">Branch</th><th className="py-2 pr-4">Contact</th>
+            <th className="py-2 pr-4">Manager</th><th className="py-2 pr-4">Status</th><th className="py-2">Actions</th>
+          </tr></thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">Loading…</td></tr>
+            ) : tab === 'hubs' ? (
+              hubs.length === 0 ? (
+                <tr><td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No hubs yet.</td></tr>
+              ) : hubs.map((h) => (
+                <tr key={h.id} className="border-b border-line last:border-0">
+                  <td className="py-3 pr-4"><div className="font-bold text-ink">{h.name}</div><div className="text-xs text-muted-foreground">{h.address}</div></td>
+                  <td className="py-3 pr-4"><Pill status="blue" label={branchName(h.branch_id)} /></td>
+                  <td className="py-3 pr-4 text-xs text-muted-foreground">{h.phone || '—'}</td>
+                  <td className="py-3 pr-4 text-xs text-muted-foreground">{h.manager_name || 'Unassigned'}</td>
+                  <td className="py-3 pr-4"><Pill status={h.status || 'active'} /></td>
+                  <td className="py-3">
+                    <button onClick={() => toggleHubStatus(h)} className="text-xs font-bold text-muted-foreground hover:underline">
+                      {h.status === 'active' ? 'Deactivate' : 'Activate'}
+                    </button>
+                  </td>
+                </tr>
+              ))
+            ) : localOffices.length === 0 ? (
+              <tr><td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No local offices yet.</td></tr>
+            ) : localOffices.map((o) => (
+              <tr key={o.id} className="border-b border-line last:border-0">
+                <td className="py-3 pr-4"><div className="font-bold text-ink">{o.name}</div><div className="text-xs text-muted-foreground">{o.address}</div></td>
+                <td className="py-3 pr-4"><Pill status="blue" label={branchName(o.branch_id)} /></td>
+                <td className="py-3 pr-4 text-xs text-muted-foreground">{o.phone || '—'}</td>
+                <td className="py-3 pr-4 text-xs text-muted-foreground">{o.manager_name || 'Unassigned'}</td>
+                <td className="py-3 pr-4"><Pill status={o.status || 'active'} /></td>
+                <td className="py-3">
+                  <button onClick={() => toggleOfficeStatus(o)} className="text-xs font-bold text-muted-foreground hover:underline">
+                    {o.status === 'active' ? 'Deactivate' : 'Activate'}
+                  </button>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

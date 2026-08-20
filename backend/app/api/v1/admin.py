@@ -19,6 +19,8 @@ from app.models.tracking_event import TrackingEvent
 from app.models.staff import StaffProfile
 from app.models.branch import Branch
 from app.models.zone import Zone
+from app.models.hub import Hub
+from app.models.local_office import LocalOffice
 from app.models.settlement import Settlement, SettlementStatus
 from app.schemas.order import OrderOut, OrderDetailOut, AddressOut, TrackingEventOut, PaymentOut, RiderContactOut
 from app.schemas.auth import AdminCreateUserRequest
@@ -31,6 +33,7 @@ from app.models.delivery_attempt import DeliveryAttempt
 from app.services.settlement_service import pending_cod_amount, rider_wallet_limit, rider_wallet_warning_at
 from app.services import log_service
 from app.services import notification_service
+from app.core.scope import resolve_city_branch_ids
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -40,7 +43,11 @@ def list_all_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
-    return db.query(Order).order_by(Order.created_at.desc()).limit(200).all()
+    scope = resolve_city_branch_ids(current_user, db)
+    query = db.query(Order).order_by(Order.created_at.desc())
+    if scope is not None:
+        query = query.filter(Order.branch_id.in_(scope))
+    return query.limit(200).all()
 
 
 @router.get("/orders/{order_id}", response_model=OrderDetailOut)
@@ -54,6 +61,10 @@ def get_order_detail(
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+
+    scope = resolve_city_branch_ids(current_user, db)
+    if scope is not None and (not order.branch_id or str(order.branch_id) not in scope):
+        raise HTTPException(status_code=403, detail="This order belongs to a different city")
 
     rider_contact = None
     if order.rider and order.rider.user:
@@ -392,7 +403,7 @@ def create_staff_or_rider(
 
     if payload.role == "rider":
         db.add(RiderProfile(user_id=user.id, status=RiderStatus.active, is_available=False, branch_id=payload.branch_id))
-    elif payload.role == "staff":
+    elif payload.role in ("staff", "manager"):
         db.add(StaffProfile(user_id=user.id, branch_id=payload.branch_id, designation=payload.designation))
         branch = db.query(Branch).filter(Branch.id == payload.branch_id).first()
 
@@ -401,6 +412,37 @@ def create_staff_or_rider(
 
         branch.manager_id = user.id
         # db.add(TrackingEvent())
+        db.commit()
+    elif payload.role == "admin" and payload.branch_id:
+        # A per-branch admin (scoped to their own city by resolve_city_branch_ids,
+        # see app/core/scope.py) - optional, since an admin created without a
+        # branch_id stays the network-wide oversight admin this role has always
+        # meant, for backward compatibility with accounts created before Hub/
+        # LocalOffice existed.
+        branch = db.query(Branch).filter(Branch.id == payload.branch_id).first()
+        if not branch:
+            raise HTTPException(status_code=400, detail='branch could not found')
+        db.add(StaffProfile(user_id=user.id, branch_id=payload.branch_id, designation=payload.designation))
+        db.commit()
+    elif payload.role == "hub_manager":
+        if not payload.hub_id:
+            raise HTTPException(status_code=400, detail="hub_id is required for a hub_manager account")
+        hub = db.query(Hub).filter(Hub.id == payload.hub_id).first()
+        if not hub:
+            raise HTTPException(status_code=400, detail="Hub not found")
+
+        db.add(StaffProfile(user_id=user.id, branch_id=hub.branch_id, hub_id=hub.id, designation=payload.designation))
+        hub.manager_id = user.id
+        db.commit()
+    elif payload.role == "local_office_manager":
+        if not payload.local_office_id:
+            raise HTTPException(status_code=400, detail="local_office_id is required for a local_office_manager account")
+        office = db.query(LocalOffice).filter(LocalOffice.id == payload.local_office_id).first()
+        if not office:
+            raise HTTPException(status_code=400, detail="Local office not found")
+
+        db.add(StaffProfile(user_id=user.id, branch_id=office.branch_id, local_office_id=office.id, designation=payload.designation))
+        office.manager_id = user.id
         db.commit()
 
     db.commit()
@@ -865,3 +907,159 @@ def update_branch(
     db.commit()
     db.refresh(branch)
     return _branch_out(branch)
+
+
+# ============================================================
+# HUBS (sorting/scan facilities under a branch)
+# ============================================================
+def _hub_out(h: Hub) -> dict:
+    return {
+        "id": str(h.id),
+        "name": h.name,
+        "address": h.address,
+        "phone": h.phone,
+        "status": h.status,
+        "branch_id": str(h.branch_id),
+        "branch_name": h.branch.name if h.branch else None,
+        "manager_id": str(h.manager_id) if h.manager_id else None,
+        "manager_name": h.manager.full_name if h.manager else None,
+    }
+
+
+@router.get("/hubs")
+def list_hubs_admin(
+    branch_id: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    query = db.query(Hub).order_by(Hub.name)
+    if branch_id:
+        query = query.filter(Hub.branch_id == branch_id)
+    return [_hub_out(h) for h in query.all()]
+
+
+@router.post("/hubs", status_code=201)
+def create_hub(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    name = payload.get("name")
+    branch_id = payload.get("branch_id")
+    if not name:
+        raise HTTPException(status_code=400, detail="Hub name is required")
+    if not branch_id:
+        raise HTTPException(status_code=400, detail="branch_id is required")
+    branch = db.query(Branch).filter(Branch.id == branch_id).first()
+    if not branch:
+        raise HTTPException(status_code=404, detail="Branch not found")
+
+    hub = Hub(name=name, address=payload.get("address"), phone=payload.get("phone"), branch_id=branch_id)
+    db.add(hub)
+    db.commit()
+    db.refresh(hub)
+    return _hub_out(hub)
+
+
+@router.patch("/hubs/{hub_id}")
+def update_hub(
+    hub_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    hub = db.query(Hub).filter(Hub.id == hub_id).first()
+    if not hub:
+        raise HTTPException(status_code=404, detail="Hub not found")
+
+    if "name" in payload and not payload["name"]:
+        raise HTTPException(status_code=400, detail="Hub name cannot be empty")
+    for field in ("name", "address", "phone"):
+        if field in payload:
+            setattr(hub, field, payload[field] or None)
+    if "status" in payload:
+        if payload["status"] not in ("active", "inactive"):
+            raise HTTPException(status_code=400, detail="Status must be 'active' or 'inactive'")
+        hub.status = payload["status"]
+
+    db.commit()
+    db.refresh(hub)
+    return _hub_out(hub)
+
+
+# ============================================================
+# LOCAL OFFICES (guest walk-in booking counters under a branch)
+# ============================================================
+def _local_office_out(o: LocalOffice) -> dict:
+    return {
+        "id": str(o.id),
+        "name": o.name,
+        "address": o.address,
+        "phone": o.phone,
+        "status": o.status,
+        "branch_id": str(o.branch_id),
+        "branch_name": o.branch.name if o.branch else None,
+        "manager_id": str(o.manager_id) if o.manager_id else None,
+        "manager_name": o.manager.full_name if o.manager else None,
+    }
+
+
+@router.get("/local-offices")
+def list_local_offices_admin(
+    branch_id: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    query = db.query(LocalOffice).order_by(LocalOffice.name)
+    if branch_id:
+        query = query.filter(LocalOffice.branch_id == branch_id)
+    return [_local_office_out(o) for o in query.all()]
+
+
+@router.post("/local-offices", status_code=201)
+def create_local_office(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    name = payload.get("name")
+    branch_id = payload.get("branch_id")
+    if not name:
+        raise HTTPException(status_code=400, detail="Local office name is required")
+    if not branch_id:
+        raise HTTPException(status_code=400, detail="branch_id is required")
+    branch = db.query(Branch).filter(Branch.id == branch_id).first()
+    if not branch:
+        raise HTTPException(status_code=404, detail="Branch not found")
+
+    office = LocalOffice(name=name, address=payload.get("address"), phone=payload.get("phone"), branch_id=branch_id)
+    db.add(office)
+    db.commit()
+    db.refresh(office)
+    return _local_office_out(office)
+
+
+@router.patch("/local-offices/{local_office_id}")
+def update_local_office(
+    local_office_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    office = db.query(LocalOffice).filter(LocalOffice.id == local_office_id).first()
+    if not office:
+        raise HTTPException(status_code=404, detail="Local office not found")
+
+    if "name" in payload and not payload["name"]:
+        raise HTTPException(status_code=400, detail="Local office name cannot be empty")
+    for field in ("name", "address", "phone"):
+        if field in payload:
+            setattr(office, field, payload[field] or None)
+    if "status" in payload:
+        if payload["status"] not in ("active", "inactive"):
+            raise HTTPException(status_code=400, detail="Status must be 'active' or 'inactive'")
+        office.status = payload["status"]
+
+    db.commit()
+    db.refresh(office)
+    return _local_office_out(office)

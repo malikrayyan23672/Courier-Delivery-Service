@@ -22,6 +22,7 @@ from app.models.parcel_incident import ParcelIncident, IncidentType, IncidentSta
 from app.models.branch import Branch
 from app.services import notification_service
 from app.services.order_service import transition, offer_last_mile_rider, handle_dest_hub_arrival
+from app.core.scope import resolve_city_branch_ids
 from app.services.settlement_service import (
     rider_wallet_limit,
     rider_wallet_warning_at,
@@ -32,16 +33,21 @@ from app.services.settlement_service import (
 
 router = APIRouter(prefix="/hub", tags=["Hub Operations"])
 
-# Branch console access: branch staff, branch managers, and admin oversight.
-HUB_ROLES = ("staff", "admin", "super_admin", "manager")
+# Branch console access: branch staff, branch/hub managers, and admin oversight.
+HUB_ROLES = ("staff", "admin", "super_admin", "manager", "hub_manager")
 
 
-def _resolve_branch_id(current_user: User, branch_id: str | None) -> str:
+def _resolve_branch_id(current_user: User, branch_id: str | None, db: Session) -> str:
     """Staff are always scoped to their own branch. Admin/super_admin can pass
     ?branch_id= to inspect any branch (oversight), matching the branch console's
-    existing 'staff, admin, super_admin' access pattern."""
+    existing 'staff, admin, super_admin' access pattern - but non-super_admin
+    callers may only reach into branches within their own city."""
     role_name = current_user.role.name if current_user.role else None
     if role_name in ("admin", "super_admin") and branch_id:
+        if role_name != "super_admin":
+            scope = resolve_city_branch_ids(current_user, db)
+            if scope is not None and branch_id not in scope:
+                raise HTTPException(status_code=403, detail="This branch belongs to a different city")
         return branch_id
 
     staff_profile = current_user.staff_profile
@@ -113,7 +119,7 @@ def inbound_queue(
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     """Parcels picked up and routed through this branch, not yet scanned in at the hub."""
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     orders = (
         db.query(Order)
         .options(joinedload(Order.dropoff_address))
@@ -132,7 +138,7 @@ def inbound_scan(
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     """The hub receiving scan: PICKED -> IN_HUB."""
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     order = db.query(Order).filter(Order.tracking_number == tracking_number.strip().upper()).first()
     if not order:
         raise HTTPException(status_code=404, detail="No parcel found with that tracking number")
@@ -169,7 +175,7 @@ def hub_scan(
       - arrive -> DEST_HUB     (arrived at the destination hub)
     Returns the parcel with its new status so the console can show the result.
     """
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     order = db.query(Order).filter(Order.tracking_number == tracking_number.strip().upper()).first()
     if not order:
         raise HTTPException(status_code=404, detail="No parcel found with that tracking number")
@@ -190,7 +196,7 @@ def dispatch_queue(
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     """Parcels scanned in at this branch, ready to be loaded onto an outbound manifest."""
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     orders = (
         db.query(Order)
         .options(joinedload(Order.dropoff_address))
@@ -207,7 +213,7 @@ def manifest_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     manifests = (
         db.query(BusManifest)
         .join(BusSchedule, BusManifest.schedule_id == BusSchedule.id, isouter=True)
@@ -261,7 +267,7 @@ def rto_queue(
     a return dispatch. Excludes parcels already handed back to the seller
     (`rto_collected_at` set) by default - that's the closed end of the RTO
     loop, not something still needing action."""
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     query = db.query(Order).options(joinedload(Order.dropoff_address)).filter(
         Order.branch_id == bid, Order.status == OrderStatus.rto
     )
@@ -294,7 +300,7 @@ def mark_rto_collected(
     """Closes the RTO loop: hub staff confirm the seller has physically
     picked up a returned parcel from this branch. `rto` stays a terminal
     order status - this just records that the return is done."""
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -328,7 +334,7 @@ def aging_parcels(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     orders = (
         db.query(Order)
@@ -363,7 +369,7 @@ def warehouse_occupancy(
     it. Counts every parcel physically sitting at this branch right now:
     scanned in awaiting dispatch (`in_hub`), arrived awaiting last-mile
     (`dest_hub`), and RTO parcels not yet collected by the seller."""
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     branch = db.query(Branch).filter(Branch.id == bid).first()
     if not branch:
         raise HTTPException(status_code=404, detail="Branch not found")
@@ -391,7 +397,7 @@ def vendor_scores(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     return _vendor_scores(db, bid)
 
 
@@ -489,7 +495,7 @@ def hub_analytics(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
     in_rows = (
@@ -583,7 +589,7 @@ def rider_wallet_update(
     payload: RiderWalletUpdateIn,
     db: Session = Depends(get_db),
     # Financial control - branch managers and admin oversight only, not staff.
-    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin", "hub_manager")),
 ):
     """Branch manager controls a rider's COD wallet:
       - lock      freeze the wallet (over limit / hold) with an audit note
@@ -595,7 +601,7 @@ def rider_wallet_update(
     if not rider:
         raise HTTPException(status_code=404, detail="Rider not found")
 
-    bid = _resolve_branch_id(current_user, None)
+    bid = _resolve_branch_id(current_user, None, db)
     if rider.branch_id and str(rider.branch_id) != bid:
         raise HTTPException(status_code=403, detail="This rider does not belong to your branch")
 
@@ -636,7 +642,7 @@ def list_branch_staff(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     staff = (
         db.query(StaffProfile)
         .options(joinedload(StaffProfile.user))
@@ -655,9 +661,9 @@ def update_staff_attendance(
     staff_profile_id: str,
     payload: StaffAttendanceIn,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin", "hub_manager")),
 ):
-    bid = _resolve_branch_id(current_user, None)
+    bid = _resolve_branch_id(current_user, None, db)
     staff = (
         db.query(StaffProfile)
         .options(joinedload(StaffProfile.user))
@@ -686,9 +692,9 @@ def update_staff_shift(
     staff_profile_id: str,
     payload: StaffShiftIn,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin", "hub_manager")),
 ):
-    bid = _resolve_branch_id(current_user, None)
+    bid = _resolve_branch_id(current_user, None, db)
     staff = (
         db.query(StaffProfile)
         .options(joinedload(StaffProfile.user))
@@ -729,7 +735,7 @@ def list_service_areas(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     areas = db.query(BranchServiceArea).filter(BranchServiceArea.branch_id == bid).order_by(BranchServiceArea.zone_name).all()
     return [_service_area_out(a) for a in areas]
 
@@ -746,9 +752,9 @@ class ServiceAreaIn(BaseModel):
 def create_service_area(
     payload: ServiceAreaIn,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin", "hub_manager")),
 ):
-    bid = _resolve_branch_id(current_user, None)
+    bid = _resolve_branch_id(current_user, None, db)
     area = BranchServiceArea(branch_id=bid, **payload.model_dump())
     db.add(area)
     db.commit()
@@ -761,9 +767,9 @@ def update_service_area(
     area_id: str,
     payload: ServiceAreaIn,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin", "hub_manager")),
 ):
-    bid = _resolve_branch_id(current_user, None)
+    bid = _resolve_branch_id(current_user, None, db)
     area = db.query(BranchServiceArea).filter(BranchServiceArea.id == area_id).first()
     if not area:
         raise HTTPException(status_code=404, detail="Service area not found")
@@ -781,9 +787,9 @@ def update_service_area(
 def delete_service_area(
     area_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin", "hub_manager")),
 ):
-    bid = _resolve_branch_id(current_user, None)
+    bid = _resolve_branch_id(current_user, None, db)
     area = db.query(BranchServiceArea).filter(BranchServiceArea.id == area_id).first()
     if not area:
         raise HTTPException(status_code=404, detail="Service area not found")
@@ -814,7 +820,7 @@ def last_mile_queue(
     """Parcels that have arrived at this destination hub and need a rider
     for the final leg - unassigned (manual mode) or already offered and
     awaiting the rider's response."""
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     orders = (
         db.query(Order)
         .options(joinedload(Order.dropoff_address), joinedload(Order.rider).joinedload(RiderProfile.user))
@@ -832,7 +838,7 @@ def list_hub_riders(
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     """Active riders based at this branch - populates the manual assign-rider dropdown."""
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     riders = (
         db.query(RiderProfile)
         .options(joinedload(RiderProfile.user))
@@ -865,7 +871,7 @@ def hub_assign_last_mile_rider(
     """Manually offers a specific rider the last-mile leg of a parcel that's
     arrived at this hub. Available regardless of the branch's automatic/
     manual setting - automatic just means hub staff don't have to do this."""
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -914,7 +920,7 @@ def get_hub_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     branch = db.query(Branch).filter(Branch.id == bid).first()
     if not branch:
         raise HTTPException(status_code=404, detail="Branch not found")
@@ -927,9 +933,9 @@ def update_hub_settings(
     db: Session = Depends(get_db),
     # Toggling how the hub assigns riders is a branch-operating-policy call,
     # not a routine staff action.
-    current_user: User = Depends(require_roles("manager", "admin", "super_admin")),
+    current_user: User = Depends(require_roles("manager", "admin", "super_admin", "hub_manager")),
 ):
-    bid = _resolve_branch_id(current_user, None)
+    bid = _resolve_branch_id(current_user, None, db)
     branch = db.query(Branch).filter(Branch.id == bid).first()
     if not branch:
         raise HTTPException(status_code=404, detail="Branch not found")
@@ -972,7 +978,7 @@ def list_incidents(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     query = (
         db.query(ParcelIncident)
         .options(joinedload(ParcelIncident.order), joinedload(ParcelIncident.reported_by), joinedload(ParcelIncident.resolved_by))
@@ -993,7 +999,7 @@ def create_incident(
 ):
     """Real backend behind the branch console's "Report Damaged"/"Report
     Missing" actions - these used to just show a toast with nothing saved."""
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     order = None
     if payload.tracking_number:
         order = db.query(Order).filter(Order.tracking_number == payload.tracking_number.strip().upper()).first()
@@ -1025,7 +1031,7 @@ def resolve_incident(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
-    bid = _resolve_branch_id(current_user, branch_id)
+    bid = _resolve_branch_id(current_user, branch_id, db)
     incident = db.query(ParcelIncident).filter(ParcelIncident.id == incident_id).first()
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")

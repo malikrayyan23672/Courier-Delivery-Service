@@ -38,6 +38,8 @@ from app.models.support_ticket import SupportTicket, SupportTicketMessage
 from app.models.messaging import AssignmentRule, MessageTemplate
 from app.models.branch_service_area import BranchServiceArea
 from app.models.order_message import OrderMessage
+from app.models.hub import Hub
+from app.models.local_office import LocalOffice
 
 __all__ = [
     "Role",
@@ -85,4 +87,6 @@ __all__ = [
     "MessageTemplate",
     "BranchServiceArea",
     "OrderMessage",
+    "Hub",
+    "LocalOffice",
 ]

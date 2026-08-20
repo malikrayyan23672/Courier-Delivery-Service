@@ -44,4 +44,6 @@ class User(Base, TimestampMixin):
     customer_profile = relationship("Customer", back_populates="user", uselist=False, cascade="all, delete-orphan")
     managed_branches = relationship("Branch", back_populates="manager")
     managed_warehouses = relationship("Warehouse", back_populates="manager")
+    managed_hubs = relationship("Hub", back_populates="manager")
+    managed_local_offices = relationship("LocalOffice", back_populates="manager")
     notifications = relationship("Notification", back_populates="user")

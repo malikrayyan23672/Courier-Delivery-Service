@@ -82,6 +82,12 @@ class Order(Base, TimestampMixin):
     zone = relationship("Zone")
     branch = relationship("Branch")
 
+    # Set only when this order was booked as a walk-in guest at a local
+    # office counter (see app/api/v1/local_office.py) - records exactly
+    # which office booked it, distinct from `branch_id`'s routing role.
+    local_office_id = Column(UUID_TYPE, ForeignKey("local_offices.id"), nullable=True)
+    local_office = relationship("LocalOffice")
+
     # Which physical branch this parcel is currently associated with - the
     # rider-app's "drop off at this hub" prompt after pickup. Set at booking
     # to the origin branch; updated to the destination branch on dest_hub

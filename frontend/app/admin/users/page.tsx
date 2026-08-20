@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { AdminPageShell } from '@/components/admin/AdminPageShell';
 import {
-  ApiError, AdminUser, AdminSeller, Zone, Branch, AdminCreateUserPayload,
+  ApiError, AdminUser, AdminSeller, Zone, Branch, Hub, LocalOffice, AdminCreateUserPayload,
   listStaffAndRiders, createStaffOrRider, deleteUserbyAdmin, setUserActiveStatus, editUser,
-  listZones, listBranches, listSellersAdmin, approveSeller, rejectSeller, deactivateSeller, activateSeller,
+  listZones, listBranches, listHubs, listLocalOffices, listSellersAdmin, approveSeller, rejectSeller, deactivateSeller, activateSeller,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -53,15 +53,20 @@ export default function AdminUsersPage() {
 
 interface FormState {
   full_name: string; email: string; phone: string; cnic: string; password: string;
-  role: 'staff' | 'rider' | 'admin' | 'customer';
-  designation: string; zone_id: string; branch_id: string;
+  role: 'staff' | 'rider' | 'admin' | 'manager' | 'hub_manager' | 'local_office_manager' | 'customer';
+  designation: string; zone_id: string; branch_id: string; hub_id: string; local_office_id: string;
 }
-const INITIAL_FORM: FormState = { full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff', designation: '', zone_id: '', branch_id: '' };
+const INITIAL_FORM: FormState = {
+  full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff',
+  designation: '', zone_id: '', branch_id: '', hub_id: '', local_office_id: '',
+};
 
 function TeamAccountsSection({ token }: { token: string }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [hubs, setHubs] = useState<Hub[]>([]);
+  const [localOffices, setLocalOffices] = useState<LocalOffice[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -74,8 +79,8 @@ function TeamAccountsSection({ token }: { token: string }) {
 
   function load() {
     setLoading(true);
-    Promise.all([listStaffAndRiders(token), listZones(token), listBranches(token)])
-      .then(([u, z, b]) => { setUsers(u); setZones(z); setBranches(b); })
+    Promise.all([listStaffAndRiders(token), listZones(token), listBranches(token), listHubs(token), listLocalOffices(token)])
+      .then(([u, z, b, h, o]) => { setUsers(u); setZones(z); setBranches(b); setHubs(h); setLocalOffices(o); })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load team.'))
       .finally(() => setLoading(false));
   }
@@ -83,6 +88,8 @@ function TeamAccountsSection({ token }: { token: string }) {
   useEffect(load, [token]);
 
   const filteredBranches = branches.filter((b) => b.zone_id === form.zone_id);
+  const filteredHubs = hubs.filter((h) => h.branch_id === form.branch_id);
+  const filteredLocalOffices = localOffices.filter((o) => o.branch_id === form.branch_id);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return users;
@@ -170,33 +177,57 @@ function TeamAccountsSection({ token }: { token: string }) {
               <TextField label="Temporary password" type="password" required value={form.password} onChange={(v) => setForm((f) => ({ ...f, password: v }))} />
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-ink">Role</label>
-                <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as FormState['role'], zone_id: '', branch_id: '' }))}
+                <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as FormState['role'], zone_id: '', branch_id: '', hub_id: '', local_office_id: '' }))}
                   className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm outline-none focus:border-ring">
                   <option value="staff">Staff</option>
+                  <option value="manager">Branch Manager</option>
+                  <option value="hub_manager">Hub Manager</option>
+                  <option value="local_office_manager">Local Office Manager</option>
                   <option value="rider">Rider</option>
                   <option value="admin">Admin</option>
                   <option value="customer">Customer</option>
                 </select>
               </div>
-              {(form.role === 'staff' || form.role === 'rider') && (
+              {(form.role === 'staff' || form.role === 'rider' || form.role === 'manager' || form.role === 'hub_manager' || form.role === 'local_office_manager' || form.role === 'admin') && (
                 <>
                   <div>
-                    <label className="mb-1.5 block text-sm font-semibold text-ink">Zone</label>
-                    <select value={form.zone_id} onChange={(e) => setForm((f) => ({ ...f, zone_id: e.target.value, branch_id: '' }))}
+                    <label className="mb-1.5 block text-sm font-semibold text-ink">Zone / City</label>
+                    <select value={form.zone_id} onChange={(e) => setForm((f) => ({ ...f, zone_id: e.target.value, branch_id: '', hub_id: '', local_office_id: '' }))}
                       className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm outline-none focus:border-ring">
                       <option value="">Select zone</option>
                       {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
                     </select>
+                    {form.role === 'admin' && <p className="mt-1 text-xs text-muted-foreground">Leave unset for a network-wide admin (sees every city).</p>}
                   </div>
                   <div>
                     <label className="mb-1.5 block text-sm font-semibold text-ink">Branch</label>
-                    <select value={form.branch_id} onChange={(e) => setForm((f) => ({ ...f, branch_id: e.target.value }))}
+                    <select value={form.branch_id} onChange={(e) => setForm((f) => ({ ...f, branch_id: e.target.value, hub_id: '', local_office_id: '' }))}
                       className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm outline-none focus:border-ring">
                       <option value="">Select branch</option>
                       {filteredBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
                   </div>
                 </>
+              )}
+              {form.role === 'hub_manager' && (
+                <div>
+                  <label className="mb-1.5 block text-sm font-semibold text-ink">Hub</label>
+                  <select value={form.hub_id} onChange={(e) => setForm((f) => ({ ...f, hub_id: e.target.value }))}
+                    className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm outline-none focus:border-ring">
+                    <option value="">Select hub</option>
+                    {filteredHubs.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {form.role === 'local_office_manager' && (
+                <div>
+                  <label className="mb-1.5 block text-sm font-semibold text-ink">Local Office</label>
+                  <select value={form.local_office_id} onChange={(e) => setForm((f) => ({ ...f, local_office_id: e.target.value }))}
+                    className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm outline-none focus:border-ring">
+                    <option value="">Select local office</option>
+                    {filteredLocalOffices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  </select>
+                </div>
               )}
               {form.role === 'staff' && (
                 <div>
