@@ -7,9 +7,12 @@ from app.models.user import User
 from app.models.order import Order, CreatedByType, BookingChannel
 from app.models.payment import PaymentMethod
 from app.models.local_office import LocalOffice
+from app.models.invoice import Invoice
 from app.schemas.order import StaffOrderCreateRequest, OrderOut
 from app.services.order_service import create_order, get_or_create_guest_customer
 from app.services.receipt_pdf_service import generate_booking_receipt_pdf
+from app.services.invoice_pdf_service import generate_invoice_pdf
+from app.services.label_pdf_service import generate_shipping_label_pdf
 
 router = APIRouter(prefix="/local-office", tags=["Local Office"])
 
@@ -88,4 +91,49 @@ def get_booking_receipt_pdf(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={order.tracking_number}-receipt.pdf"},
+    )
+
+
+@router.get("/orders/{order_id}/invoice.pdf")
+def get_local_office_order_invoice_pdf(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*LOCAL_OFFICE_ROLES)),
+):
+    """The itemized billing invoice (distinct from the guest QR receipt
+    above) for an order booked at this counter."""
+    office = _resolve_local_office(current_user, db)
+    order = db.query(Order).filter(Order.id == order_id, Order.local_office_id == office.id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    invoice = db.query(Invoice).filter(Invoice.order_id == order.id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="No invoice exists for this order")
+
+    pdf_bytes = generate_invoice_pdf(invoice, order)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={invoice.invoice_number}.pdf"},
+    )
+
+
+@router.get("/orders/{order_id}/label.pdf")
+def get_local_office_order_label_pdf(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*LOCAL_OFFICE_ROLES)),
+):
+    """Printable shipping label for sticking on the parcel booked at this counter."""
+    office = _resolve_local_office(current_user, db)
+    order = db.query(Order).filter(Order.id == order_id, Order.local_office_id == office.id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    pdf_bytes = generate_shipping_label_pdf(order, location_name=office.name)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={order.tracking_number}-label.pdf"},
     )

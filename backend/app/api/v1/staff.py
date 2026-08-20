@@ -11,6 +11,7 @@ from app.schemas.order import StaffOrderCreateRequest, OrderOut
 from app.services.order_service import create_order, get_or_create_guest_customer, transition
 from app.services import notification_service
 from app.services.invoice_pdf_service import generate_invoice_pdf
+from app.services.label_pdf_service import generate_shipping_label_pdf
 
 router = APIRouter(prefix="/staff", tags=["Staff Panel"])
 
@@ -117,6 +118,31 @@ def get_order_invoice_pdf(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={invoice.invoice_number}.pdf"},
+    )
+
+
+@router.get("/orders/{order_id}/label.pdf")
+def get_order_label_pdf(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
+):
+    """Printable shipping label for sticking on the parcel - same branch
+    scope as the invoice above, so hub/branch staff can (re)print it for any
+    order booked at or currently sitting in their own branch."""
+    staff_profile = current_user.staff_profile
+    if not staff_profile or not staff_profile.branch_id:
+        raise HTTPException(status_code=400, detail="You must belong to a branch to view parcel labels")
+
+    order = db.query(Order).filter(Order.id == order_id, Order.branch_id == staff_profile.branch_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    pdf_bytes = generate_shipping_label_pdf(order, location_name=staff_profile.branch.name if staff_profile.branch else None)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={order.tracking_number}-label.pdf"},
     )
 
 

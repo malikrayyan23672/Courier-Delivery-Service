@@ -18,6 +18,8 @@ import {
   listStaffOrders,
   listStaffRiders,
   updateRiderWallet,
+  getStaffOrderInvoicePreviewUrl,
+  getStaffOrderLabelPreviewUrl,
   Order as ApiOrder,
   StaffRider,
   RiderCard,
@@ -609,6 +611,24 @@ export function BranchConsole() {
   todayStart.setHours(0, 0, 0, 0);
   const totalShipmentsToday = orders.filter((o) => o.created_at && new Date(o.created_at) >= todayStart).length;
 
+  const orderIdByTrackingNumber = useMemo(
+    () => Object.fromEntries(orders.map((o) => [o.tracking_number, o.id])),
+    [orders]
+  );
+
+  async function openOrderDocument(trackingNumber: string, kind: 'invoice' | 'label') {
+    const orderId = orderIdByTrackingNumber[trackingNumber];
+    if (!orderId || !token) return;
+    try {
+      const url = kind === 'invoice'
+        ? await getStaffOrderInvoicePreviewUrl(orderId, token)
+        : await getStaffOrderLabelPreviewUrl(orderId, token);
+      window.open(url, '_blank');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : `Could not open ${kind}.`);
+    }
+  }
+
   const filteredPickups = useMemo(() => pickups.filter((p) => {
     if (pickupStatusFilter && p.status !== pickupStatusFilter) return false;
     const q = pickupSearch.trim().toLowerCase();
@@ -933,7 +953,8 @@ export function BranchConsole() {
               failed={pickups.filter(p=>p.status==='Failed').length} progressPct={pickupProgressPct}
               search={pickupSearch} setSearch={setPickupSearch}
               statusFilter={pickupStatusFilter} setStatusFilter={setPickupStatusFilter}
-              onQuickAssign={handleQuickAssign} />
+              onQuickAssign={handleQuickAssign}
+              onOpenDocument={isAdminScope ? undefined : openOrderDocument} />
           )}
 
           {view === 'deliveries' && (
@@ -1195,7 +1216,7 @@ function OverviewView({ managerProfile, branchDetails, pendingPickups, pickedUpC
 // ============================================================
 // VIEW: PICKUPS
 // ============================================================
-function PickupsView({ pickups, total, pending, assigned, done, failed, progressPct, search, setSearch, statusFilter, setStatusFilter, onQuickAssign }: any) {
+function PickupsView({ pickups, total, pending, assigned, done, failed, progressPct, search, setSearch, statusFilter, setStatusFilter, onQuickAssign, onOpenDocument }: any) {
   return (
     <Card className="p-5">
       <StatStrip items={[
@@ -1233,6 +1254,7 @@ function PickupsView({ pickups, total, pending, assigned, done, failed, progress
               <TableHead>Rider Status</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Action</TableHead>
+              {onOpenDocument && <TableHead>Documents</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1252,10 +1274,18 @@ function PickupsView({ pickups, total, pending, assigned, done, failed, progress
                     ? <Button size="sm" variant="outline" className="text-[#db2203]" onClick={() => onQuickAssign(p.id)}>Quick Assign</Button>
                     : <span className="text-muted-foreground text-xs">—</span>}
                 </TableCell>
+                {onOpenDocument && (
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <button className="text-xs font-bold text-navy hover:underline" onClick={() => onOpenDocument(p.id, 'invoice')}>Invoice</button>
+                      <button className="text-xs font-bold text-navy hover:underline" onClick={() => onOpenDocument(p.id, 'label')}>Label</button>
+                    </div>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
             {pickups.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No pickups match your filters.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={onOpenDocument ? 8 : 7} className="text-center py-8 text-muted-foreground">No pickups match your filters.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

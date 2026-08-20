@@ -412,6 +412,70 @@ export async function downloadLocalOfficeReceipt(orderId: string, token: string,
   URL.revokeObjectURL(url);
 }
 
+// ---- Order documents (invoice + shipping label) shared by staff/manager/
+// hub_manager (branch-scoped) and local_office_manager (office-scoped) ----
+
+async function fetchPdfBlob(path: string, token: string, errorMsg: string): Promise<Blob> {
+  const res = await fetch(`${API_ORIGIN}/api/v1${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    let detail: unknown = errorMsg;
+    try { detail = (await res.json())?.detail ?? detail; } catch { /* non-JSON error body */ }
+    throw new ApiError(res.status, detail);
+  }
+  return res.blob();
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function getStaffOrderInvoicePreviewUrl(orderId: string, token: string): Promise<string> {
+  const blob = await fetchPdfBlob(`/staff/orders/${orderId}/invoice.pdf`, token, 'Could not load invoice.');
+  return URL.createObjectURL(blob);
+}
+
+export async function downloadStaffOrderInvoice(orderId: string, token: string, trackingNumber: string) {
+  const blob = await fetchPdfBlob(`/staff/orders/${orderId}/invoice.pdf`, token, 'Could not load invoice.');
+  downloadBlob(blob, `${trackingNumber}-invoice.pdf`);
+}
+
+export async function getStaffOrderLabelPreviewUrl(orderId: string, token: string): Promise<string> {
+  const blob = await fetchPdfBlob(`/staff/orders/${orderId}/label.pdf`, token, 'Could not load label.');
+  return URL.createObjectURL(blob);
+}
+
+export async function downloadStaffOrderLabel(orderId: string, token: string, trackingNumber: string) {
+  const blob = await fetchPdfBlob(`/staff/orders/${orderId}/label.pdf`, token, 'Could not load label.');
+  downloadBlob(blob, `${trackingNumber}-label.pdf`);
+}
+
+export async function getLocalOfficeOrderInvoicePreviewUrl(orderId: string, token: string): Promise<string> {
+  const blob = await fetchPdfBlob(`/local-office/orders/${orderId}/invoice.pdf`, token, 'Could not load invoice.');
+  return URL.createObjectURL(blob);
+}
+
+export async function downloadLocalOfficeOrderInvoice(orderId: string, token: string, trackingNumber: string) {
+  const blob = await fetchPdfBlob(`/local-office/orders/${orderId}/invoice.pdf`, token, 'Could not load invoice.');
+  downloadBlob(blob, `${trackingNumber}-invoice.pdf`);
+}
+
+export async function getLocalOfficeOrderLabelPreviewUrl(orderId: string, token: string): Promise<string> {
+  const blob = await fetchPdfBlob(`/local-office/orders/${orderId}/label.pdf`, token, 'Could not load label.');
+  return URL.createObjectURL(blob);
+}
+
+export async function downloadLocalOfficeOrderLabel(orderId: string, token: string, trackingNumber: string) {
+  const blob = await fetchPdfBlob(`/local-office/orders/${orderId}/label.pdf`, token, 'Could not load label.');
+  downloadBlob(blob, `${trackingNumber}-label.pdf`);
+}
+
 export function getBranchDetails(token: string){
   return request<BranchDetails>('/manager/branch/location', {method: 'GET'}, token);
 }

@@ -10,6 +10,8 @@ import {
   listStaffOrders,
   listStaffRiders,
   staffAssignRider,
+  getStaffOrderInvoicePreviewUrl,
+  getStaffOrderLabelPreviewUrl,
   Order,
   StaffRider,
   ApiError,
@@ -196,6 +198,18 @@ function StaffContent() {
     }
   }
 
+  async function openOrderDocument(orderId: string, kind: 'invoice' | 'label') {
+    if (!token) return;
+    try {
+      const url = kind === 'invoice'
+        ? await getStaffOrderInvoicePreviewUrl(orderId, token)
+        : await getStaffOrderLabelPreviewUrl(orderId, token);
+      window.open(url, '_blank');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : `Could not open ${kind}.`);
+    }
+  }
+
   async function handleAssign(orderId: string, riderId: string) {
     if (!riderId || !token) return;
     setAssigningId(orderId);
@@ -268,6 +282,14 @@ function StaffContent() {
                   Tracking number: <span className="font-mono font-bold">{booked.tracking_number}</span>
                   {booked.estimated_price ? ` — Rs. ${booked.estimated_price}` : ''}
                 </p>
+                <div className="flex gap-3 mt-3">
+                  <Button type="button" size="sm" variant="navy" onClick={() => openOrderDocument(booked.id, 'invoice')}>
+                    Print Invoice
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => openOrderDocument(booked.id, 'label')}>
+                    Print Parcel Label
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -398,6 +420,7 @@ function StaffContent() {
                           <TableHead>Status</TableHead>
                           <TableHead>Destination</TableHead>
                           <TableHead>Assign Rider</TableHead>
+                          <TableHead>Documents</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -433,6 +456,16 @@ function StaffContent() {
                               ) : (
                                 <span className="text-muted-foreground text-xs">—</span>
                               )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <button className="text-xs font-bold text-navy hover:underline" onClick={() => openOrderDocument(order.id, 'invoice')}>
+                                  Invoice
+                                </button>
+                                <button className="text-xs font-bold text-navy hover:underline" onClick={() => openOrderDocument(order.id, 'label')}>
+                                  Label
+                                </button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}

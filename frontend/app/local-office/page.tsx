@@ -9,6 +9,8 @@ import {
   bookLocalOfficeOrder,
   downloadLocalOfficeReceipt,
   getLocalOfficeReceiptPreviewUrl,
+  getLocalOfficeOrderInvoicePreviewUrl,
+  getLocalOfficeOrderLabelPreviewUrl,
   Order,
   ApiError,
 } from '@/lib/api';
@@ -126,6 +128,18 @@ function LocalOfficeContent() {
     }
   }
 
+  async function openOrderDocument(kind: 'invoice' | 'label') {
+    if (!booked || !token) return;
+    try {
+      const url = kind === 'invoice'
+        ? await getLocalOfficeOrderInvoicePreviewUrl(booked.id, token)
+        : await getLocalOfficeOrderLabelPreviewUrl(booked.id, token);
+      window.open(url, '_blank');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : `Could not open ${kind}.`);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-page">
       <header className="bg-white border-b border-line px-6 md:px-10 py-4 flex items-center justify-between">
@@ -155,9 +169,15 @@ function LocalOfficeContent() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <iframe src={receiptUrl} title="Booking receipt" className="w-full h-[600px] border border-line rounded-[10px]" />
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   <Button variant="navy" onClick={handlePrintReceipt} disabled={downloading}>
                     {downloading ? 'Preparing…' : 'Print Receipt'}
+                  </Button>
+                  <Button variant="outline" onClick={() => openOrderDocument('invoice')}>
+                    Print Invoice
+                  </Button>
+                  <Button variant="outline" onClick={() => openOrderDocument('label')}>
+                    Print Parcel Label
                   </Button>
                   <Button variant="ghost" onClick={startNewBooking}>
                     Book Another Parcel
