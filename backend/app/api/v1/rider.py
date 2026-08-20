@@ -11,7 +11,7 @@ from app.models.user import User
 from app.models.rider import RiderProfile, RiderStatus
 from app.models.order import Order, OrderStatus
 from app.models.delivery_attempt import DeliveryAttempt
-from app.models.branch import Branch
+from app.models.hub import Hub
 from app.models.staff import StaffProfile
 from app.models.order_message import OrderMessage
 from app.models.bus_network import ManifestItem, ScanStatus
@@ -301,7 +301,7 @@ def my_deliveries(
 
     return (
         db.query(Order)
-        .options(joinedload(Order.pickup_address), joinedload(Order.dropoff_address), joinedload(Order.branch))
+        .options(joinedload(Order.pickup_address), joinedload(Order.dropoff_address), joinedload(Order.hub))
         .filter(Order.rider_id == rider_profile.id)
         .order_by(Order.created_at.desc())
         .all()
@@ -322,7 +322,7 @@ def my_delivery_detail(
             joinedload(Order.dropoff_address),
             joinedload(Order.tracking_events),
             joinedload(Order.payment),
-            joinedload(Order.branch),
+            joinedload(Order.hub),
         )
         .filter(Order.id == order_id, Order.rider_id == rider_profile.id)
         .first()
@@ -347,9 +347,9 @@ def my_delivery_detail(
         discount_id=str(order.discount_id) if order.discount_id else None,
         discount_amount=order.discount_amount,
         rider_accepted=order.rider_accepted,
-        branch_name=order.branch.name if order.branch else None,
-        branch_address=order.branch.address if order.branch else None,
-        branch_phone=order.branch.phone if order.branch else None,
+        branch_name=order.hub.name if order.hub else None,
+        branch_address=order.hub.address if order.hub else None,
+        branch_phone=order.hub.phone if order.hub else None,
         created_at=order.created_at,
         proof_of_delivery_url=order.proof_of_delivery_url,
         proof_of_delivery_recipient_name=order.proof_of_delivery_recipient_name,
@@ -376,10 +376,10 @@ def nearby_parcels(
         joinedload(Order.pickup_address), joinedload(Order.dropoff_address)
     ).filter(Order.status == OrderStatus.created, Order.rider_id.is_(None))
 
-    if rider_profile.branch_id:
-        branch = db.query(Branch).filter(Branch.id == rider_profile.branch_id).first()
-        if branch and branch.zone_id:
-            query = query.filter(Order.zone_id == branch.zone_id)
+    if rider_profile.hub_id:
+        hub = db.query(Hub).filter(Hub.id == rider_profile.hub_id).first()
+        if hub and hub.zone_id:
+            query = query.filter(Order.zone_id == hub.zone_id)
 
     orders = query.order_by(Order.created_at.asc()).all()
 
@@ -719,7 +719,7 @@ def report_delivery_failed(
             db, order, OrderStatus.rto, actor=current_user,
             note=f"Auto-RTO - {rto_reason} - proof attached",
         )
-        for staff in db.query(StaffProfile).filter(StaffProfile.branch_id == order.branch_id).all():
+        for staff in db.query(StaffProfile).filter(StaffProfile.hub_id == order.hub_id).all():
             notification_service.notify(
                 db, user_id=staff.user_id, title="Parcel returned to origin",
                 message=f"{order.tracking_number} was returned - {rto_reason}.",

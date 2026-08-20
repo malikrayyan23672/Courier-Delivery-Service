@@ -72,7 +72,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
-  Activity, AlertTriangle, BarChart3, Bell, ChevronDown, ChevronRight, CircleDollarSign,
+  Activity, AlertTriangle, BarChart3, ChevronDown, ChevronRight, CircleDollarSign,
   ImagePlus, LayoutDashboard, Loader2, LogOut, MapPin, Menu, Package, PackagePlus, PackageSearch,
   Printer, Settings, Store, Truck, Undo2, Upload, X,
 } from 'lucide-react';

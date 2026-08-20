@@ -54,11 +54,11 @@ export default function AdminUsersPage() {
 interface FormState {
   full_name: string; email: string; phone: string; cnic: string; password: string;
   role: 'staff' | 'rider' | 'admin' | 'manager' | 'hub_manager' | 'local_office_manager' | 'customer';
-  designation: string; zone_id: string; branch_id: string; hub_id: string; local_office_id: string;
+  designation: string; zone_id: string; hub_id: string; branch_id: string; local_branch_id: string;
 }
 const INITIAL_FORM: FormState = {
   full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff',
-  designation: '', zone_id: '', branch_id: '', hub_id: '', local_office_id: '',
+  designation: '', zone_id: '', hub_id: '', branch_id: '', local_branch_id: '',
 };
 
 function TeamAccountsSection({ token }: { token: string }) {
@@ -87,9 +87,9 @@ function TeamAccountsSection({ token }: { token: string }) {
 
   useEffect(load, [token]);
 
-  const filteredBranches = branches.filter((b) => b.zone_id === form.zone_id);
-  const filteredHubs = hubs.filter((h) => h.branch_id === form.branch_id);
-  const filteredLocalOffices = localOffices.filter((o) => o.hub_id === form.hub_id);
+  const hubOptions = hubs.filter((h) => h.zone_id === form.zone_id);
+  const branchOptions = branches.filter((b) => b.hub_id === form.hub_id);
+  const localBranchOptions = localOffices.filter((o) => o.branch_id === form.branch_id);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return users;
@@ -177,11 +177,11 @@ function TeamAccountsSection({ token }: { token: string }) {
               <TextField label="Temporary password" type="password" required value={form.password} onChange={(v) => setForm((f) => ({ ...f, password: v }))} />
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-ink">Role</label>
-                <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as FormState['role'], zone_id: '', branch_id: '', hub_id: '', local_office_id: '' }))}
+                <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as FormState['role'], zone_id: '', hub_id: '', branch_id: '', local_branch_id: '' }))}
                   className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm outline-none focus:border-ring">
                   <option value="staff">Staff</option>
-                  <option value="manager">Branch Manager</option>
-                  <option value="hub_manager">Hub Manager</option>
+                  <option value="manager">Hub Manager (city)</option>
+                  <option value="hub_manager">Branch Manager (sorting)</option>
                   <option value="local_office_manager">Local Office Manager</option>
                   <option value="rider">Rider</option>
                   <option value="admin">Admin</option>
@@ -192,7 +192,7 @@ function TeamAccountsSection({ token }: { token: string }) {
                 <>
                   <div>
                     <label className="mb-1.5 block text-sm font-semibold text-ink">Zone / City</label>
-                    <select value={form.zone_id} onChange={(e) => setForm((f) => ({ ...f, zone_id: e.target.value, branch_id: '', hub_id: '', local_office_id: '' }))}
+                    <select value={form.zone_id} onChange={(e) => setForm((f) => ({ ...f, zone_id: e.target.value, hub_id: '', branch_id: '', local_branch_id: '' }))}
                       className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm outline-none focus:border-ring">
                       <option value="">Select zone</option>
                       {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
@@ -200,35 +200,32 @@ function TeamAccountsSection({ token }: { token: string }) {
                     {form.role === 'admin' && <p className="mt-1 text-xs text-muted-foreground">Leave unset for a network-wide admin (sees every city).</p>}
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-sm font-semibold text-ink">Branch</label>
-                    <select value={form.branch_id} onChange={(e) => setForm((f) => ({ ...f, branch_id: e.target.value, hub_id: '', local_office_id: '' }))}
+                    <label className="mb-1.5 block text-sm font-semibold text-ink">Hub (city office)</label>
+                    <select value={form.hub_id} onChange={(e) => setForm((f) => ({ ...f, hub_id: e.target.value, branch_id: '', local_branch_id: '' }))}
                       className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm outline-none focus:border-ring">
-                      <option value="">Select branch</option>
-                      {filteredBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      <option value="">Select hub</option>
+                      {hubOptions.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
                     </select>
                   </div>
                 </>
               )}
               {(form.role === 'hub_manager' || form.role === 'local_office_manager') && (
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-ink">Hub</label>
-                  <select value={form.hub_id} onChange={(e) => setForm((f) => ({ ...f, hub_id: e.target.value, local_office_id: '' }))}
+                  <label className="mb-1.5 block text-sm font-semibold text-ink">Branch (sorting)</label>
+                  <select value={form.branch_id} onChange={(e) => setForm((f) => ({ ...f, branch_id: e.target.value, local_branch_id: '' }))} disabled={!form.hub_id}
                     className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm outline-none focus:border-ring">
-                    <option value="">Select hub</option>
-                    {filteredHubs.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                    <option value="">Select branch</option>
+                    {branchOptions.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
-                  {form.role === 'local_office_manager' && (
-                    <p className="mt-1 text-xs text-muted-foreground">Every local office belongs to a hub - pick the hub first.</p>
-                  )}
                 </div>
               )}
               {form.role === 'local_office_manager' && (
                 <div>
                   <label className="mb-1.5 block text-sm font-semibold text-ink">Local Office</label>
-                  <select value={form.local_office_id} onChange={(e) => setForm((f) => ({ ...f, local_office_id: e.target.value }))} disabled={!form.hub_id}
+                  <select value={form.local_branch_id} onChange={(e) => setForm((f) => ({ ...f, local_branch_id: e.target.value }))} disabled={!form.branch_id}
                     className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm outline-none focus:border-ring">
                     <option value="">Select local office</option>
-                    {filteredLocalOffices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                    {localBranchOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                   </select>
                 </div>
               )}

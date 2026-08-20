@@ -78,15 +78,15 @@ class Order(Base, TimestampMixin):
     rider_accepted = Column(Boolean, nullable=True)
 
     zone_id = Column(UUID_TYPE, ForeignKey("zones.id"), nullable=True)
-    branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=True)
+    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=True)
     zone = relationship("Zone")
-    branch = relationship("Branch")
+    hub = relationship("Hub")
 
     # Set only when this order was booked as a walk-in guest at a local
-    # office counter (see app/api/v1/local_office.py) - records exactly
-    # which office booked it, distinct from `branch_id`'s routing role.
-    local_office_id = Column(UUID_TYPE, ForeignKey("local_offices.id"), nullable=True)
-    local_office = relationship("LocalOffice")
+    # branch counter (see app/api/v1/local_branch.py) - records exactly
+    # which counter booked it, distinct from `hub_id`'s routing role.
+    local_branch_id = Column(UUID_TYPE, ForeignKey("local_branches.id"), nullable=True)
+    local_branch = relationship("LocalBranch")
 
     # Which physical branch this parcel is currently associated with - the
     # rider-app's "drop off at this hub" prompt after pickup. Set at booking
@@ -95,15 +95,15 @@ class Order(Base, TimestampMixin):
     # reflects wherever the parcel is actually routed through right now.
     @property
     def branch_name(self) -> str | None:
-        return self.branch.name if self.branch else None
+        return self.hub.name if self.hub else None
 
     @property
     def branch_address(self) -> str | None:
-        return self.branch.address if self.branch else None
+        return self.hub.address if self.hub else None
 
     @property
     def branch_phone(self) -> str | None:
-        return self.branch.phone if self.branch else None
+        return self.hub.phone if self.hub else None
 
     estimated_price = Column(Float, nullable=True)
     final_price = Column(Float, nullable=True)

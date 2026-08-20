@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import {
   listVisibleAnnouncements, listAdminAnnouncements, createAnnouncement,
   toggleAnnouncement, deleteAnnouncement, sendNotification,
-  listBranches, Branch, AnnouncementItem, ApiError,
+  listHubs, Hub, AnnouncementItem, NotificationTarget, ApiError,
 } from '@/lib/api';
 
 const TARGET_ROLES = ['staff', 'rider', 'manager', 'finance', 'business', 'customer'];
@@ -42,7 +42,7 @@ export function AnnouncementsPanel({ token, admin = false, className }: {
 }) {
   const [visible, setVisible] = useState<AnnouncementItem[]>([]);
   const [all, setAll] = useState<AnnouncementItem[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const [hubs, setHubs] = useState<Hub[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -65,7 +65,7 @@ export function AnnouncementsPanel({ token, admin = false, className }: {
     listVisibleAnnouncements(token).then(setVisible).catch(() => {});
     if (admin) {
       listAdminAnnouncements(token).then(setAll).catch(() => {});
-      listBranches(token).then(setBranches).catch(() => {});
+      listHubs(token).then(setHubs).catch(() => {});
     }
   }, [token, admin]);
 
@@ -77,7 +77,7 @@ export function AnnouncementsPanel({ token, admin = false, className }: {
     if (!nTitle.trim() || !nMessage.trim()) return;
     setSending(true); setError(''); setSuccess('');
     try {
-      const target =
+      const target: NotificationTarget =
         nTarget === 'role' ? { scope: 'role', role: nRole } :
         nTarget === 'branch' ? { scope: 'branch', branch_id: nBranch } :
         { scope: 'all' };
@@ -161,11 +161,11 @@ export function AnnouncementsPanel({ token, admin = false, className }: {
             )}
             {nTarget === 'branch' && (
               <div className="space-y-1.5">
-                <Label>Branch</Label>
+                <Label>Hub (city office)</Label>
                 <Select value={nBranch} onValueChange={setNBranch}>
-                  <SelectTrigger><SelectValue placeholder="Choose a branch" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Choose a hub" /></SelectTrigger>
                   <SelectContent>
-                    {branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                    {hubs.map((h) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -197,12 +197,12 @@ export function AnnouncementsPanel({ token, admin = false, className }: {
                   <Input value={aTitle} onChange={(e) => setATitle(e.target.value)} placeholder="Announcement title" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Branch (optional)</Label>
+                  <Label>Hub (optional)</Label>
                   <Select value={aBranch} onValueChange={setABranch}>
-                    <SelectTrigger><SelectValue placeholder="All branches" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="All hubs" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__all">All branches</SelectItem>
-                      {branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                      <SelectItem value="__all">All hubs</SelectItem>
+                      {hubs.map((h) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

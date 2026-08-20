@@ -66,7 +66,7 @@ from datetime import datetime, timezone
 from app.models.rider import RiderProfile, RiderStatus
 from app.models.order import Order, OrderStatus
 from app.models.tracking_event import TrackingEvent
-from app.models.branch import Branch
+from app.models.hub import Hub
 from app.models.rider_status_request import RiderStatusRequest, RequestStatus
 from app.models.parcel_unlock_request import ParcelUnlockRequest
 from app.models.support_ticket import SupportTicket, SupportTicketMessage, SupportTicketStatus
@@ -89,10 +89,10 @@ def list_branch_orders(
     current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     staff_profile = current_user.staff_profile
-    if not staff_profile or not staff_profile.branch_id:
+    if not staff_profile or not staff_profile.hub_id:
         raise HTTPException(status_code=400, detail="You must belong to a branch to list branch orders")
     
-    return db.query(Order).filter(Order.branch_id == staff_profile.branch_id).order_by(Order.created_at.desc()).all()
+    return db.query(Order).filter(Order.hub_id == staff_profile.hub_id).order_by(Order.created_at.desc()).all()
 
 
 @router.get("/orders/{order_id}/invoice.pdf")
@@ -102,10 +102,10 @@ def get_order_invoice_pdf(
     current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     staff_profile = current_user.staff_profile
-    if not staff_profile or not staff_profile.branch_id:
+    if not staff_profile or not staff_profile.hub_id:
         raise HTTPException(status_code=400, detail="You must belong to a branch to view order invoices")
 
-    order = db.query(Order).filter(Order.id == order_id, Order.branch_id == staff_profile.branch_id).first()
+    order = db.query(Order).filter(Order.id == order_id, Order.hub_id == staff_profile.hub_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
@@ -131,14 +131,14 @@ def get_order_label_pdf(
     scope as the invoice above, so hub/branch staff can (re)print it for any
     order booked at or currently sitting in their own branch."""
     staff_profile = current_user.staff_profile
-    if not staff_profile or not staff_profile.branch_id:
+    if not staff_profile or not staff_profile.hub_id:
         raise HTTPException(status_code=400, detail="You must belong to a branch to view parcel labels")
 
-    order = db.query(Order).filter(Order.id == order_id, Order.branch_id == staff_profile.branch_id).first()
+    order = db.query(Order).filter(Order.id == order_id, Order.hub_id == staff_profile.hub_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    pdf_bytes = generate_shipping_label_pdf(order, location_name=staff_profile.branch.name if staff_profile.branch else None)
+    pdf_bytes = generate_shipping_label_pdf(order, location_name=staff_profile.hub.name if staff_profile.hub else None)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -152,17 +152,17 @@ def list_branch_zone_riders(
     current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     staff_profile = current_user.staff_profile
-    if not staff_profile or not staff_profile.branch_id or not staff_profile.branch:
+    if not staff_profile or not staff_profile.hub_id or not staff_profile.hub:
         raise HTTPException(status_code=400, detail="You must belong to a branch to list active riders")
     
-    zone_id = staff_profile.branch.zone_id
+    zone_id = staff_profile.hub.zone_id
     if not zone_id:
         raise HTTPException(status_code=400, detail="Your branch must belong to a zone to list active riders")
 
     riders = (
         db.query(RiderProfile)
-        .join(Branch, RiderProfile.branch_id == Branch.id)
-        .filter(RiderProfile.status == RiderStatus.active, Branch.zone_id == zone_id)
+        .join(Hub, RiderProfile.hub_id == Hub.id)
+        .filter(RiderProfile.status == RiderStatus.active, Hub.zone_id == zone_id)
         .all()
     )
 
@@ -191,19 +191,19 @@ def list_branch_zone_rider_locations(
     """Live rider positions for the staff Live Map - scoped to the staff
     member's own branch zone, mirroring list_branch_zone_riders above."""
     staff_profile = current_user.staff_profile
-    if not staff_profile or not staff_profile.branch_id or not staff_profile.branch:
+    if not staff_profile or not staff_profile.hub_id or not staff_profile.hub:
         raise HTTPException(status_code=400, detail="You must belong to a branch to view rider locations")
 
-    zone_id = staff_profile.branch.zone_id
+    zone_id = staff_profile.hub.zone_id
     if not zone_id:
         raise HTTPException(status_code=400, detail="Your branch must belong to a zone to view rider locations")
 
     riders = (
         db.query(RiderProfile)
-        .join(Branch, RiderProfile.branch_id == Branch.id)
+        .join(Hub, RiderProfile.hub_id == Hub.id)
         .filter(
             RiderProfile.status == RiderStatus.active,
-            Branch.zone_id == zone_id,
+            Hub.zone_id == zone_id,
             RiderProfile.current_lat.isnot(None),
             RiderProfile.current_lng.isnot(None),
         )
@@ -232,10 +232,10 @@ def staff_assign_rider(
     current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     staff_profile = current_user.staff_profile
-    if not staff_profile or not staff_profile.branch_id or not staff_profile.branch:
+    if not staff_profile or not staff_profile.hub_id or not staff_profile.hub:
         raise HTTPException(status_code=400, detail="You must belong to a branch to assign riders")
     
-    zone_id = staff_profile.branch.zone_id
+    zone_id = staff_profile.hub.zone_id
     if not zone_id:
         raise HTTPException(status_code=400, detail="Your branch must belong to a zone to assign riders")
 
@@ -249,11 +249,11 @@ def staff_assign_rider(
 
     rider = (
         db.query(RiderProfile)
-        .join(Branch, RiderProfile.branch_id == Branch.id)
+        .join(Hub, RiderProfile.hub_id == Hub.id)
         .filter(
             RiderProfile.id == rider_id,
             RiderProfile.status == RiderStatus.active,
-            Branch.zone_id == zone_id
+            Hub.zone_id == zone_id
         )
         .first()
     )
@@ -269,7 +269,7 @@ def staff_assign_rider(
         order,
         OrderStatus.assigned,
         actor=current_user,
-        note=f"Manually assigned by staff {current_user.full_name} at branch {staff_profile.branch.name}",
+        note=f"Manually assigned by staff {current_user.full_name} at branch {staff_profile.hub.name}",
     )
     notification_service.notify(
         db,

@@ -1,7 +1,7 @@
 import re
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 PHONE_REGEX = re.compile(r"^\+?[0-9]{7,15}$")
 MAX_PACKAGE_WEIGHT_KG = 100.0  # sanity ceiling - adjust to your fleet's real limits
@@ -96,6 +96,10 @@ class OrderOut(BaseModel):
     rider_accepted: Optional[bool] = None
     zone_id: Optional[str] = None
     branch_id: Optional[str] = None
+    # Internal source for the `branch_id` response key - the model renamed
+    # Order.branch_id -> Order.hub_id, but the frontend's response contract
+    # still reads `branch_id`, so we keep the key and copy from hub_id.
+    hub_id: Optional[str] = Field(None, exclude=True)
     # The branch this parcel is currently routed through - where the rider
     # who just picked it up should drop it off (origin branch), or where a
     # last-mile rider is picking it up from after dest_hub arrival.
@@ -111,6 +115,11 @@ class OrderOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @model_validator(mode="after")
+    def _fill_branch_id(self):
+        self.branch_id = str(self.hub_id) if self.hub_id else None
+        return self
 
 
 class TrackingEventOut(BaseModel):

@@ -97,8 +97,8 @@ def _schedule_out(s: BusSchedule) -> BusScheduleOut:
         operator_name=s.operator.name if s.operator else None,
         origin_city=s.origin_city,
         destination_city=s.destination_city,
-        origin_branch_id=str(s.origin_branch_id) if s.origin_branch_id else None,
-        destination_branch_id=str(s.destination_branch_id) if s.destination_branch_id else None,
+        origin_branch_id=str(s.origin_hub_id) if s.origin_hub_id else None,
+        destination_branch_id=str(s.destination_hub_id) if s.destination_hub_id else None,
         departure_time=s.departure_time,
         departure_interval_min=s.departure_interval_min,
         fare=s.fare,
@@ -338,14 +338,14 @@ def update_manifest_status(
             # A first-class, resolvable record (TRD: "discrepancy triggers
             # INCIDENT") - the log line above is audit trail, this is what
             # the hub console's Incidents view actually works off of.
-            incident_branch_id = (
-                (manifest.schedule.destination_branch_id if manifest.schedule else None)
-                or manifest.origin_branch_id
+            incident_hub_id = (
+                (manifest.schedule.destination_hub_id if manifest.schedule else None)
+                or manifest.origin_hub_id
             )
-            if incident_branch_id:
+            if incident_hub_id:
                 db.add(
                     ParcelIncident(
-                        branch_id=incident_branch_id,
+                        hub_id=incident_hub_id,
                         manifest_id=manifest.id,
                         type=IncidentType.count_mismatch,
                         note=f"Manifest {manifest.manifest_number}: expected {len(manifest.items)} crates, "
@@ -365,9 +365,9 @@ def update_manifest_status(
                 transition(db, item.order, OrderStatus.in_transit, actor=current_user, note=f"Manifest {manifest.manifest_number} departed")
             elif new_manifest_status == ManifestStatus.arrived and item.order.status == OrderStatus.in_transit:
                 transition(db, item.order, OrderStatus.dest_hub, actor=current_user, note=f"Manifest {manifest.manifest_number} arrived")
-                dest_branch_id = manifest.schedule.destination_branch_id if manifest.schedule else None
-                if dest_branch_id:
-                    handle_dest_hub_arrival(db, item.order, dest_branch_id, actor=current_user)
+                dest_hub_id = manifest.schedule.destination_hub_id if manifest.schedule else None
+                if dest_hub_id:
+                    handle_dest_hub_arrival(db, item.order, dest_hub_id, actor=current_user)
 
     db.commit()
     manifest = (

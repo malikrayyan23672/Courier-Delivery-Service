@@ -17,8 +17,8 @@ import {
   AdminUser,
   AdminAnalytics,
   ApiError,
-  listBranches,
-  Branch,
+  listHubs,
+  Hub,
   Zone,
   listZones,
   StaffProfile,
@@ -917,11 +917,11 @@ interface FormState {
   role: 'staff' | 'rider' | 'admin' | 'customer';
   designation: string;
   zone_id: string;
-  branch_id: string;
+  hub_id: string;
 }
 
 const INITIAL_FORM: FormState = {
-  full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer', designation: '', zone_id: '', branch_id: '',
+  full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer', designation: '', zone_id: '', hub_id: '',
 };
 
 const USER_ICON = (
@@ -965,8 +965,8 @@ function TeamTab({ token }: { token: string }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [staffProfiles, setStaffProfiles] = useState<StaffProfile[]>([])
   const [showDesignationSelector, setShowDesignationSelector] = useState(true)
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [filteredBranches, setFilteredBranches] = useState<Branch[]>([]);
+  const [hubs, setHubs] = useState<Hub[]>([]);
+  const [filteredHubs, setFilteredHubs] = useState<Hub[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -978,7 +978,7 @@ function TeamTab({ token }: { token: string }) {
 
   useEffect(() => {
     loadUsers();
-    loadBranches();
+    loadHubs();
     loadZones();
   }, [token]);
 
@@ -990,16 +990,16 @@ function TeamTab({ token }: { token: string }) {
       .finally(() => setLoading(false));
   }
 
-  function loadBranches() {
+  function loadHubs() {
     setLoading(true);
-    listBranches(token)
-      .then(setBranches)
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load branches'))
+    listHubs(token)
+      .then(setHubs)
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load hubs'))
       .finally(() => setLoading(false));
   }
 
-  function filterBranches(zone_id: string) {
-    setFilteredBranches(branches.filter((o) => o.zone_id == zone_id));
+  function filterHubs(zone_id: string) {
+    setFilteredHubs(hubs.filter((o) => o.zone_id == zone_id));
   }
 
   function loadZones() {
@@ -1018,7 +1018,7 @@ function TeamTab({ token }: { token: string }) {
       const newUser = await createStaffOrRider(form, token);
       setUsers((prev) => [newUser, ...prev]);
       setShowForm(false);
-      setForm({ full_name: '', email: '', phone: '', cnic: '', password: '', designation: '', role: 'staff', zone_id: '', branch_id: '' });
+      setForm({ full_name: '', email: '', phone: '', cnic: '', password: '', designation: '', role: 'staff', zone_id: '', hub_id: '' });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create account.');
     } finally {
@@ -1081,7 +1081,7 @@ function TeamTab({ token }: { token: string }) {
                   value={form.role}
                   onChange={(e) => {
                     const newRole = e.target.value as typeof form.role;
-                    setForm((f) => ({ ...f, role: newRole, zone_id: '', branch_id: '', designation: '' }));
+                    setForm((f) => ({ ...f, role: newRole, zone_id: '', hub_id: '', designation: '' }));
                     setShowStaffZoneSelector(newRole === 'staff' || newRole === 'rider');
                     setShowDesignationSelector(newRole === 'staff');
                     setShowStaffBranchSelector(false);
@@ -1100,8 +1100,8 @@ function TeamTab({ token }: { token: string }) {
                     value={form.zone_id}
                     onChange={(e) => {
                       const selectedZoneId = e.target.value;
-                      setForm((f) => ({ ...f, zone_id: selectedZoneId, branch_id: '' }));
-                      filterBranches(selectedZoneId);
+                      setForm((f) => ({ ...f, zone_id: selectedZoneId, hub_id: '' }));
+                      filterHubs(selectedZoneId);
                       setShowStaffBranchSelector(selectedZoneId !== '');
                     }}
                     className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm text-ink outline-none focus:border-ring"
@@ -1114,14 +1114,14 @@ function TeamTab({ token }: { token: string }) {
 
               {showStaffBranchSelector && (
                 <div className="mb-5">
-                  <label className="mb-1.5 block text-sm font-semibold text-ink">Branch</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-ink">Hub (city office)</label>
                   <select
-                    value={form.branch_id}
-                    onChange={(e) => setForm((f) => ({ ...f, branch_id: e.target.value }))}
+                    value={form.hub_id}
+                    onChange={(e) => setForm((f) => ({ ...f, hub_id: e.target.value }))}
                     className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm text-ink outline-none focus:border-ring"
                   >
-                    <option value="">Select a branch</option>
-                    {filteredBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    <option value="">Select a hub</option>
+                    {filteredHubs.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
                   </select>
                 </div>
               )}

@@ -6,7 +6,7 @@ from app.database import get_db
 from app.core.permissions import require_roles
 from app.models.staff import StaffProfile
 from app.models.user import User
-from app.models.branch import Branch
+from app.models.hub import Hub
 from typing import Optional
 
 router = APIRouter(prefix="/manager", tags=["Manager"])
@@ -49,20 +49,20 @@ def my_profile(
 # @router.get('/branch/location', response_model=BranchLocationOut)
 # def branch_location(db: Session = Depends(get_db), current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager"))):
 
-#     branch = db.query(Branch).filter(Branch.manager_id == current_user.id).first()
+#     hub = db.query(Hub).filter(Hub.manager_id == current_user.id).first()
 
-#     if not branch:
+#     if not hub:
 #         raise HTTPException(status_code=400, detail=f"could not found branch manager_id = {current_user.staff_profile.id}")
 
 #     return BranchLocationOut(
-#         id=branch.id,
-#         name=branch.name,
-#         address=branch.address,
-#         manager_id=branch.manager_id,
-#         phone=branch.phone,
-#         email=branch.email,
-#         latitude=branch.latitude,
-#         longitude=branch.longitude
+#         id=hub.id,
+#         name=hub.name,
+#         address=hub.address,
+#         manager_id=hub.manager_id,
+#         phone=hub.phone,
+#         email=hub.email,
+#         latitude=hub.latitude,
+#         longitude=hub.longitude
 
 #     )
 
@@ -80,14 +80,14 @@ def branch_location(
             detail="staff profile not found"
         )
     # The branch a manager/staff member belongs to is linked through their
-    # staff profile's branch_id. `Branch.manager_id` is a legacy column that
-    # seeding never populates, so prefer branch_id and fall back to the
+    # staff profile's hub_id. `Hub.manager_id` is a legacy column that
+    # seeding never populates, so prefer hub_id and fall back to the
     # legacy manager link before giving up.
     branch = None
-    if staff_profile.branch_id:
-        branch = db.query(Branch).filter(Branch.id == staff_profile.branch_id).first()
+    if staff_profile.hub_id:
+        branch = db.query(Hub).filter(Hub.id == staff_profile.hub_id).first()
     if not branch:
-        branch = db.query(Branch).filter(Branch.manager_id == staff_profile.user_id).first()
+        branch = db.query(Hub).filter(Hub.manager_id == staff_profile.user_id).first()
 
     if not branch:
         raise HTTPException(

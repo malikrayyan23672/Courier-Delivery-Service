@@ -127,12 +127,12 @@ class AdminCreateUserRequest(RegisterRequest):
     Skips OTP verification since the admin is vouching for this person in person."""
     role: str = Field(..., pattern="^(staff|rider|admin|manager|hub_manager|local_office_manager|customer|super_admin)$")
     zone_id: str | None = Field(None, description="Zone ID for staff/rider assignment")
-    branch_id: str | None = Field(None, description="Branch ID for staff/rider assignment")
+    hub_id: str | None = Field(None, description="Hub a staff/rider/manager/admin is attached to")
     designation: str | None = Field(None, description="Designation of each staff")
     branch_name: str | None = Field(None, description="Branch name for staff/rider assignment")
-    branch_location: str | None = Field(None, description="Branch location for staff/rider assignmet")
-    hub_id: str | None = Field(None, description="Hub ID for hub_manager assignment")
-    local_office_id: str | None = Field(None, description="Local office ID for local_office_manager assignment")
+    branch_location: str | None = Field(None, description="Branch location for staff/rider assignment")
+    branch_id: str | None = Field(None, description="Branch a hub_manager manages")
+    local_branch_id: str | None = Field(None, description="Local branch a local_office_manager manages")
 
 
 class LoginRequest(BaseModel):

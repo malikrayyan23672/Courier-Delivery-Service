@@ -23,13 +23,13 @@ class UserOut(BaseModel):
         # branch_id = None
         # zone_id = None
         # if user.role.name == "staff" and user.staff_profile:
-            # branch_id = str(user.staff_profile.branch_id) if user.staff_profile.branch_id else None
-            # if user.staff_profile.branch:
-                # zone_id = str(user.staff_profile.branch.zone_id) if user.staff_profile.branch.zone_id else None
+            # branch_id = str(user.staff_profile.hub_id) if user.staff_profile.hub_id else None
+            # if user.staff_profile.hub:
+                # zone_id = str(user.staff_profile.hub.zone_id) if user.staff_profile.hub.zone_id else None
         # elif user.role.name == "rider" and user.rider_profile:
-            # branch_id = str(user.rider_profile.branch_id) if user.rider_profile.branch_id else None
-            # if user.rider_profile.branch:
-                # zone_id = str(user.rider_profile.branch.zone_id) if user.rider_profile.branch.zone_id else None
+            # branch_id = str(user.rider_profile.hub_id) if user.rider_profile.hub_id else None
+            # if user.rider_profile.hub:
+                # zone_id = str(user.rider_profile.hub.zone_id) if user.rider_profile.hub.zone_id else None
 
         return cls(
             id=str(user.id),

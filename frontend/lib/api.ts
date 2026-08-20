@@ -899,7 +899,41 @@ export function addCity(payload: AddCityPayload, token: string) {
   return request<{ zone: Zone; branch: Branch }>('/admin/cities', { method: 'POST', body: JSON.stringify(payload) }, token);
 }
 
-export interface Branch{
+// ---- Network hierarchy: Headquarter -> Hub -> Branch -> LocalBranch ----
+
+export interface Headquarter {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  status: string;
+  manager_id: string | null;
+  manager_name: string | null;
+}
+
+export interface HeadquarterInput {
+  name: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  status?: 'active' | 'inactive';
+}
+
+export function listHeadquarters(token: string) {
+  return request<Headquarter[]>('/admin/headquarters', { method: 'GET' }, token);
+}
+
+export function createHeadquarter(payload: HeadquarterInput, token: string) {
+  return request<Headquarter>('/admin/headquarters', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function updateHeadquarter(id: string, payload: Partial<HeadquarterInput>, token: string) {
+  return request<Headquarter>(`/admin/headquarters/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
+// Hubs = city-level main offices, under the headquarter.
+export interface Hub {
   id: string;
   name: string;
   address: string | null;
@@ -909,15 +943,18 @@ export interface Branch{
   closing_time: string | null;
   latitude: string | null;
   longitude: string | null;
-  status: string;
   zone_id: string | null;
   zone_name: string | null;
+  status: string;
+  headquarter_id: string | null;
+  headquarter_name: string | null;
   admin_id: string | null;
   admin_name: string | null;
 }
 
-export interface BranchInput {
+export interface HubInput {
   name: string;
+  headquarter_id?: string;
   address?: string;
   phone?: string;
   email?: string;
@@ -929,50 +966,8 @@ export interface BranchInput {
   status?: 'active' | 'inactive';
 }
 
-export function listStaffAndRiders(token: string) {
-  return request<AdminUser[]>('/admin/users', { method: 'GET' }, token);
-}
-
-export function listZones(token: string){
-
-  return request<Zone[]>('/admin/zones', {method: 'GET'}, token);
-}
-
-export function listBranches(token: string){
-  return request<Branch[]>('/admin/branches', {method: 'GET'}, token);
-}
-
-export function createBranch(payload: BranchInput, token: string) {
-  return request<Branch>('/admin/branches', { method: 'POST', body: JSON.stringify(payload) }, token);
-}
-
-export function updateBranch(branchId: string, payload: Partial<BranchInput>, token: string) {
-  return request<Branch>(`/admin/branches/${branchId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
-}
-
-// ---- Hubs & Local Offices (sub-locations under a Branch) ----
-
-export interface Hub {
-  id: string;
-  name: string;
-  address: string | null;
-  phone: string | null;
-  status: string;
-  branch_id: string;
-  branch_name: string | null;
-  manager_id: string | null;
-  manager_name: string | null;
-}
-
-export interface HubInput {
-  name: string;
-  branch_id: string;
-  address?: string;
-  phone?: string;
-}
-
-export function listHubs(token: string, branchId?: string) {
-  return request<Hub[]>(`/admin/hubs${branchId ? `?branch_id=${branchId}` : ''}`, { method: 'GET' }, token);
+export function listHubs(token: string) {
+  return request<Hub[]>('/admin/hubs', { method: 'GET' }, token);
 }
 
 export function createHub(payload: HubInput, token: string) {
@@ -983,31 +978,65 @@ export function updateHub(hubId: string, payload: Partial<HubInput>, token: stri
   return request<Hub>(`/admin/hubs/${hubId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
 }
 
+// Branches = sorting/scan facilities under a hub. hub_id/hub_name point at the
+// parent city hub.
+export interface Branch {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  status: string;
+  hub_id: string | null;
+  hub_name: string | null;
+  manager_id: string | null;
+  manager_name: string | null;
+}
+
+export interface BranchInput {
+  name: string;
+  hub_id: string;
+  address?: string;
+  phone?: string;
+  status?: 'active' | 'inactive';
+}
+
+export function listBranches(token: string, hubId?: string) {
+  return request<Branch[]>(`/admin/branches${hubId ? `?hub_id=${hubId}` : ''}`, { method: 'GET' }, token);
+}
+
+export function createBranch(payload: BranchInput, token: string) {
+  return request<Branch>('/admin/branches', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function updateBranch(branchId: string, payload: Partial<BranchInput>, token: string) {
+  return request<Branch>(`/admin/branches/${branchId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
+// Local branches = guest walk-in booking counters under a branch. The endpoint
+// keeps the historical /admin/local-offices path.
 export interface LocalOffice {
   id: string;
   name: string;
   address: string | null;
   phone: string | null;
   status: string;
-  hub_id: string;
-  hub_name: string | null;
-  // Derived from hub.branch_id server-side - a local office belongs to a
-  // hub, not directly to a branch (city -> branch -> hub -> local office).
   branch_id: string | null;
   branch_name: string | null;
+  hub_id: string | null;
+  hub_name: string | null;
   manager_id: string | null;
   manager_name: string | null;
 }
 
 export interface LocalOfficeInput {
   name: string;
-  hub_id: string;
+  branch_id: string;
   address?: string;
   phone?: string;
 }
 
-export function listLocalOffices(token: string, hubId?: string) {
-  return request<LocalOffice[]>(`/admin/local-offices${hubId ? `?hub_id=${hubId}` : ''}`, { method: 'GET' }, token);
+export function listLocalOffices(token: string, branchId?: string) {
+  return request<LocalOffice[]>(`/admin/local-offices${branchId ? `?branch_id=${branchId}` : ''}`, { method: 'GET' }, token);
 }
 
 export function createLocalOffice(payload: LocalOfficeInput, token: string) {
@@ -1016,6 +1045,15 @@ export function createLocalOffice(payload: LocalOfficeInput, token: string) {
 
 export function updateLocalOffice(officeId: string, payload: Partial<LocalOfficeInput>, token: string) {
   return request<LocalOffice>(`/admin/local-offices/${officeId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
+}
+
+export function listStaffAndRiders(token: string) {
+  return request<AdminUser[]>('/admin/users', { method: 'GET' }, token);
+}
+
+export function listZones(token: string){
+
+  return request<Zone[]>('/admin/zones', {method: 'GET'}, token);
 }
 
 export function resetUserPassword(userId: string, token: string) {
@@ -1035,9 +1073,9 @@ export interface AdminCreateUserPayload {
   role: 'staff' | 'rider' | 'admin' | 'manager' | 'hub_manager' | 'local_office_manager' | 'customer';
   designation: string;
   zone_id: string;
-  branch_id: string;
   hub_id?: string;
-  local_office_id?: string;
+  branch_id?: string;
+  local_branch_id?: string;
 }
 
 export function addNewZone(payload: ZoneCreatePayload, token: string){

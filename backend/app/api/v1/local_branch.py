@@ -6,7 +6,7 @@ from app.core.permissions import require_roles
 from app.models.user import User
 from app.models.order import Order, CreatedByType, BookingChannel
 from app.models.payment import PaymentMethod
-from app.models.local_office import LocalOffice
+from app.models.local_branch import LocalBranch
 from app.models.invoice import Invoice
 from app.schemas.order import StaffOrderCreateRequest, OrderOut
 from app.services.order_service import create_order, get_or_create_guest_customer
@@ -16,31 +16,31 @@ from app.services.label_pdf_service import generate_shipping_label_pdf
 
 router = APIRouter(prefix="/local-office", tags=["Local Office"])
 
-LOCAL_OFFICE_ROLES = ("local_office_manager", "admin", "super_admin")
+LOCAL_BRANCH_ROLES = ("local_office_manager", "admin", "super_admin")
 
 
-def _resolve_local_office(current_user: User, db: Session) -> LocalOffice:
+def _resolve_local_branch(current_user: User, db: Session) -> LocalBranch:
     staff_profile = current_user.staff_profile
-    if not staff_profile or not staff_profile.local_office_id:
+    if not staff_profile or not staff_profile.local_branch_id:
         raise HTTPException(status_code=400, detail="You must be assigned to a local office to book guest parcels")
-    office = db.query(LocalOffice).filter(LocalOffice.id == staff_profile.local_office_id).first()
-    if not office:
+    local_branch = db.query(LocalBranch).filter(LocalBranch.id == staff_profile.local_branch_id).first()
+    if not local_branch:
         raise HTTPException(status_code=404, detail="Local office not found")
-    return office
+    return local_branch
 
 
 @router.post("/orders", response_model=OrderOut)
 def book_guest_order(
     payload: StaffOrderCreateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*LOCAL_OFFICE_ROLES)),
+    current_user: User = Depends(require_roles(*LOCAL_BRANCH_ROLES)),
 ):
     """
     Local office counter books a parcel for a walk-in guest - identical to
     the staff walk-in flow (app/api/v1/staff.py::book_walk_in_order), plus
     stamping which local office booked it so the guest receipt can name it.
     """
-    office = _resolve_local_office(current_user, db)
+    local_branch = _resolve_local_branch(current_user, db)
 
     if payload.customer_id:
         customer = db.query(User).filter(User.id == payload.customer_id).first()
@@ -69,7 +69,7 @@ def book_guest_order(
         payment_method=PaymentMethod(payload.payment_method),
         collected_by_staff_id=current_user.id if payload.payment_method == "cash" else None,
     )
-    order.local_office_id = office.id
+    order.local_branch_id = local_branch.id
     db.commit()
     db.refresh(order)
     return order
@@ -79,14 +79,14 @@ def book_guest_order(
 def get_booking_receipt_pdf(
     order_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*LOCAL_OFFICE_ROLES)),
+    current_user: User = Depends(require_roles(*LOCAL_BRANCH_ROLES)),
 ):
-    office = _resolve_local_office(current_user, db)
-    order = db.query(Order).filter(Order.id == order_id, Order.local_office_id == office.id).first()
+    local_branch = _resolve_local_branch(current_user, db)
+    order = db.query(Order).filter(Order.id == order_id, Order.local_branch_id == local_branch.id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    pdf_bytes = generate_booking_receipt_pdf(order, office_name=office.name)
+    pdf_bytes = generate_booking_receipt_pdf(order, office_name=local_branch.name)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -95,15 +95,15 @@ def get_booking_receipt_pdf(
 
 
 @router.get("/orders/{order_id}/invoice.pdf")
-def get_local_office_order_invoice_pdf(
+def get_local_branch_order_invoice_pdf(
     order_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*LOCAL_OFFICE_ROLES)),
+    current_user: User = Depends(require_roles(*LOCAL_BRANCH_ROLES)),
 ):
     """The itemized billing invoice (distinct from the guest QR receipt
     above) for an order booked at this counter."""
-    office = _resolve_local_office(current_user, db)
-    order = db.query(Order).filter(Order.id == order_id, Order.local_office_id == office.id).first()
+    local_branch = _resolve_local_branch(current_user, db)
+    order = db.query(Order).filter(Order.id == order_id, Order.local_branch_id == local_branch.id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
@@ -120,18 +120,18 @@ def get_local_office_order_invoice_pdf(
 
 
 @router.get("/orders/{order_id}/label.pdf")
-def get_local_office_order_label_pdf(
+def get_local_branch_order_label_pdf(
     order_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*LOCAL_OFFICE_ROLES)),
+    current_user: User = Depends(require_roles(*LOCAL_BRANCH_ROLES)),
 ):
     """Printable shipping label for sticking on the parcel booked at this counter."""
-    office = _resolve_local_office(current_user, db)
-    order = db.query(Order).filter(Order.id == order_id, Order.local_office_id == office.id).first()
+    local_branch = _resolve_local_branch(current_user, db)
+    order = db.query(Order).filter(Order.id == order_id, Order.local_branch_id == local_branch.id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    pdf_bytes = generate_shipping_label_pdf(order, location_name=office.name)
+    pdf_bytes = generate_shipping_label_pdf(order, location_name=local_branch.name)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

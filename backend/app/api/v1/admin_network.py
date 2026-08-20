@@ -14,7 +14,7 @@ from app.models.route import Route
 from app.models.zone import Zone
 from app.models.pricing_rule import PricingRule
 from app.models.audit_log import AuditLog
-from app.models.branch import Branch
+from app.models.hub import Hub
 from app.models.order import Order, OrderStatus
 from app.services import log_service
 from app.models.messaging import AssignmentRule, MessageTemplate
@@ -162,15 +162,15 @@ def corridor_map_hubs(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin", "manager")),
 ):
-    """Hub pins for the live corridor map - every active branch with its
+    """Hub pins for the live corridor map - every active hub with its
     coordinates and current parcel load."""
-    branches = db.query(Branch).filter(Branch.status == "active").all()
+    branches = db.query(Hub).filter(Hub.status == "active").all()
     now = datetime.now(timezone.utc).date()
     out = []
     for b in branches:
         branch_orders = (
             db.query(Order)
-            .filter(Order.branch_id == b.id)
+            .filter(Order.hub_id == b.id)
             .all()
         )
         out.append({

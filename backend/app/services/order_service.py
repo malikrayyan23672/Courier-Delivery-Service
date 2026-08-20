@@ -12,7 +12,7 @@ from app.models.invoice import Invoice
 from app.models.rider import RiderProfile, RiderStatus
 from app.models.tracking_event import TrackingEvent
 from app.models.staff import StaffProfile
-from app.models.branch import Branch
+from app.models.hub import Hub
 from app.models.bus_network import BusManifest, ManifestItem, ManifestStatus, ScanStatus
 from app.models.system_setting import SystemSetting
 from app.models.zone import Zone
@@ -142,24 +142,24 @@ def create_order(
     price = estimate_price(pickup_address, dropoff_address, package_weight_kg, db)
     goods_amount = round(unit_price * quantity, 2) if unit_price is not None and quantity is not None else 0.0
 
-    # Determine zone and branch
+    # Determine zone and hub
     zone_id = None
-    branch_id = None
+    hub_id = None
 
     if created_by_type == CreatedByType.staff:
         staff_profile = db.query(StaffProfile).filter(StaffProfile.user_id == created_by_id).first()
-        if staff_profile and staff_profile.branch_id:
-            branch_id = staff_profile.branch_id
-            if staff_profile.branch:
-                zone_id = staff_profile.branch.zone_id
+        if staff_profile and staff_profile.hub_id:
+            hub_id = staff_profile.hub_id
+            if staff_profile.hub:
+                zone_id = staff_profile.hub.zone_id
     elif created_by_type == CreatedByType.customer:
         if pickup.city:
             zone = db.query(Zone).filter(func.lower(Zone.name) == func.lower(pickup.city.strip())).first()
             if zone:
                 zone_id = zone.id
-                branch = db.query(Branch).filter(Branch.zone_id == zone.id, Branch.status == "active").first()
-                if branch:
-                    branch_id = branch.id
+                hub = db.query(Hub).filter(Hub.zone_id == zone.id, Hub.status == "active").first()
+                if hub:
+                    hub_id = hub.id
 
     # Discount is computed against the delivery fee only, before goods are
     # added in - a guest checkout (allow_discount=False) never reaches
@@ -185,7 +185,7 @@ def create_order(
         discount_amount=discount_amount,
         final_price=round(price - (discount_amount or 0.0) + goods_amount, 2),
         zone_id=zone_id,
-        branch_id=branch_id,
+        hub_id=hub_id,
         product_id=product_id,
         quantity=quantity,
         unit_price=unit_price,
@@ -342,14 +342,14 @@ def offer_last_mile_rider(
 
 
 def auto_assign_last_mile_rider(db: Session, order: Order, actor: User | None = None) -> RiderProfile | None:
-    """Picks the best available rider at the order's (destination) branch,
-    same ranking as `_auto_assign_rider` but scoped by branch rather than
-    zone, since the last mile is a single-branch hand-off."""
-    if not order.branch_id:
+    """Picks the best available rider at the order's (destination) hub,
+    same ranking as `_auto_assign_rider` but scoped by hub rather than
+    zone, since the last mile is a single-hub hand-off."""
+    if not order.hub_id:
         return None
 
     query = db.query(RiderProfile).filter(
-        RiderProfile.branch_id == order.branch_id,
+        RiderProfile.hub_id == order.hub_id,
         RiderProfile.status == RiderStatus.active,
         RiderProfile.is_available.is_(True),
     )
@@ -365,24 +365,24 @@ def auto_assign_last_mile_rider(db: Session, order: Order, actor: User | None = 
 
 
 def maybe_auto_assign_last_mile_rider(db: Session, order: Order, actor: User | None = None) -> RiderProfile | None:
-    """Only auto-assigns if the order's branch has last-mile assignment set
-    to automatic - the manual branches leave the order in the last-mile
+    """Only auto-assigns if the order's hub has last-mile assignment set
+    to automatic - the manual hubs leave the order in the last-mile
     queue for hub staff to pick a rider themselves."""
-    if not order.branch_id:
+    if not order.hub_id:
         return None
-    branch = db.query(Branch).filter(Branch.id == order.branch_id).first()
+    branch = db.query(Hub).filter(Hub.id == order.hub_id).first()
     if not branch or branch.rider_assignment_mode != "automatic":
         return None
     return auto_assign_last_mile_rider(db, order, actor=actor)
 
 
-def handle_dest_hub_arrival(db: Session, order: Order, branch_id: str, actor: User | None = None) -> None:
-    """Called the moment a parcel reaches `dest_hub`. Records the branch now
-    physically holding it (order.branch_id tracked the origin branch up to
+def handle_dest_hub_arrival(db: Session, order: Order, hub_id: str, actor: User | None = None) -> None:
+    """Called the moment a parcel reaches `dest_hub`. Records the hub now
+    physically holding it (order.hub_id tracked the origin hub up to
     this point) so the hub console's queries - which all scope by
-    Order.branch_id - pick it up, then offers a last-mile rider if that
-    branch runs automatic assignment."""
-    order.branch_id = branch_id
+    Order.hub_id - pick it up, then offers a last-mile rider if that
+    hub runs automatic assignment."""
+    order.hub_id = hub_id
     maybe_auto_assign_last_mile_rider(db, order, actor=actor)
 
 
@@ -424,11 +424,11 @@ def _auto_assign_rider(db: Session, order: Order) -> RiderProfile | None:
 
     query = (
         db.query(RiderProfile)
-        .join(Branch, RiderProfile.branch_id == Branch.id)
+        .join(Hub, RiderProfile.hub_id == Hub.id)
         .filter(
             RiderProfile.status == RiderStatus.active,
             RiderProfile.is_available.is_(True),
-            Branch.zone_id == order.zone_id,
+            Hub.zone_id == order.zone_id,
         )
     )
     # A rider whose COD cash-in-hand wallet is locked can't take on new COD parcels.
@@ -452,14 +452,14 @@ def _auto_assign_rider(db: Session, order: Order) -> RiderProfile | None:
     return rider
 
 
-def _get_or_create_return_batch(db: Session, branch_id: str) -> BusManifest:
-    """The open (in_preparation) RTO return batch for this branch, or a new
+def _get_or_create_return_batch(db: Session, hub_id: str) -> BusManifest:
+    """The open (in_preparation) RTO return batch for this hub, or a new
     one - RTO manifests are marked by an "RTO-" manifest number instead of
     the "MF-" forward-dispatch ones so this lookup doesn't need a join."""
     manifest = (
         db.query(BusManifest)
         .filter(
-            BusManifest.origin_branch_id == branch_id,
+            BusManifest.origin_hub_id == hub_id,
             BusManifest.status == ManifestStatus.in_preparation,
             BusManifest.manifest_number.like("RTO-%"),
         )
@@ -469,9 +469,9 @@ def _get_or_create_return_batch(db: Session, branch_id: str) -> BusManifest:
     if manifest:
         return manifest
 
-    branch = db.query(Branch).filter(Branch.id == branch_id).first()
+    branch = db.query(Hub).filter(Hub.id == hub_id).first()
     manifest = BusManifest(
-        origin_branch_id=branch_id,
+        origin_hub_id=hub_id,
         manifest_number=f"RTO-{secrets.token_hex(3).upper()}",
         status=ManifestStatus.in_preparation,
         origin_city=branch.name if branch else None,
@@ -490,7 +490,7 @@ def add_order_to_return_batch(db: Session, order: Order) -> None:
     parcel back at the hub (see rider.py's return_to_hub), matching how the
     forward flow only loads a parcel onto a manifest once it's physically
     at the hub."""
-    if not order.branch_id:
+    if not order.hub_id:
         return
 
     already_batched = (
@@ -502,7 +502,7 @@ def add_order_to_return_batch(db: Session, order: Order) -> None:
     if already_batched:
         return
 
-    manifest = _get_or_create_return_batch(db, order.branch_id)
+    manifest = _get_or_create_return_batch(db, order.hub_id)
     db.add(
         ManifestItem(
             manifest_id=manifest.id,

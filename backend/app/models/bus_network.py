@@ -53,8 +53,8 @@ class BusSchedule(Base, TimestampMixin):
 
     origin_city = Column(String(100), nullable=False)
     destination_city = Column(String(100), nullable=False)
-    origin_branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=True)
-    destination_branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=True)
+    origin_hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=True)
+    destination_hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=True)
 
     departure_time = Column(String(10), nullable=True)  # e.g. "06:30"
     departure_interval_min = Column(Integer, default=30)
@@ -78,8 +78,8 @@ class BusManifest(Base, TimestampMixin):
 
     # Only set on auto-created RTO return batches (see order_service.
     # add_order_to_return_batch), which have no real BusSchedule yet - lets
-    # that lookup find "the open return batch for branch X" without a join.
-    origin_branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=True)
+    # that lookup find "the open return batch for hub X" without a join.
+    origin_hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=True)
 
     manifest_number = Column(String(50), unique=True, nullable=True, index=True)
     coach_number = Column(String(50), nullable=True)  # e.g. bus registration/coach tag

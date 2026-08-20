@@ -17,8 +17,8 @@ class Announcement(Base, TimestampMixin):
     title = Column(String(150), nullable=False)
     body = Column(String(1000), nullable=False)
 
-    branch_id = Column(UUID_TYPE, ForeignKey("branches.id", ondelete="SET NULL"), nullable=True)
-    branch = relationship("Branch")
+    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id", ondelete="SET NULL"), nullable=True)
+    hub = relationship("Hub")
 
     created_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by = relationship("User", foreign_keys=[created_by_id])

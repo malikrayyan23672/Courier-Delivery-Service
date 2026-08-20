@@ -3,7 +3,7 @@ Logistics command centre - cross-network aggregation for a future full PWA.
 
 Placeholder architecture. The command centre will later aggregate:
     - bus network (manifests in transit)         -> app.models.bus_network
-    - city hubs (branch queues)                  -> app.models.branch / staff
+    - city hubs (branch queues)                  -> app.models.hub / staff
     - RNP network (active nodes)                 -> app.models.rnp
     - rider network (last-mile)                  -> app.models.rider
     - COD exposure & risk                        -> settlement + risk_engine

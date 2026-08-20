@@ -30,8 +30,8 @@ class ParcelIncident(Base, TimestampMixin):
     __tablename__ = "parcel_incidents"
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
-    branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=False, index=True)
-    branch = relationship("Branch")
+    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=False, index=True)
+    hub = relationship("Hub")
 
     # Nullable - a "missing" report may not resolve to a known order/tracking
     # number at the moment it's raised.

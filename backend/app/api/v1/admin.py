@@ -17,10 +17,10 @@ from app.models.order import Order, OrderStatus
 from app.models.rider import RiderProfile, RiderStatus
 from app.models.tracking_event import TrackingEvent
 from app.models.staff import StaffProfile
-from app.models.branch import Branch
-from app.models.zone import Zone
 from app.models.hub import Hub
-from app.models.local_office import LocalOffice
+from app.models.branch import Branch
+from app.models.local_branch import LocalBranch
+from app.models.headquarter import Headquarter
 from app.models.settlement import Settlement, SettlementStatus
 from app.schemas.order import OrderOut, OrderDetailOut, AddressOut, TrackingEventOut, PaymentOut, RiderContactOut
 from app.schemas.auth import AdminCreateUserRequest
@@ -33,7 +33,7 @@ from app.models.delivery_attempt import DeliveryAttempt
 from app.services.settlement_service import pending_cod_amount, rider_wallet_limit, rider_wallet_warning_at
 from app.services import log_service
 from app.services import notification_service
-from app.core.scope import resolve_city_branch_ids
+from app.core.scope import resolve_city_hub_ids
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -43,10 +43,10 @@ def list_all_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
-    scope = resolve_city_branch_ids(current_user, db)
+    scope = resolve_city_hub_ids(current_user, db)
     query = db.query(Order).order_by(Order.created_at.desc())
     if scope is not None:
-        query = query.filter(Order.branch_id.in_(scope))
+        query = query.filter(Order.hub_id.in_(scope))
     return query.limit(200).all()
 
 
@@ -62,8 +62,8 @@ def get_order_detail(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    scope = resolve_city_branch_ids(current_user, db)
-    if scope is not None and (not order.branch_id or str(order.branch_id) not in scope):
+    scope = resolve_city_hub_ids(current_user, db)
+    if scope is not None and (not order.hub_id or str(order.hub_id) not in scope):
         raise HTTPException(status_code=403, detail="This order belongs to a different city")
 
     rider_contact = None
@@ -91,9 +91,9 @@ def get_order_detail(
         discount_id=str(order.discount_id) if order.discount_id else None,
         discount_amount=order.discount_amount,
         rider_accepted=order.rider_accepted,
-        branch_name=order.branch_name,
-        branch_address=order.branch_address,
-        branch_phone=order.branch_phone,
+        branch_name=order.hub.name if order.hub else None,
+        branch_address=order.hub.address if order.hub else None,
+        branch_phone=order.hub.phone if order.hub else None,
         created_at=order.created_at,
         proof_of_delivery_url=order.proof_of_delivery_url,
         proof_of_delivery_recipient_name=order.proof_of_delivery_recipient_name,
@@ -156,7 +156,7 @@ def assign_rider(
     # this is the escalation path for when a zone has no available rider.
     # That's deliberate, but it should never be silent, so a cross-zone
     # assignment is audited here instead of being blocked.
-    rider_zone_id = rider.branch.zone_id if rider.branch else None
+    rider_zone_id = rider.hub.zone_id if rider.hub else None
     if order.zone_id and rider_zone_id and rider_zone_id != order.zone_id:
         log_service.create_log(
             db,
@@ -224,7 +224,7 @@ def list_all_rider_locations(
         )
     )
     if zone_id:
-        query = query.join(Branch, RiderProfile.branch_id == Branch.id).filter(Branch.zone_id == zone_id)
+        query = query.join(Hub, RiderProfile.hub_id == Hub.id).filter(Hub.zone_id == zone_id)
 
     riders = query.all()
 
@@ -402,56 +402,57 @@ def create_staff_or_rider(
     db.flush()
 
     if payload.role == "rider":
-        db.add(RiderProfile(user_id=user.id, status=RiderStatus.active, is_available=False, branch_id=payload.branch_id))
+        db.add(RiderProfile(user_id=user.id, status=RiderStatus.active, is_available=False, hub_id=payload.hub_id))
     elif payload.role == "staff":
-        db.add(StaffProfile(user_id=user.id, branch_id=payload.branch_id, designation=payload.designation))
+        db.add(StaffProfile(user_id=user.id, hub_id=payload.hub_id, designation=payload.designation))
     elif payload.role == "manager":
-        db.add(StaffProfile(user_id=user.id, branch_id=payload.branch_id, designation=payload.designation))
-        branch = db.query(Branch).filter(Branch.id == payload.branch_id).first()
-
-        if not branch:
-            raise HTTPException(status_code=400, detail='branch could not found')
-
-        branch.manager_id = user.id
-        db.commit()
-    elif payload.role == "admin" and payload.branch_id:
-        # A per-branch admin (scoped to their own city by resolve_city_branch_ids,
-        # see app/core/scope.py) - optional, since an admin created without a
-        # branch_id stays the network-wide oversight admin this role has always
-        # meant, for backward compatibility with accounts created before Hub/
-        # LocalOffice existed. `branch.admin_id` is the branch's single
-        # designated admin, mirroring hub_manager/local_office_manager below.
-        branch = db.query(Branch).filter(Branch.id == payload.branch_id).first()
-        if not branch:
-            raise HTTPException(status_code=400, detail='branch could not found')
-        db.add(StaffProfile(user_id=user.id, branch_id=payload.branch_id, designation=payload.designation))
-        branch.admin_id = user.id
-        db.commit()
-    elif payload.role == "hub_manager":
-        if not payload.hub_id:
-            raise HTTPException(status_code=400, detail="hub_id is required for a hub_manager account")
+        db.add(StaffProfile(user_id=user.id, hub_id=payload.hub_id, designation=payload.designation))
         hub = db.query(Hub).filter(Hub.id == payload.hub_id).first()
-        if not hub:
-            raise HTTPException(status_code=400, detail="Hub not found")
 
-        db.add(StaffProfile(user_id=user.id, branch_id=hub.branch_id, hub_id=hub.id, designation=payload.designation))
+        if not hub:
+            raise HTTPException(status_code=400, detail='hub could not found')
+
         hub.manager_id = user.id
         db.commit()
-    elif payload.role == "local_office_manager":
-        if not payload.local_office_id:
-            raise HTTPException(status_code=400, detail="local_office_id is required for a local_office_manager account")
-        office = db.query(LocalOffice).filter(LocalOffice.id == payload.local_office_id).first()
-        if not office:
-            raise HTTPException(status_code=400, detail="Local office not found")
+    elif payload.role == "admin" and payload.hub_id:
+        # A per-hub admin (scoped to their own city by resolve_city_hub_ids,
+        # see app/core/scope.py) - optional, since an admin created without a
+        # hub_id stays the network-wide oversight admin this role has always
+        # meant, for backward compatibility with accounts created before Hub/
+        # LocalBranch existed. `hub.admin_id` is the hub's single
+        # designated admin, mirroring hub_manager/local_office_manager below.
+        hub = db.query(Hub).filter(Hub.id == payload.hub_id).first()
+        if not hub:
+            raise HTTPException(status_code=400, detail='hub could not found')
+        db.add(StaffProfile(user_id=user.id, hub_id=payload.hub_id, designation=payload.designation))
+        hub.admin_id = user.id
+        db.commit()
+    elif payload.role == "hub_manager":
+        if not payload.branch_id:
+            raise HTTPException(status_code=400, detail="branch_id is required for a hub_manager account")
+        branch = db.query(Branch).filter(Branch.id == payload.branch_id).first()
+        if not branch:
+            raise HTTPException(status_code=400, detail="Branch not found")
 
-        # branch_id/hub_id are both derived from the office's hub - the
-        # office -> hub -> branch chain, so this account inherits scope at
-        # every layer above it (see app/core/scope.py).
+        # Scope the manager to their sorting Branch (branch_id) and, for hub
+        # operations / notifications (which are hub-scoped), their parent hub.
+        db.add(StaffProfile(user_id=user.id, hub_id=branch.hub_id, branch_id=payload.branch_id, designation=payload.designation))
+        branch.manager_id = user.id
+        db.commit()
+    elif payload.role == "local_office_manager":
+        if not payload.local_branch_id:
+            raise HTTPException(status_code=400, detail="local_branch_id is required for a local_office_manager account")
+        local_branch = db.query(LocalBranch).filter(LocalBranch.id == payload.local_branch_id).first()
+        if not local_branch:
+            raise HTTPException(status_code=400, detail="Local branch not found")
+
+        # Scope to their local branch, plus the parent hub (via its sorting
+        # Branch) so notifications/announcements resolve to the right city.
         db.add(StaffProfile(
-            user_id=user.id, branch_id=office.hub.branch_id, hub_id=office.hub_id,
-            local_office_id=office.id, designation=payload.designation,
+            user_id=user.id, hub_id=local_branch.branch.hub_id if local_branch.branch else None,
+            local_branch_id=local_branch.id, designation=payload.designation,
         ))
-        office.manager_id = user.id
+        local_branch.manager_id = user.id
         db.commit()
 
     db.commit()
@@ -662,7 +663,7 @@ def rider_leaderboard(
         rows.append({
             "rider_id": str(rider.id),
             "full_name": rider.user.full_name if rider.user else "Unknown",
-            "branch_name": rider.branch.name if rider.branch else None,
+            "branch_name": rider.hub.name if rider.hub else None,
             "rating": rider.rating,
             "deliveries": stats["delivered"],
             "rto_count": stats["rto"],
@@ -676,9 +677,9 @@ def rider_leaderboard(
 
 
 def _zone_out(db: Session, zone: Zone) -> dict:
-    branch_count = db.query(func.count(Branch.id)).filter(Branch.zone_id == zone.id).scalar() or 0
+    branch_count = db.query(func.count(Hub.id)).filter(Hub.zone_id == zone.id).scalar() or 0
     active_branch_count = (
-        db.query(func.count(Branch.id)).filter(Branch.zone_id == zone.id, Branch.status == "active").scalar() or 0
+        db.query(func.count(Hub.id)).filter(Hub.zone_id == zone.id, Hub.status == "active").scalar() or 0
     )
     return {
         "id": str(zone.id),
@@ -688,9 +689,9 @@ def _zone_out(db: Session, zone: Zone) -> dict:
         "base_rate": zone.base_rate,
         "cod_fee_percentage": zone.cod_fee_percentage,
         "branch_count": branch_count,
-        # A zone with zero active branches can never be matched to a rider/hub
+        # A zone with zero active hubs can never be matched to a rider/hub
         # at booking time (order_service.create_order requires an active
-        # Branch in the zone) - orders still get created, just unrouted. This
+        # Hub in the zone) - orders still get created, just unrouted. This
         # is what the "add a city" flow exists to prevent.
         "is_live": active_branch_count > 0,
     }
@@ -713,10 +714,10 @@ def delete_zone(
     zone = db.query(Zone).filter(Zone.id == zone_id).first()
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")
-    # SQLAlchemy would otherwise silently null out zone_id on every branch
+    # SQLAlchemy would otherwise silently null out zone_id on every hub
     # that references this zone (passive_deletes isn't set) rather than
-    # blocking or cascading - quietly un-routing a whole city's branches.
-    branch_count = db.query(func.count(Branch.id)).filter(Branch.zone_id == zone_id).scalar() or 0
+    # blocking or cascading - quietly un-routing a whole city's hubs.
+    branch_count = db.query(func.count(Hub.id)).filter(Hub.zone_id == zone_id).scalar() or 0
     if branch_count:
         raise HTTPException(
             status_code=400,
@@ -760,7 +761,7 @@ def create_zone(
 class AddCityRequest(BaseModel):
     """Bundles what a city actually needs to be bookable in one step: the
     Zone that lets addresses in that city match a service area, and at
-    least one active Branch in it - a Zone alone routes nothing (see
+    least one active Hub in it - a Zone alone routes nothing (see
     order_service.create_order)."""
     city_name: str
     description: Optional[str] = None
@@ -783,8 +784,8 @@ def add_city(
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
     """Single entry point for "add a new city" - creates the Zone and its
-    first Branch together, atomically, so a city can never end up half-set-up
-    (a Zone nobody can book through, or a Branch nothing points a customer
+    first Hub together, atomically, so a city can never end up half-set-up
+    (a Zone nobody can book through, or a Hub nothing points a customer
     at). Pricing (base_rate/cod_fee_percentage) is taken here too since it
     already lives on the Zone row; per-weight pricing slabs and inter-city
     corridors are separate, deliberately not bundled here (see
@@ -795,7 +796,7 @@ def add_city(
         raise HTTPException(status_code=400, detail="City name is required")
     branch_name = payload.branch_name.strip()
     if not branch_name:
-        raise HTTPException(status_code=400, detail="Branch name is required")
+        raise HTTPException(status_code=400, detail="Hub name is required")
 
     existing = db.query(Zone).filter(func.lower(Zone.name) == city_name.lower()).first()
     if existing:
@@ -809,9 +810,9 @@ def add_city(
         cod_fee_percentage=payload.cod_fee_percentage or 3.0,
     )
     db.add(zone)
-    db.flush()  # need zone.id for the branch FK, before committing either
+    db.flush()  # need zone.id for the hub FK, before committing either
 
-    branch = Branch(
+    hub = Hub(
         name=branch_name,
         address=payload.branch_address,
         phone=payload.branch_phone,
@@ -823,130 +824,51 @@ def add_city(
         zone_id=zone.id,
         status="active",
     )
-    db.add(branch)
+    db.add(hub)
     db.commit()
     db.refresh(zone)
-    db.refresh(branch)
+    db.refresh(hub)
 
     log_service.create_log(
         db, action="admin_add_city", user_id=str(current_user.id),
         entity_type="Zone", entity_id=str(zone.id),
-        details=f"Added city '{city_name}' with branch '{branch_name}'",
+        details=f"Added city '{city_name}' with hub '{branch_name}'",
     )
 
-    return {"zone": _zone_out(db, zone), "branch": _branch_out(branch)}
+    return {"zone": _zone_out(db, zone), "branch": _hub_out(hub)}
 
 
-def _branch_out(b: Branch) -> dict:
-    return {
-        "id": str(b.id),
-        "name": b.name,
-        "address": b.address,
-        "phone": b.phone,
-        "email": b.email,
-        "opening_time": b.opening_time,
-        "closing_time": b.closing_time,
-        "latitude": b.latitude,
-        "longitude": b.longitude,
-        "zone_id": str(b.zone_id) if b.zone_id else None,
-        "zone_name": b.zone.name if b.zone else None,
-        "status": b.status,
-        "admin_id": str(b.admin_id) if b.admin_id else None,
-        "admin_name": b.admin.full_name if b.admin else None,
-    }
-
-
-@router.get("/branches")
-def list_branches_admin(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
-):
-    branches = db.query(Branch).order_by(Branch.name).all()
-    return [_branch_out(b) for b in branches]
-
-
-@router.post("/branches", status_code=201)
-def create_branch(
-    payload: dict,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
-):
-    name = payload.get("name")
-    if not name:
-        raise HTTPException(status_code=400, detail="Branch name is required")
-
-    branch = Branch(
-        name=name,
-        address=payload.get("address"),
-        zone_id=payload.get("zone_id") or None,
-        phone=payload.get("phone"),
-        email=payload.get("email"),
-        opening_time=payload.get("opening_time"),
-        closing_time=payload.get("closing_time"),
-        latitude=payload.get("latitude"),
-        longitude=payload.get("longitude"),
-    )
-    db.add(branch)
-    db.commit()
-    db.refresh(branch)
-    return _branch_out(branch)
-
-
-@router.patch("/branches/{branch_id}")
-def update_branch(
-    branch_id: str,
-    payload: dict,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
-):
-    branch = db.query(Branch).filter(Branch.id == branch_id).first()
-    if not branch:
-        raise HTTPException(status_code=404, detail="Branch not found")
-
-    if "name" in payload and not payload["name"]:
-        raise HTTPException(status_code=400, detail="Branch name cannot be empty")
-
-    # Whitelisted, partial update - only touches fields the caller actually sent.
-    for field in ("name", "address", "phone", "email", "opening_time", "closing_time", "zone_id", "latitude", "longitude"):
-        if field in payload:
-            setattr(branch, field, payload[field] or None)
-    if "status" in payload:
-        if payload["status"] not in ("active", "inactive"):
-            raise HTTPException(status_code=400, detail="Status must be 'active' or 'inactive'")
-        branch.status = payload["status"]
-
-    db.commit()
-    db.refresh(branch)
-    return _branch_out(branch)
-
-
-# ============================================================
-# HUBS (sorting/scan facilities under a branch)
-# ============================================================
 def _hub_out(h: Hub) -> dict:
     return {
         "id": str(h.id),
         "name": h.name,
         "address": h.address,
         "phone": h.phone,
+        "email": h.email,
+        "opening_time": h.opening_time,
+        "closing_time": h.closing_time,
+        "latitude": h.latitude,
+        "longitude": h.longitude,
+        "zone_id": str(h.zone_id) if h.zone_id else None,
+        "zone_name": h.zone.name if h.zone else None,
         "status": h.status,
-        "branch_id": str(h.branch_id),
-        "branch_name": h.branch.name if h.branch else None,
-        "manager_id": str(h.manager_id) if h.manager_id else None,
-        "manager_name": h.manager.full_name if h.manager else None,
+        "headquarter_id": str(h.headquarter_id) if h.headquarter_id else None,
+        "headquarter_name": h.headquarter.name if h.headquarter else None,
+        "admin_id": str(h.admin_id) if h.admin_id else None,
+        "admin_name": h.admin.full_name if h.admin else None,
     }
 
 
+# ============================================================
+# HUBS (city-level main offices, under the headquarter)
+# ============================================================
 @router.get("/hubs")
 def list_hubs_admin(
-    branch_id: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
-    query = db.query(Hub).order_by(Hub.name)
-    if branch_id:
-        query = query.filter(Hub.branch_id == branch_id)
-    return [_hub_out(h) for h in query.all()]
+    hubs = db.query(Hub).order_by(Hub.name).all()
+    return [_hub_out(h) for h in hubs]
 
 
 @router.post("/hubs", status_code=201)
@@ -956,16 +878,21 @@ def create_hub(
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
     name = payload.get("name")
-    branch_id = payload.get("branch_id")
     if not name:
         raise HTTPException(status_code=400, detail="Hub name is required")
-    if not branch_id:
-        raise HTTPException(status_code=400, detail="branch_id is required")
-    branch = db.query(Branch).filter(Branch.id == branch_id).first()
-    if not branch:
-        raise HTTPException(status_code=404, detail="Branch not found")
 
-    hub = Hub(name=name, address=payload.get("address"), phone=payload.get("phone"), branch_id=branch_id)
+    hub = Hub(
+        name=name,
+        address=payload.get("address"),
+        zone_id=payload.get("zone_id") or None,
+        phone=payload.get("phone"),
+        email=payload.get("email"),
+        opening_time=payload.get("opening_time"),
+        closing_time=payload.get("closing_time"),
+        latitude=payload.get("latitude"),
+        longitude=payload.get("longitude"),
+        headquarter_id=payload.get("headquarter_id") or None,
+    )
     db.add(hub)
     db.commit()
     db.refresh(hub)
@@ -985,7 +912,9 @@ def update_hub(
 
     if "name" in payload and not payload["name"]:
         raise HTTPException(status_code=400, detail="Hub name cannot be empty")
-    for field in ("name", "address", "phone"):
+
+    # Whitelisted, partial update - only touches fields the caller actually sent.
+    for field in ("name", "address", "phone", "email", "opening_time", "closing_time", "zone_id", "latitude", "longitude", "headquarter_id"):
         if field in payload:
             setattr(hub, field, payload[field] or None)
     if "status" in payload:
@@ -999,19 +928,167 @@ def update_hub(
 
 
 # ============================================================
-# LOCAL OFFICES (guest walk-in booking counters under a hub)
+# BRANCHES (sorting/scan facilities under a hub)
 # ============================================================
-def _local_office_out(o: LocalOffice) -> dict:
+def _branch_out(b: Branch) -> dict:
+    return {
+        "id": str(b.id),
+        "name": b.name,
+        "address": b.address,
+        "phone": b.phone,
+        "status": b.status,
+        "hub_id": str(b.hub_id) if b.hub_id else None,
+        "hub_name": b.hub.name if b.hub else None,
+        "manager_id": str(b.manager_id) if b.manager_id else None,
+        "manager_name": b.manager.full_name if b.manager else None,
+    }
+
+
+@router.get("/branches")
+def list_branches_admin(
+    hub_id: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    query = db.query(Branch).order_by(Branch.name)
+    if hub_id:
+        query = query.filter(Branch.hub_id == hub_id)
+    return [_branch_out(b) for b in query.all()]
+
+
+@router.post("/branches", status_code=201)
+def create_branch(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    name = payload.get("name")
+    hub_id = payload.get("hub_id")
+    if not name:
+        raise HTTPException(status_code=400, detail="Branch name is required")
+    if not hub_id:
+        raise HTTPException(status_code=400, detail="hub_id is required")
+    hub = db.query(Hub).filter(Hub.id == hub_id).first()
+    if not hub:
+        raise HTTPException(status_code=404, detail="Hub not found")
+
+    branch = Branch(name=name, address=payload.get("address"), phone=payload.get("phone"), hub_id=hub_id)
+    db.add(branch)
+    db.commit()
+    db.refresh(branch)
+    return _branch_out(branch)
+
+
+@router.patch("/branches/{branch_id}")
+def update_branch(
+    branch_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    branch = db.query(Branch).filter(Branch.id == branch_id).first()
+    if not branch:
+        raise HTTPException(status_code=404, detail="Branch not found")
+
+    if "name" in payload and not payload["name"]:
+        raise HTTPException(status_code=400, detail="Branch name cannot be empty")
+    for field in ("name", "address", "phone"):
+        if field in payload:
+            setattr(branch, field, payload[field] or None)
+    if "status" in payload:
+        if payload["status"] not in ("active", "inactive"):
+            raise HTTPException(status_code=400, detail="Status must be 'active' or 'inactive'")
+        branch.status = payload["status"]
+
+    db.commit()
+    db.refresh(branch)
+    return _branch_out(branch)
+
+
+# ============================================================
+# HEADQUARTERS (national head office - top tier)
+# ============================================================
+def _headquarter_out(h: Headquarter) -> dict:
+    return {
+        "id": str(h.id),
+        "name": h.name,
+        "address": h.address,
+        "phone": h.phone,
+        "email": h.email,
+        "status": h.status,
+        "manager_id": str(h.manager_id) if h.manager_id else None,
+        "manager_name": h.manager.full_name if h.manager else None,
+    }
+
+
+@router.get("/headquarters")
+def list_headquarters_admin(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    return [_headquarter_out(h) for h in db.query(Headquarter).order_by(Headquarter.name).all()]
+
+
+@router.post("/headquarters", status_code=201)
+def create_headquarter(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    name = payload.get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="Headquarter name is required")
+    hq = Headquarter(
+        name=name,
+        address=payload.get("address"),
+        phone=payload.get("phone"),
+        email=payload.get("email"),
+        status=payload.get("status") or "active",
+    )
+    db.add(hq)
+    db.commit()
+    db.refresh(hq)
+    return _headquarter_out(hq)
+
+
+@router.patch("/headquarters/{headquarter_id}")
+def update_headquarter(
+    headquarter_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "super_admin")),
+):
+    hq = db.query(Headquarter).filter(Headquarter.id == headquarter_id).first()
+    if not hq:
+        raise HTTPException(status_code=404, detail="Headquarter not found")
+    if "name" in payload and not payload["name"]:
+        raise HTTPException(status_code=400, detail="Headquarter name cannot be empty")
+    for field in ("name", "address", "phone", "email"):
+        if field in payload:
+            setattr(hq, field, payload[field] or None)
+    if "status" in payload:
+        if payload["status"] not in ("active", "inactive"):
+            raise HTTPException(status_code=400, detail="Status must be 'active' or 'inactive'")
+        hq.status = payload["status"]
+    db.commit()
+    db.refresh(hq)
+    return _headquarter_out(hq)
+
+
+# ============================================================
+# LOCAL BRANCHES (guest walk-in booking counters under a branch)
+# ============================================================
+def _local_branch_out(o: LocalBranch) -> dict:
     return {
         "id": str(o.id),
         "name": o.name,
         "address": o.address,
         "phone": o.phone,
         "status": o.status,
-        "hub_id": str(o.hub_id),
-        "hub_name": o.hub.name if o.hub else None,
-        "branch_id": str(o.hub.branch_id) if o.hub else None,
-        "branch_name": o.hub.branch.name if o.hub and o.hub.branch else None,
+        "branch_id": str(o.branch_id) if o.branch_id else None,
+        "branch_name": o.branch.name if o.branch else None,
+        "hub_id": str(o.branch.hub_id) if o.branch and o.branch.hub_id else None,
+        "hub_name": o.branch.hub.name if o.branch and o.branch.hub else None,
         "manager_id": str(o.manager_id) if o.manager_id else None,
         "manager_name": o.manager.full_name if o.manager else None,
     }
@@ -1024,13 +1101,13 @@ def list_local_offices_admin(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
-    query = db.query(LocalOffice).order_by(LocalOffice.name)
+    query = db.query(LocalBranch).order_by(LocalBranch.name)
     if hub_id:
-        query = query.filter(LocalOffice.hub_id == hub_id)
+        # A city hub's local branches: LocalBranch -> Branch -> Hub.
+        query = query.join(Branch, LocalBranch.branch_id == Branch.id).filter(Branch.hub_id == hub_id)
     elif branch_id:
-        # No branch_id column on LocalOffice any more - join through its hub.
-        query = query.join(Hub, LocalOffice.hub_id == Hub.id).filter(Hub.branch_id == branch_id)
-    return [_local_office_out(o) for o in query.all()]
+        query = query.filter(LocalBranch.branch_id == branch_id)
+    return [_local_branch_out(o) for o in query.all()]
 
 
 @router.post("/local-offices", status_code=201)
@@ -1040,20 +1117,20 @@ def create_local_office(
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
     name = payload.get("name")
-    hub_id = payload.get("hub_id")
+    branch_id = payload.get("branch_id")
     if not name:
-        raise HTTPException(status_code=400, detail="Local office name is required")
-    if not hub_id:
-        raise HTTPException(status_code=400, detail="hub_id is required")
-    hub = db.query(Hub).filter(Hub.id == hub_id).first()
-    if not hub:
-        raise HTTPException(status_code=404, detail="Hub not found")
+        raise HTTPException(status_code=400, detail="Local branch name is required")
+    if not branch_id:
+        raise HTTPException(status_code=400, detail="branch_id is required")
+    branch = db.query(Branch).filter(Branch.id == branch_id).first()
+    if not branch:
+        raise HTTPException(status_code=404, detail="Branch not found")
 
-    office = LocalOffice(name=name, address=payload.get("address"), phone=payload.get("phone"), hub_id=hub_id)
-    db.add(office)
+    local_branch = LocalBranch(name=name, address=payload.get("address"), phone=payload.get("phone"), branch_id=branch_id)
+    db.add(local_branch)
     db.commit()
-    db.refresh(office)
-    return _local_office_out(office)
+    db.refresh(local_branch)
+    return _local_branch_out(local_branch)
 
 
 @router.patch("/local-offices/{local_office_id}")
@@ -1063,25 +1140,25 @@ def update_local_office(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
-    office = db.query(LocalOffice).filter(LocalOffice.id == local_office_id).first()
-    if not office:
-        raise HTTPException(status_code=404, detail="Local office not found")
+    local_branch = db.query(LocalBranch).filter(LocalBranch.id == local_office_id).first()
+    if not local_branch:
+        raise HTTPException(status_code=404, detail="Local branch not found")
 
     if "name" in payload and not payload["name"]:
-        raise HTTPException(status_code=400, detail="Local office name cannot be empty")
-    if "hub_id" in payload:
-        new_hub = db.query(Hub).filter(Hub.id == payload["hub_id"]).first()
-        if not new_hub:
-            raise HTTPException(status_code=400, detail="Hub not found")
-        office.hub_id = payload["hub_id"]
+        raise HTTPException(status_code=400, detail="Local branch name cannot be empty")
+    if "branch_id" in payload:
+        new_branch = db.query(Branch).filter(Branch.id == payload["branch_id"]).first()
+        if not new_branch:
+            raise HTTPException(status_code=400, detail="Branch not found")
+        local_branch.branch_id = payload["branch_id"]
     for field in ("name", "address", "phone"):
         if field in payload:
-            setattr(office, field, payload[field] or None)
+            setattr(local_branch, field, payload[field] or None)
     if "status" in payload:
         if payload["status"] not in ("active", "inactive"):
             raise HTTPException(status_code=400, detail="Status must be 'active' or 'inactive'")
-        office.status = payload["status"]
+        local_branch.status = payload["status"]
 
     db.commit()
-    db.refresh(office)
-    return _local_office_out(office)
+    db.refresh(local_branch)
+    return _local_branch_out(local_branch)

@@ -19,10 +19,10 @@ from app.models.branch_service_area import BranchServiceArea
 from app.models.settlement import Settlement
 from app.models.support_ticket import SupportTicket
 from app.models.parcel_incident import ParcelIncident, IncidentType, IncidentStatus
-from app.models.branch import Branch
+from app.models.hub import Hub
 from app.services import notification_service
 from app.services.order_service import transition, offer_last_mile_rider, handle_dest_hub_arrival
-from app.core.scope import resolve_city_branch_ids
+from app.core.scope import resolve_city_hub_ids
 from app.services.settlement_service import (
     rider_wallet_limit,
     rider_wallet_warning_at,
@@ -45,15 +45,15 @@ def _resolve_branch_id(current_user: User, branch_id: str | None, db: Session) -
     role_name = current_user.role.name if current_user.role else None
     if role_name in ("admin", "super_admin") and branch_id:
         if role_name != "super_admin":
-            scope = resolve_city_branch_ids(current_user, db)
+            scope = resolve_city_hub_ids(current_user, db)
             if scope is not None and branch_id not in scope:
                 raise HTTPException(status_code=403, detail="This branch belongs to a different city")
         return branch_id
 
     staff_profile = current_user.staff_profile
-    if not staff_profile or not staff_profile.branch_id:
+    if not staff_profile or not staff_profile.hub_id:
         raise HTTPException(status_code=400, detail="You must belong to a branch to use hub operations")
-    return str(staff_profile.branch_id)
+    return str(staff_profile.hub_id)
 
 
 def _order_summary(order: Order) -> dict:
@@ -90,7 +90,7 @@ def _vendor_scores(db: Session, branch_id: str) -> list[dict]:
         db.query(BusManifest)
         .join(BusSchedule, BusManifest.schedule_id == BusSchedule.id)
         .options(joinedload(BusManifest.schedule).joinedload(BusSchedule.operator))
-        .filter(BusSchedule.origin_branch_id == branch_id, BusManifest.status != ManifestStatus.in_preparation)
+        .filter(BusSchedule.origin_hub_id == branch_id, BusManifest.status != ManifestStatus.in_preparation)
         .all()
     )
     scores: dict[str, dict] = {}
@@ -123,7 +123,7 @@ def inbound_queue(
     orders = (
         db.query(Order)
         .options(joinedload(Order.dropoff_address))
-        .filter(Order.branch_id == bid, Order.status == OrderStatus.picked_up)
+        .filter(Order.hub_id == bid, Order.status == OrderStatus.picked_up)
         .order_by(Order.updated_at.asc())
         .all()
     )
@@ -200,7 +200,7 @@ def dispatch_queue(
     orders = (
         db.query(Order)
         .options(joinedload(Order.dropoff_address))
-        .filter(Order.branch_id == bid, Order.status == OrderStatus.in_hub)
+        .filter(Order.hub_id == bid, Order.status == OrderStatus.in_hub)
         .order_by(Order.updated_at.asc())
         .all()
     )
@@ -221,7 +221,7 @@ def manifest_history(
             joinedload(BusManifest.schedule).joinedload(BusSchedule.operator),
             joinedload(BusManifest.items).joinedload(ManifestItem.order),
         )
-        .filter((BusSchedule.origin_branch_id == bid) | (BusSchedule.destination_branch_id == bid))
+        .filter((BusSchedule.origin_hub_id == bid) | (BusSchedule.destination_hub_id == bid))
         .order_by(BusManifest.created_at.desc())
         .limit(50)
         .all()
@@ -240,7 +240,7 @@ def manifest_history(
             # Whether this hub is the manifest's origin (loading/dispatching it)
             # or its destination (expecting it to arrive) - lets the hub console
             # split "Outbound" from "Arrivals" without a second round trip.
-            "direction": "outbound" if m.schedule and str(m.schedule.origin_branch_id) == bid else "inbound",
+            "direction": "outbound" if m.schedule and str(m.schedule.origin_hub_id) == bid else "inbound",
             "items": [
                 {
                     "id": str(i.id),
@@ -269,7 +269,7 @@ def rto_queue(
     loop, not something still needing action."""
     bid = _resolve_branch_id(current_user, branch_id, db)
     query = db.query(Order).options(joinedload(Order.dropoff_address)).filter(
-        Order.branch_id == bid, Order.status == OrderStatus.rto
+        Order.hub_id == bid, Order.status == OrderStatus.rto
     )
     if not include_collected:
         query = query.filter(Order.rto_collected_at.is_(None))
@@ -304,7 +304,7 @@ def mark_rto_collected(
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    if str(order.branch_id) != bid:
+    if str(order.hub_id) != bid:
         raise HTTPException(status_code=403, detail="This parcel does not belong to your branch")
     if order.status != OrderStatus.rto:
         raise HTTPException(status_code=400, detail="Only RTO parcels can be marked collected")
@@ -340,7 +340,7 @@ def aging_parcels(
         db.query(Order)
         .options(joinedload(Order.dropoff_address))
         .filter(
-            Order.branch_id == bid,
+            Order.hub_id == bid,
             Order.status.in_([OrderStatus.in_hub, OrderStatus.dest_hub]),
             Order.updated_at <= cutoff,
         )
@@ -370,14 +370,14 @@ def warehouse_occupancy(
     scanned in awaiting dispatch (`in_hub`), arrived awaiting last-mile
     (`dest_hub`), and RTO parcels not yet collected by the seller."""
     bid = _resolve_branch_id(current_user, branch_id, db)
-    branch = db.query(Branch).filter(Branch.id == bid).first()
-    if not branch:
+    hub = db.query(Hub).filter(Hub.id == bid).first()
+    if not hub:
         raise HTTPException(status_code=404, detail="Branch not found")
 
     current_count = (
         db.query(func.count(Order.id))
         .filter(
-            Order.branch_id == bid,
+            Order.hub_id == bid,
             or_(
                 Order.status.in_([OrderStatus.in_hub, OrderStatus.dest_hub]),
                 and_(Order.status == OrderStatus.rto, Order.rto_collected_at.is_(None)),
@@ -386,7 +386,7 @@ def warehouse_occupancy(
         .scalar()
         or 0
     )
-    capacity = branch.warehouse_capacity or DEFAULT_WAREHOUSE_CAPACITY
+    capacity = hub.warehouse_capacity or DEFAULT_WAREHOUSE_CAPACITY
     occupancy_pct = round(min(current_count / capacity, 1.0) * 100, 1) if capacity else 0.0
     return {"current_count": current_count, "capacity": capacity, "occupancy_pct": occupancy_pct}
 
@@ -412,7 +412,7 @@ def _delivery_success_rate(db: Session, since: datetime, branch_id: str | None =
         Order.created_at >= since,
     )
     if branch_id:
-        query = query.filter(Order.branch_id == branch_id)
+        query = query.filter(Order.hub_id == branch_id)
     counts = {s: c for s, c in query.group_by(Order.status).all()}
     delivered = counts.get(OrderStatus.delivered, 0)
     resolved = sum(counts.values())
@@ -426,7 +426,7 @@ def _on_time_pickup_rate(db: Session, since: datetime, branch_id: str | None = N
         .filter(TrackingEvent.status == OrderStatus.picked_up.value, Order.created_at >= since)
     )
     if branch_id:
-        query = query.filter(Order.branch_id == branch_id)
+        query = query.filter(Order.hub_id == branch_id)
     rows = query.group_by(Order.id, Order.created_at).all()
     if not rows:
         return 0.0
@@ -444,14 +444,14 @@ def _hub_reports(db: Session, bid: str) -> dict:
 
     avg_delivery_seconds = (
         db.query(func.avg(func.extract("epoch", Order.updated_at - Order.created_at)))
-        .filter(Order.branch_id == bid, Order.status == OrderStatus.delivered)
+        .filter(Order.hub_id == bid, Order.status == OrderStatus.delivered)
         .scalar()
     )
 
     cod_collected_today = (
         db.query(func.sum(Settlement.amount))
         .join(Order, Settlement.order_id == Order.id)
-        .filter(Order.branch_id == bid, Settlement.created_at >= today_start)
+        .filter(Order.hub_id == bid, Settlement.created_at >= today_start)
         .scalar()
         or 0.0
     )
@@ -459,21 +459,21 @@ def _hub_reports(db: Session, bid: str) -> dict:
     complaints_7d = (
         db.query(func.count(SupportTicket.id))
         .join(Order, SupportTicket.order_id == Order.id)
-        .filter(Order.branch_id == bid, SupportTicket.created_at >= week_ago)
+        .filter(Order.hub_id == bid, SupportTicket.created_at >= week_ago)
         .scalar()
         or 0
     )
 
     branch_delivered_counts = (
-        db.query(Order.branch_id, func.count(Order.id))
-        .filter(Order.status == OrderStatus.delivered, Order.branch_id.isnot(None))
-        .group_by(Order.branch_id)
+        db.query(Order.hub_id, func.count(Order.id))
+        .filter(Order.status == OrderStatus.delivered, Order.hub_id.isnot(None))
+        .group_by(Order.hub_id)
         .order_by(func.count(Order.id).desc())
         .all()
     )
     ranked_branch_ids = [str(row[0]) for row in branch_delivered_counts]
     network_rank = ranked_branch_ids.index(bid) + 1 if bid in ranked_branch_ids else None
-    network_branch_count = db.query(func.count(Branch.id)).scalar() or 0
+    network_branch_count = db.query(func.count(Hub.id)).scalar() or 0
 
     return {
         "delivery_success_rate": _delivery_success_rate(db, since, bid),
@@ -502,7 +502,7 @@ def hub_analytics(
         db.query(func.date(TrackingEvent.created_at), func.count(TrackingEvent.id))
         .join(Order, TrackingEvent.order_id == Order.id)
         .filter(
-            Order.branch_id == bid,
+            Order.hub_id == bid,
             TrackingEvent.status == OrderStatus.in_hub.value,
             TrackingEvent.created_at >= since,
         )
@@ -513,7 +513,7 @@ def hub_analytics(
         db.query(func.date(TrackingEvent.created_at), func.count(TrackingEvent.id))
         .join(Order, TrackingEvent.order_id == Order.id)
         .filter(
-            Order.branch_id == bid,
+            Order.hub_id == bid,
             TrackingEvent.status == OrderStatus.in_transit.value,
             TrackingEvent.created_at >= since,
         )
@@ -529,7 +529,7 @@ def hub_analytics(
         db.query(func.count(TrackingEvent.id))
         .join(Order, TrackingEvent.order_id == Order.id)
         .filter(
-            Order.branch_id == bid,
+            Order.hub_id == bid,
             TrackingEvent.status == OrderStatus.in_hub.value,
             TrackingEvent.created_at >= today_start,
         )
@@ -540,7 +540,7 @@ def hub_analytics(
         db.query(func.count(TrackingEvent.id))
         .join(Order, TrackingEvent.order_id == Order.id)
         .filter(
-            Order.branch_id == bid,
+            Order.hub_id == bid,
             TrackingEvent.status == OrderStatus.in_transit.value,
             TrackingEvent.created_at >= today_start,
         )
@@ -549,19 +549,19 @@ def hub_analytics(
     )
     on_bus = (
         db.query(func.count(Order.id))
-        .filter(Order.branch_id == bid, Order.status == OrderStatus.in_transit)
+        .filter(Order.hub_id == bid, Order.status == OrderStatus.in_transit)
         .scalar()
         or 0
     )
     pending = (
         db.query(func.count(Order.id))
-        .filter(Order.branch_id == bid, Order.status == OrderStatus.picked_up)
+        .filter(Order.hub_id == bid, Order.status == OrderStatus.picked_up)
         .scalar()
         or 0
     )
     rto = (
         db.query(func.count(Order.id))
-        .filter(Order.branch_id == bid, Order.status == OrderStatus.rto)
+        .filter(Order.hub_id == bid, Order.status == OrderStatus.rto)
         .scalar()
         or 0
     )
@@ -602,7 +602,7 @@ def rider_wallet_update(
         raise HTTPException(status_code=404, detail="Rider not found")
 
     bid = _resolve_branch_id(current_user, None, db)
-    if rider.branch_id and str(rider.branch_id) != bid:
+    if rider.hub_id and str(rider.hub_id) != bid:
         raise HTTPException(status_code=403, detail="This rider does not belong to your branch")
 
     if payload.action == "lock":
@@ -646,7 +646,7 @@ def list_branch_staff(
     staff = (
         db.query(StaffProfile)
         .options(joinedload(StaffProfile.user))
-        .filter(StaffProfile.branch_id == bid)
+        .filter(StaffProfile.hub_id == bid)
         .all()
     )
     return [_staff_out(s) for s in staff]
@@ -672,7 +672,7 @@ def update_staff_attendance(
     )
     if not staff:
         raise HTTPException(status_code=404, detail="Staff member not found")
-    if str(staff.branch_id) != bid:
+    if str(staff.hub_id) != bid:
         raise HTTPException(status_code=403, detail="This staff member does not belong to your branch")
 
     staff.attendance_status = payload.status
@@ -703,7 +703,7 @@ def update_staff_shift(
     )
     if not staff:
         raise HTTPException(status_code=404, detail="Staff member not found")
-    if str(staff.branch_id) != bid:
+    if str(staff.hub_id) != bid:
         raise HTTPException(status_code=403, detail="This staff member does not belong to your branch")
 
     staff.shift_start = payload.shift_start
@@ -720,7 +720,7 @@ def update_staff_shift(
 def _service_area_out(area: BranchServiceArea) -> dict:
     return {
         "id": str(area.id),
-        "branch_id": str(area.branch_id),
+        "branch_id": str(area.hub_id),
         "zone_name": area.zone_name,
         "postal_codes": area.postal_codes,
         "radius_km": area.radius_km,
@@ -736,7 +736,7 @@ def list_service_areas(
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     bid = _resolve_branch_id(current_user, branch_id, db)
-    areas = db.query(BranchServiceArea).filter(BranchServiceArea.branch_id == bid).order_by(BranchServiceArea.zone_name).all()
+    areas = db.query(BranchServiceArea).filter(BranchServiceArea.hub_id == bid).order_by(BranchServiceArea.zone_name).all()
     return [_service_area_out(a) for a in areas]
 
 
@@ -755,7 +755,7 @@ def create_service_area(
     current_user: User = Depends(require_roles("manager", "admin", "super_admin", "hub_manager")),
 ):
     bid = _resolve_branch_id(current_user, None, db)
-    area = BranchServiceArea(branch_id=bid, **payload.model_dump())
+    area = BranchServiceArea(hub_id=bid, **payload.model_dump())
     db.add(area)
     db.commit()
     db.refresh(area)
@@ -773,7 +773,7 @@ def update_service_area(
     area = db.query(BranchServiceArea).filter(BranchServiceArea.id == area_id).first()
     if not area:
         raise HTTPException(status_code=404, detail="Service area not found")
-    if str(area.branch_id) != bid:
+    if str(area.hub_id) != bid:
         raise HTTPException(status_code=403, detail="This service area does not belong to your branch")
 
     for key, value in payload.model_dump().items():
@@ -793,7 +793,7 @@ def delete_service_area(
     area = db.query(BranchServiceArea).filter(BranchServiceArea.id == area_id).first()
     if not area:
         raise HTTPException(status_code=404, detail="Service area not found")
-    if str(area.branch_id) != bid:
+    if str(area.hub_id) != bid:
         raise HTTPException(status_code=403, detail="This service area does not belong to your branch")
 
     db.delete(area)
@@ -824,7 +824,7 @@ def last_mile_queue(
     orders = (
         db.query(Order)
         .options(joinedload(Order.dropoff_address), joinedload(Order.rider).joinedload(RiderProfile.user))
-        .filter(Order.branch_id == bid, Order.status == OrderStatus.dest_hub)
+        .filter(Order.hub_id == bid, Order.status == OrderStatus.dest_hub)
         .order_by(Order.updated_at.asc())
         .all()
     )
@@ -842,7 +842,7 @@ def list_hub_riders(
     riders = (
         db.query(RiderProfile)
         .options(joinedload(RiderProfile.user))
-        .filter(RiderProfile.branch_id == bid, RiderProfile.status == RiderStatus.active)
+        .filter(RiderProfile.hub_id == bid, RiderProfile.status == RiderStatus.active)
         .order_by(RiderProfile.rating.desc())
         .all()
     )
@@ -875,7 +875,7 @@ def hub_assign_last_mile_rider(
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    if str(order.branch_id) != bid:
+    if str(order.hub_id) != bid:
         raise HTTPException(status_code=403, detail="This parcel does not belong to your branch")
     if order.status != OrderStatus.dest_hub:
         raise HTTPException(status_code=400, detail="Only parcels that have arrived at this hub can be assigned a last-mile rider")
@@ -883,7 +883,7 @@ def hub_assign_last_mile_rider(
     rider = (
         db.query(RiderProfile)
         .options(joinedload(RiderProfile.user))
-        .filter(RiderProfile.id == rider_id, RiderProfile.status == RiderStatus.active, RiderProfile.branch_id == bid)
+        .filter(RiderProfile.id == rider_id, RiderProfile.status == RiderStatus.active, RiderProfile.hub_id == bid)
         .first()
     )
     if not rider:
@@ -910,8 +910,8 @@ class HubSettingsIn(BaseModel):
     rider_assignment_mode: Literal["manual", "automatic"]
 
 
-def _hub_settings_out(branch: Branch) -> dict:
-    return {"branch_id": str(branch.id), "rider_assignment_mode": branch.rider_assignment_mode}
+def _hub_settings_out(hub: Hub) -> dict:
+    return {"branch_id": str(hub.id), "rider_assignment_mode": hub.rider_assignment_mode}
 
 
 @router.get("/settings")
@@ -921,10 +921,10 @@ def get_hub_settings(
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     bid = _resolve_branch_id(current_user, branch_id, db)
-    branch = db.query(Branch).filter(Branch.id == bid).first()
-    if not branch:
+    hub = db.query(Hub).filter(Hub.id == bid).first()
+    if not hub:
         raise HTTPException(status_code=404, detail="Branch not found")
-    return _hub_settings_out(branch)
+    return _hub_settings_out(hub)
 
 
 @router.patch("/settings")
@@ -936,13 +936,13 @@ def update_hub_settings(
     current_user: User = Depends(require_roles("manager", "admin", "super_admin", "hub_manager")),
 ):
     bid = _resolve_branch_id(current_user, None, db)
-    branch = db.query(Branch).filter(Branch.id == bid).first()
-    if not branch:
+    hub = db.query(Hub).filter(Hub.id == bid).first()
+    if not hub:
         raise HTTPException(status_code=404, detail="Branch not found")
-    branch.rider_assignment_mode = payload.rider_assignment_mode
+    hub.rider_assignment_mode = payload.rider_assignment_mode
     db.commit()
-    db.refresh(branch)
-    return _hub_settings_out(branch)
+    db.refresh(hub)
+    return _hub_settings_out(hub)
 
 
 # ============================================================
@@ -982,7 +982,7 @@ def list_incidents(
     query = (
         db.query(ParcelIncident)
         .options(joinedload(ParcelIncident.order), joinedload(ParcelIncident.reported_by), joinedload(ParcelIncident.resolved_by))
-        .filter(ParcelIncident.branch_id == bid)
+        .filter(ParcelIncident.hub_id == bid)
     )
     if status_filter:
         query = query.filter(ParcelIncident.status == status_filter)
@@ -1007,7 +1007,7 @@ def create_incident(
             raise HTTPException(status_code=404, detail="No parcel found with that tracking number")
 
     incident = ParcelIncident(
-        branch_id=bid,
+        hub_id=bid,
         order_id=order.id if order else None,
         type=IncidentType(payload.type),
         note=payload.note,
@@ -1035,7 +1035,7 @@ def resolve_incident(
     incident = db.query(ParcelIncident).filter(ParcelIncident.id == incident_id).first()
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
-    if str(incident.branch_id) != bid:
+    if str(incident.hub_id) != bid:
         raise HTTPException(status_code=403, detail="This incident does not belong to your branch")
     if incident.status == IncidentStatus.resolved:
         raise HTTPException(status_code=400, detail="This incident is already resolved")

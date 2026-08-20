@@ -28,8 +28,8 @@ class BusScheduleIn(BaseModel):
     operator_id: str
     origin_city: str
     destination_city: str
-    origin_branch_id: Optional[str] = None
-    destination_branch_id: Optional[str] = None
+    origin_hub_id: Optional[str] = None
+    destination_hub_id: Optional[str] = None
     departure_time: Optional[str] = None
     departure_interval_min: Optional[int] = 30
     fare: Optional[float] = None
@@ -40,8 +40,8 @@ class BusScheduleUpdateIn(BaseModel):
     operator_id: Optional[str] = None
     origin_city: Optional[str] = None
     destination_city: Optional[str] = None
-    origin_branch_id: Optional[str] = None
-    destination_branch_id: Optional[str] = None
+    origin_hub_id: Optional[str] = None
+    destination_hub_id: Optional[str] = None
     departure_time: Optional[str] = None
     departure_interval_min: Optional[int] = None
     fare: Optional[float] = None

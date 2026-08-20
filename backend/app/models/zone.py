@@ -16,6 +16,6 @@ class Zone(Base, TimestampMixin):
     base_rate = Column(Float, nullable=False, default=5.0)
     cod_fee_percentage = Column(Float, nullable=False, default=3.0)
 
-    branches = relationship("Branch", back_populates="zone")
+    hubs = relationship("Hub", back_populates="zone")
     pricing_rules = relationship("PricingRule", back_populates="zone")
     

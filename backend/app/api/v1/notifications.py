@@ -10,7 +10,7 @@ from app.models.user import User
 from app.models.notification import Notification
 from app.models.announcement import Announcement
 from app.models.audit_log import AuditLog
-from app.models.branch import Branch
+from app.models.hub import Hub
 from app.models.staff import StaffProfile
 from app.models.rider import RiderProfile
 from app.schemas.notification import NotificationOut
@@ -21,19 +21,19 @@ admin_router = APIRouter(prefix="/admin", tags=["Admin - Notifications & Announc
 
 
 def _current_branch_id(db: Session, user: User) -> str | None:
-    if user.staff_profile and user.staff_profile.branch_id:
-        return str(user.staff_profile.branch_id)
-    if user.rider_profile and user.rider_profile.branch_id:
-        return str(user.rider_profile.branch_id)
-    if user.managed_branches:
-        return str(user.managed_branches[0].id)
+    if user.staff_profile and user.staff_profile.hub_id:
+        return str(user.staff_profile.hub_id)
+    if user.rider_profile and user.rider_profile.hub_id:
+        return str(user.rider_profile.hub_id)
+    if user.managed_hubs:
+        return str(user.managed_hubs[0].id)
     return None
 
 
 @router.get("", response_model=dict)
 def list_my_notifications(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "business", "rider", "customer")),
+    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "business", "rider", "customer", "hub_manager")),
 ):
     """Every notification for the signed-in user, newest first, with an unread count."""
     rows = (
@@ -53,7 +53,7 @@ def list_my_notifications(
 def mark_my_notification_read(
     notification_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "business", "rider", "customer")),
+    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "business", "rider", "customer", "hub_manager")),
 ):
     notification = (
         db.query(Notification)
@@ -71,7 +71,7 @@ def mark_my_notification_read(
 @router.post("/read-all", response_model=dict)
 def mark_my_notifications_read_all(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "business", "rider", "customer")),
+    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "business", "rider", "customer", "hub_manager")),
 ):
     db.query(Notification).filter(Notification.user_id == current_user.id, Notification.is_read.is_(False)).update(
         {Notification.is_read: True}
@@ -83,16 +83,16 @@ def mark_my_notifications_read_all(
 @router.get("/announcements", response_model=list[dict])
 def list_visible_announcements(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "business", "rider")),
+    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "business", "rider", "hub_manager")),
 ):
     """Active announcements - network-wide, or scoped to the caller's branch."""
     my_branch = _current_branch_id(db, current_user)
     now = datetime.now(timezone.utc)
     query = db.query(Announcement).filter(Announcement.is_active.is_(True))
     if my_branch:
-        query = query.filter((Announcement.branch_id.is_(None)) | (Announcement.branch_id == my_branch))
+        query = query.filter((Announcement.hub_id.is_(None)) | (Announcement.hub_id == my_branch))
     else:
-        query = query.filter(Announcement.branch_id.is_(None))
+        query = query.filter(Announcement.hub_id.is_(None))
     rows = query.order_by(Announcement.created_at.desc()).limit(50).all()
     out = []
     for a in rows:
@@ -102,7 +102,7 @@ def list_visible_announcements(
             "id": str(a.id),
             "title": a.title,
             "body": a.body,
-            "branch_id": str(a.branch_id) if a.branch_id else None,
+            "branch_id": str(a.hub_id) if a.hub_id else None,
             "created_at": a.created_at.isoformat() if a.created_at else None,
             "created_by": a.created_by.full_name if a.created_by else None,
         })
@@ -112,7 +112,7 @@ def list_visible_announcements(
 @router.get("/activity", response_model=list[dict])
 def recent_activity_feed(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance")),
+    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "hub_manager")),
 ):
     """Recent immutable audit entries - powers the activity/audit feeds in the
     branch and super-admin consoles."""
@@ -169,9 +169,9 @@ def _resolve_target_users(db: Session, target: dict) -> list[User]:
     elif scope == "branch":
         bid = target.get("branch_id")
         if bid:
-            staff_ids = [s.user_id for s in db.query(StaffProfile).filter(StaffProfile.branch_id == bid).all()]
-            rider_ids = [r.user_id for r in db.query(RiderProfile).filter(RiderProfile.branch_id == bid).all()]
-            branch = db.query(Branch).filter(Branch.id == bid).first()
+            staff_ids = [s.user_id for s in db.query(StaffProfile).filter(StaffProfile.hub_id == bid).all()]
+            rider_ids = [r.user_id for r in db.query(RiderProfile).filter(RiderProfile.hub_id == bid).all()]
+            branch = db.query(Hub).filter(Hub.id == bid).first()
             manager_id = str(branch.manager_id) if branch and branch.manager_id else None
             ids = set(staff_ids + rider_ids + ([manager_id] if manager_id else []))
             users = db.query(User).filter(User.id.in_(ids), User.is_active.is_(True)).all()
@@ -209,13 +209,13 @@ def create_announcement(
     current_user: User = Depends(require_roles("admin", "super_admin", "manager")),
 ):
     if payload.branch_id:
-        branch = db.query(Branch).filter(Branch.id == payload.branch_id).first()
+        branch = db.query(Hub).filter(Hub.id == payload.branch_id).first()
         if not branch:
             raise HTTPException(status_code=404, detail="Branch not found")
     announcement = Announcement(
         title=payload.title,
         body=payload.body,
-        branch_id=payload.branch_id,
+        hub_id=payload.branch_id,
         created_by_id=current_user.id,
     )
     if payload.expires_at:
@@ -227,7 +227,7 @@ def create_announcement(
     db.commit()
     db.refresh(announcement)
     return {"id": str(announcement.id), "title": announcement.title, "body": announcement.body,
-            "branch_id": str(announcement.branch_id) if announcement.branch_id else None,
+            "branch_id": str(announcement.hub_id) if announcement.hub_id else None,
             "is_active": announcement.is_active, "created_at": announcement.created_at}
 
 
@@ -242,8 +242,8 @@ def list_announcements(
             "id": str(a.id),
             "title": a.title,
             "body": a.body,
-            "branch_id": str(a.branch_id) if a.branch_id else None,
-            "branch_name": a.branch.name if a.branch else None,
+            "branch_id": str(a.hub_id) if a.hub_id else None,
+            "branch_name": a.hub.name if a.hub else None,
             "is_active": a.is_active,
             "created_at": a.created_at.isoformat() if a.created_at else None,
             "created_by": a.created_by.full_name if a.created_by else None,

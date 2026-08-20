@@ -5,6 +5,7 @@ import { RoleGuard } from '@/components/RoleGuard';
 import { useAuth } from '@/context/AuthContext';
 import { Field } from './components';
 import { NotificationBell } from '@/components/NotificationBell';
+import { AnnouncementsPanel } from '@/components/AnnouncementsPanel';
 import {
   ApiError,
   getAdminAnalytics,
@@ -38,6 +39,10 @@ import {
   updateMessageTemplate,
   MessageTemplate,
   listSellersAdmin,
+  approveSeller,
+  rejectSeller,
+  deactivateSeller,
+  activateSeller,
   AdminSeller,
   getNetworkSettings,
   updateNetworkSettings,
@@ -52,6 +57,8 @@ import {
   listHubs,
   createHub,
   updateHub,
+  Headquarter,
+  listHeadquarters,
   LocalOffice,
   LocalOfficeInput,
   listLocalOffices,
@@ -194,7 +201,10 @@ function AdminDashboardContent() {
   const [analytics, setAnalytics] = useState<AdminAnalytics>();
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [adminRiders, setAdminRiders] = useState<AdminRider[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const [hubs, setHubs] = useState<Hub[]>([]);
+  const [branchList, setBranchList] = useState<Branch[]>([]);
+  const [localOffices, setLocalOffices] = useState<LocalOffice[]>([]);
+  const [headquarters, setHeadquarters] = useState<Headquarter[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
 
@@ -238,23 +248,29 @@ function AdminDashboardContent() {
       getAdminAnalytics(token),
       listAllOrders(token),
       listRiders(token),
-      listBranches(token),
+      listHubs(token),
       listZones(token),
       listStaffAndRiders(token),
       listAssignmentRules(token),
       listMessageTemplates(token),
       listSellersAdmin(token),
+      listBranches(token),
+      listLocalOffices(token),
+      listHeadquarters(token),
     ])
-      .then(([a, o, r, b, z, u, rules, templates, sellers]) => {
+      .then(([a, o, r, h, z, u, rules, templates, sellers, bl, lo, hq]) => {
         setAnalytics(a);
         setOrders(o);
         setAdminRiders(r);
-        setBranches(b);
+        setHubs(h);
         setZones(z);
         setUsers(u);
         setAssignmentRules(rules);
         setMessageTemplates(templates);
         setBusinessAccounts(sellers);
+        setBranchList(bl);
+        setLocalOffices(lo);
+        setHeadquarters(hq);
       })
       .catch((err) => {
         setSyncError(err instanceof ApiError ? err.message : 'Could not sync network data with backend.');
@@ -433,7 +449,7 @@ function AdminDashboardContent() {
         ))}
 
         <div className="mt-auto pt-4 border-t border-white/10 text-xs text-white/50">
-          {branches.length} branches · {zones.length} zones
+          {hubs.length} hubs · {zones.length} zones
           <div className="text-white/70 font-semibold mt-0.5">Network Control Center</div>
         </div>
       </aside>
@@ -471,7 +487,7 @@ function AdminDashboardContent() {
           )}
 
           {view === 'overview' && (
-            <OverviewView analytics={analytics} branches={branches} zones={zones} onlineRiders={onlineRiders}
+            <OverviewView analytics={analytics} hubs={hubs} zones={zones} onlineRiders={onlineRiders}
               busyRiders={busyRiders} unassignedOrders={unassignedOrders.length} switchView={switchView} activity={activity} />
           )}
 
@@ -481,7 +497,7 @@ function AdminDashboardContent() {
               onAssign={(o) => setAssignModalOrder(o)} onView={(o) => setViewingOrderId(o.id)} />
           )}
 
-          {view === 'map' && <MapView branches={branches} riders={riders} />}
+          {view === 'map' && <MapView hubs={hubs} riders={riders} />}
 
           {view === 'riders' && (
             <RidersView riders={riders} onlineRiders={onlineRiders} busyRiders={busyRiders} offlineRiders={offlineRiders} />
@@ -501,19 +517,19 @@ function AdminDashboardContent() {
           {view === 'discounts' && <DiscountsTab token={token!} />}
 
           {view === 'branches' && (
-            <BranchesView branches={branches} zones={zones} token={token!} toast={toast} setBranches={setBranches} />
+            <HubsView hubs={hubs} zones={zones} headquarters={headquarters} token={token!} toast={toast} setHubs={setHubs} />
           )}
 
-          {view === 'zones' && <ZonesView zones={zones} branches={branches} onDelete={handleDeleteZone} />}
+          {view === 'zones' && <ZonesView zones={zones} hubs={hubs} onDelete={handleDeleteZone} />}
 
-          {view === 'hubops' && <HubsAndOfficesView branches={branches} token={token!} toast={toast} />}
+          {view === 'hubops' && <BranchesAndOfficesView hubs={hubs} token={token!} toast={toast} />}
 
           {view === 'staff' && (
             <StaffView users={filteredUsers} roleFilter={userRoleFilter} setRoleFilter={setUserRoleFilter}
               onDelete={handleDeleteUser} onResetPassword={handleResetPassword} />
           )}
 
-          {view === 'business' && <BusinessView accounts={businessAccounts} />}
+          {view === 'business' && <BusinessView accounts={businessAccounts} token={token!} toast={toast} onChanged={setBusinessAccounts} />}
 
           {view === 'messaging' && <MessagingView templates={messageTemplates} onToggle={toggleTemplate} />}
 
@@ -543,7 +559,7 @@ function AdminDashboardContent() {
       )}
 
       {showCreateUser && (
-        <CreateUserModal branches={branches} zones={zones} onClose={() => setShowCreateUser(false)} onCreate={handleCreateUser} />
+        <CreateUserModal hubs={hubs} branches={branchList} localOffices={localOffices} zones={zones} onClose={() => setShowCreateUser(false)} onCreate={handleCreateUser} />
       )}
 
       <Toasts toasts={toasts} />
@@ -554,8 +570,8 @@ function AdminDashboardContent() {
 // ============================================================
 // OVERVIEW
 // ============================================================
-function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, unassignedOrders, switchView, activity }: {
-  analytics?: AdminAnalytics; branches: Branch[]; zones: Zone[]; onlineRiders: number; busyRiders: number;
+function OverviewView({ analytics, hubs, zones, onlineRiders, busyRiders, unassignedOrders, switchView, activity }: {
+  analytics?: AdminAnalytics; hubs: Hub[]; zones: Zone[]; onlineRiders: number; busyRiders: number;
   unassignedOrders: number; switchView: (v: View) => void; activity: AuditActivityItem[];
 }) {
   const kpis = [
@@ -564,7 +580,7 @@ function OverviewView({ analytics, branches, zones, onlineRiders, busyRiders, un
     { icon: 'clock', bg: '#F2A93B', label: 'Unassigned Orders', num: unassignedOrders, trend: 'Needs a rider', trendColor: '#B8710A' },
     { icon: 'riders', bg: '#1E8E5A', label: 'Riders Online', num: onlineRiders, trend: 'Ready for dispatch', trendColor: '#1E8E5A' },
     { icon: 'riders', bg: '#F2A93B', label: 'Riders on Delivery', num: busyRiders, trend: 'Active routes', trendColor: '#B8710A' },
-    { icon: 'building', bg: '#1D3C8F', label: 'Branches', num: branches.length, trend: 'Across the network', trendColor: '#8A94A6' },
+    { icon: 'building', bg: '#1D3C8F', label: 'Hubs', num: hubs.length, trend: 'Across the network', trendColor: '#8A94A6' },
     { icon: 'zone', bg: '#2563EB', label: 'Service Zones', num: zones.length, trend: 'Coverage areas', trendColor: '#8A94A6' },
     { icon: 'check', bg: '#1E8E5A', label: 'Delivered', num: analytics?.status_counts?.delivered ?? 0, trend: 'Completed orders', trendColor: '#1E8E5A' },
   ];
@@ -764,8 +780,8 @@ function AssignRiderModal({ order, riders, onClose, onAssign }: {
 // ============================================================
 // LIVE MAP (network-wide)
 // ============================================================
-function MapView({ branches, riders }: { branches: Branch[]; riders: RiderCard[] }) {
-  const branchPins = branches.slice(0, 8).map((b, i) => ({
+function MapView({ hubs, riders }: { hubs: Hub[]; riders: RiderCard[] }) {
+  const branchPins = hubs.slice(0, 8).map((b, i) => ({
     x: 12 + (i * 17) % 80, y: 15 + (i * 29) % 70, name: b.name,
   }));
   const riderPins = riders.filter((r) => r.status !== 'offline').slice(0, 14).map((r, i) => ({
@@ -789,7 +805,7 @@ function MapView({ branches, riders }: { branches: Branch[]; riders: RiderCard[]
         )}
       </div>
       <div className="flex flex-wrap gap-4 mt-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-navy" />Branch</span>
+        <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-navy" />Hub</span>
         <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-[#2563EB]" />Rider (on delivery)</span>
         <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full inline-block bg-[#B7BEC9]" />Rider (idle)</span>
       </div>
@@ -922,7 +938,7 @@ function AssignmentView({ rules, onToggle, unassignedOrders, openAssign }: {
   );
 }
 
-interface BranchFormState {
+interface HubFormState {
   name: string;
   address: string;
   email: string;
@@ -931,11 +947,12 @@ interface BranchFormState {
   phone: string;
   status: 'active' | 'inactive';
   zone_id: string;
+  headquarter_id: string;
   latitude: string;
   longitude: string;
 }
 
-const INITIAL_BRANCH_FORM: BranchFormState = {
+const INITIAL_HUB_FORM: HubFormState = {
   name: '',
   address: '',
   email: '',
@@ -944,54 +961,57 @@ const INITIAL_BRANCH_FORM: BranchFormState = {
   phone: '',
   status: 'active',
   zone_id: '',
+  headquarter_id: '',
   latitude: '',
   longitude: '',
 };
 
-function branchToForm(b: Branch): BranchFormState {
+function hubToForm(h: Hub): HubFormState {
   return {
-    name: b.name,
-    address: b.address || '',
-    email: b.email || '',
-    opening_time: b.opening_time || '',
-    closing_time: b.closing_time || '',
-    phone: b.phone || '',
-    status: (b.status as 'active' | 'inactive') || 'active',
-    zone_id: b.zone_id || '',
-    latitude: b.latitude || '',
-    longitude: b.longitude || '',
+    name: h.name,
+    address: h.address || '',
+    email: h.email || '',
+    opening_time: h.opening_time || '',
+    closing_time: h.closing_time || '',
+    phone: h.phone || '',
+    status: (h.status as 'active' | 'inactive') || 'active',
+    zone_id: h.zone_id || '',
+    headquarter_id: h.headquarter_id || '',
+    latitude: h.latitude || '',
+    longitude: h.longitude || '',
   };
 }
 
 // ============================================================
-// BRANCHES
+// HUBS (city-level main offices)
 // ============================================================
-function BranchesView({ branches, zones, token, toast, setBranches }: {
-  branches: Branch[]; zones: Zone[]; token: string; toast: (msg: string) => void;
-  setBranches: React.Dispatch<React.SetStateAction<Branch[]>>;
+function HubsView({ hubs, zones, headquarters, token, toast, setHubs }: {
+  hubs: Hub[]; zones: Zone[]; headquarters: Headquarter[]; token: string; toast: (msg: string) => void;
+  setHubs: React.Dispatch<React.SetStateAction<Hub[]>>;
 }) {
-  const [editingId, setEditingId] = useState<string | null>(null); // null while creating, branch id while editing
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<BranchFormState>(INITIAL_BRANCH_FORM);
+  const [form, setForm] = useState<HubFormState>(INITIAL_HUB_FORM);
   const [saving, setSaving] = useState(false);
 
   const zoneName = (id: string | null) => zones.find((z) => z.id === id)?.name || '—';
+  const hqName = (id: string | null) => headquarters.find((q) => q.id === id)?.name || '—';
 
   function openCreateForm() {
     setEditingId(null);
-    setForm(INITIAL_BRANCH_FORM);
+    setForm(INITIAL_HUB_FORM);
     setShowForm(true);
   }
 
-  function openEditForm(b: Branch) {
-    setEditingId(b.id);
-    setForm(branchToForm(b));
+  function openEditForm(h: Hub) {
+    setEditingId(h.id);
+    setForm(hubToForm(h));
     setShowForm(true);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim()) { toast('Branch name is required.'); return; }
+    if (!form.name.trim()) { toast('Hub name is required.'); return; }
     const payload = {
       name: form.name.trim(),
       address: form.address || undefined,
@@ -1002,35 +1022,36 @@ function BranchesView({ branches, zones, token, toast, setBranches }: {
       latitude: form.latitude || undefined,
       longitude: form.longitude || undefined,
       zone_id: form.zone_id || undefined,
+      headquarter_id: form.headquarter_id || undefined,
       status: form.status,
     };
     setSaving(true);
     try {
       if (editingId) {
-        const updated = await updateBranch(editingId, payload, token);
-        setBranches((prev) => prev.map((b) => (b.id === editingId ? updated : b)));
-        toast('Branch updated.');
+        const updated = await updateHub(editingId, payload, token);
+        setHubs((prev) => prev.map((h) => (h.id === editingId ? updated : h)));
+        toast('Hub updated.');
       } else {
-        const created = await createBranch(payload, token);
-        setBranches((prev) => [...prev, created]);
-        toast('Branch created.');
+        const created = await createHub(payload, token);
+        setHubs((prev) => [...prev, created]);
+        toast('Hub created.');
       }
       setShowForm(false);
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Could not save branch.');
+      toast(err instanceof ApiError ? err.message : 'Could not save hub.');
     } finally {
       setSaving(false);
     }
   }
 
-  async function toggleStatus(b: Branch) {
-    const newStatus = b.status === 'active' ? 'inactive' : 'active';
+  async function toggleStatus(h: Hub) {
+    const newStatus = h.status === 'active' ? 'inactive' : 'active';
     try {
-      const updated = await updateBranch(b.id, { status: newStatus }, token);
-      setBranches((prev) => prev.map((x) => (x.id === b.id ? updated : x)));
-      toast(`${b.name} marked ${newStatus}.`);
+      const updated = await updateHub(h.id, { status: newStatus }, token);
+      setHubs((prev) => prev.map((x) => (x.id === h.id ? updated : x)));
+      toast(`${h.name} marked ${newStatus}.`);
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Could not update branch status.');
+      toast(err instanceof ApiError ? err.message : 'Could not update hub status.');
     }
   }
 
@@ -1038,25 +1059,31 @@ function BranchesView({ branches, zones, token, toast, setBranches }: {
     <section className="bg-white border border-line rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="font-display font-bold text-base">Branches</h2>
-          <p className="text-xs text-muted-foreground">{branches.length} branches in the network</p>
+          <h2 className="font-display font-bold text-base">Hubs</h2>
+          <p className="text-xs text-muted-foreground">{hubs.length} city hubs in the network</p>
         </div>
         <button onClick={showForm ? () => setShowForm(false) : openCreateForm} className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
-          <NavIcon name="plus" size={13} color="#fff" /> {showForm ? 'Cancel' : 'Add Branch'}
+          <NavIcon name="plus" size={13} color="#fff" /> {showForm ? 'Cancel' : 'Add Hub'}
         </button>
       </div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-page rounded-xl p-5 mb-5">
-          <h3 className="font-display font-bold text-sm mb-3">{editingId ? 'Edit Branch' : 'New Branch'}</h3>
+          <h3 className="font-display font-bold text-sm mb-3">{editingId ? 'Edit Hub' : 'New Hub'}</h3>
           <div className="grid md:grid-cols-2 gap-x-6 gap-y-3">
-            <Field label="Branch Name">
+            <Field label="Hub Name">
               <input type="text" required className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </Field>
             <Field label="Zone">
               <select className={inputCls} value={form.zone_id} onChange={(e) => setForm({ ...form, zone_id: e.target.value })}>
                 <option value="">No zone</option>
                 {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Headquarter">
+              <select className={inputCls} value={form.headquarter_id} onChange={(e) => setForm({ ...form, headquarter_id: e.target.value })}>
+                <option value="">No headquarter</option>
+                {headquarters.map((q) => <option key={q.id} value={q.id}>{q.name}</option>)}
               </select>
             </Field>
             <Field label="Address">
@@ -1089,7 +1116,7 @@ function BranchesView({ branches, zones, token, toast, setBranches }: {
           </div>
           <div className="flex justify-end mt-4">
             <button type="submit" disabled={saving} className="text-sm font-bold px-5 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white disabled:opacity-60">
-              {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Create Branch'}
+              {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Create Hub'}
             </button>
           </div>
         </form>
@@ -1098,34 +1125,35 @@ function BranchesView({ branches, zones, token, toast, setBranches }: {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-muted-foreground text-xs border-b border-line">
-            <th className="py-2 pr-4">Branch</th><th className="py-2 pr-4">Zone</th><th className="py-2 pr-4">Admin</th><th className="py-2 pr-4">Contact</th>
+            <th className="py-2 pr-4">Hub</th><th className="py-2 pr-4">Zone</th><th className="py-2 pr-4">Headquarter</th><th className="py-2 pr-4">Admin</th><th className="py-2 pr-4">Contact</th>
             <th className="py-2 pr-4">Hours</th><th className="py-2 pr-4">Status</th><th className="py-2 pr-4">Location</th><th className="py-2">Actions</th>
           </tr></thead>
           <tbody>
-            {branches.map((b) => (
-              <tr key={b.id} className="border-b border-line last:border-0">
-                <td className="py-3 pr-4"><div className="font-bold text-ink">{b.name}</div><div className="text-xs text-muted-foreground">{b.address}</div></td>
-                <td className="py-3 pr-4"><Pill status="blue" label={zoneName(b.zone_id)} /></td>
-                <td className="py-3 pr-4 text-xs text-muted-foreground">{b.admin_name || 'Unassigned'}</td>
-                <td className="py-3 pr-4 text-xs text-muted-foreground">{b.phone}<br />{b.email}</td>
-                <td className="py-3 pr-4 text-xs text-muted-foreground">{b.opening_time} – {b.closing_time}</td>
-                <td className="py-3 pr-4"><Pill status={b.status || 'active'} /></td>
+            {hubs.map((h) => (
+              <tr key={h.id} className="border-b border-line last:border-0">
+                <td className="py-3 pr-4"><div className="font-bold text-ink">{h.name}</div><div className="text-xs text-muted-foreground">{h.address}</div></td>
+                <td className="py-3 pr-4"><Pill status="blue" label={zoneName(h.zone_id)} /></td>
+                <td className="py-3 pr-4"><Pill status="gray" label={hqName(h.headquarter_id)} /></td>
+                <td className="py-3 pr-4 text-xs text-muted-foreground">{h.admin_name || 'Unassigned'}</td>
+                <td className="py-3 pr-4 text-xs text-muted-foreground">{h.phone}<br />{h.email}</td>
+                <td className="py-3 pr-4 text-xs text-muted-foreground">{h.opening_time} – {h.closing_time}</td>
+                <td className="py-3 pr-4"><Pill status={h.status || 'active'} /></td>
                 <td className="py-3 pr-4">
-                  {b.latitude && b.longitude ? (
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${b.latitude},${b.longitude}`} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-[#db2203]">Open map →</a>
+                  {h.latitude && h.longitude ? (
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${h.latitude},${h.longitude}`} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-[#db2203]">Open map →</a>
                   ) : <span className="text-xs text-muted-foreground">No coordinates</span>}
                 </td>
                 <td className="py-3">
                   <div className="flex items-center gap-3">
-                    <button onClick={() => openEditForm(b)} className="text-xs font-bold text-navy hover:underline">Edit</button>
-                    <button onClick={() => toggleStatus(b)} className="text-xs font-bold text-muted-foreground hover:underline">
-                      {b.status === 'active' ? 'Deactivate' : 'Activate'}
+                    <button onClick={() => openEditForm(h)} className="text-xs font-bold text-navy hover:underline">Edit</button>
+                    <button onClick={() => toggleStatus(h)} className="text-xs font-bold text-muted-foreground hover:underline">
+                      {h.status === 'active' ? 'Deactivate' : 'Activate'}
                     </button>
                   </div>
                 </td>
               </tr>
             ))}
-            {branches.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-sm text-muted-foreground">No branches yet.</td></tr>}
+            {hubs.length === 0 && <tr><td colSpan={9} className="py-8 text-center text-sm text-muted-foreground">No hubs yet.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1134,73 +1162,71 @@ function BranchesView({ branches, zones, token, toast, setBranches }: {
 }
 
 // ============================================================
-// HUBS & LOCAL OFFICES (sub-locations under a branch)
+// BRANCHES & LOCAL OFFICES (sub-locations under a hub)
 // ============================================================
-const INITIAL_HUB_FORM = { name: '', branch_id: '', address: '', phone: '' };
-// branch_id here is UI-only (narrows the hub dropdown below) - the office
-// itself is only ever linked by hub_id, per the office -> hub -> branch chain.
-const INITIAL_OFFICE_FORM = { name: '', branch_id: '', hub_id: '', address: '', phone: '' };
+const INITIAL_BRANCH_FORM = { name: '', hub_id: '', address: '', phone: '' };
+// branch_id here links a local office to its parent sorting Branch.
+const INITIAL_OFFICE_FORM = { name: '', branch_id: '', address: '', phone: '' };
 
-function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; token: string; toast: (msg: string) => void }) {
-  const [tab, setTab] = useState<'hubs' | 'offices'>('hubs');
-  const [hubs, setHubs] = useState<Hub[]>([]);
+function BranchesAndOfficesView({ hubs, token, toast }: { hubs: Hub[]; token: string; toast: (msg: string) => void }) {
+  const [tab, setTab] = useState<'branches' | 'offices'>('branches');
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [localOffices, setLocalOffices] = useState<LocalOffice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showHubForm, setShowHubForm] = useState(false);
+  const [showBranchForm, setShowBranchForm] = useState(false);
   const [showOfficeForm, setShowOfficeForm] = useState(false);
-  const [hubForm, setHubForm] = useState(INITIAL_HUB_FORM);
+  const [branchForm, setBranchForm] = useState(INITIAL_BRANCH_FORM);
   const [officeForm, setOfficeForm] = useState(INITIAL_OFFICE_FORM);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([listHubs(token), listLocalOffices(token)])
-      .then(([h, o]) => { setHubs(h); setLocalOffices(o); })
-      .catch((err) => toast(err instanceof ApiError ? err.message : 'Could not load hubs/offices.'))
+    Promise.all([listBranches(token), listLocalOffices(token)])
+      .then(([b, o]) => { setBranches(b); setLocalOffices(o); })
+      .catch((err) => toast(err instanceof ApiError ? err.message : 'Could not load branches/offices.'))
       .finally(() => setLoading(false));
   }, [token]);
 
-  const branchName = (id: string) => branches.find((b) => b.id === id)?.name || '—';
-  const filteredHubsForOffice = hubs.filter((h) => h.branch_id === officeForm.branch_id);
+  const hubName = (id: string | null) => hubs.find((h) => h.id === id)?.name || '—';
 
-  async function handleCreateHub(e: React.FormEvent) {
+  async function handleCreateBranch(e: React.FormEvent) {
     e.preventDefault();
-    if (!hubForm.name.trim() || !hubForm.branch_id) { toast('Hub name and branch are required.'); return; }
+    if (!branchForm.name.trim() || !branchForm.hub_id) { toast('Branch name and hub are required.'); return; }
     setSaving(true);
     try {
-      const created = await createHub(
-        { name: hubForm.name.trim(), branch_id: hubForm.branch_id, address: hubForm.address || undefined, phone: hubForm.phone || undefined },
+      const created = await createBranch(
+        { name: branchForm.name.trim(), hub_id: branchForm.hub_id, address: branchForm.address || undefined, phone: branchForm.phone || undefined },
         token
       );
-      setHubs((prev) => [...prev, created]);
-      setShowHubForm(false);
-      setHubForm(INITIAL_HUB_FORM);
-      toast('Hub created.');
+      setBranches((prev) => [...prev, created]);
+      setShowBranchForm(false);
+      setBranchForm(INITIAL_BRANCH_FORM);
+      toast('Branch created.');
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Could not create hub.');
+      toast(err instanceof ApiError ? err.message : 'Could not create branch.');
     } finally {
       setSaving(false);
     }
   }
 
-  async function toggleHubStatus(h: Hub) {
-    const newStatus = h.status === 'active' ? 'inactive' : 'active';
+  async function toggleBranchStatus(b: Branch) {
+    const newStatus = b.status === 'active' ? 'inactive' : 'active';
     try {
-      const updated = await updateHub(h.id, { status: newStatus } as Partial<HubInput> & { status: string }, token);
-      setHubs((prev) => prev.map((x) => (x.id === h.id ? updated : x)));
-      toast(`${h.name} marked ${newStatus}.`);
+      const updated = await updateBranch(b.id, { status: newStatus }, token);
+      setBranches((prev) => prev.map((x) => (x.id === b.id ? updated : x)));
+      toast(`${b.name} marked ${newStatus}.`);
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Could not update hub status.');
+      toast(err instanceof ApiError ? err.message : 'Could not update branch status.');
     }
   }
 
   async function handleCreateOffice(e: React.FormEvent) {
     e.preventDefault();
-    if (!officeForm.name.trim() || !officeForm.hub_id) { toast('Local office name and hub are required.'); return; }
+    if (!officeForm.name.trim() || !officeForm.branch_id) { toast('Local office name and branch are required.'); return; }
     setSaving(true);
     try {
       const created = await createLocalOffice(
-        { name: officeForm.name.trim(), hub_id: officeForm.hub_id, address: officeForm.address || undefined, phone: officeForm.phone || undefined },
+        { name: officeForm.name.trim(), branch_id: officeForm.branch_id, address: officeForm.address || undefined, phone: officeForm.phone || undefined },
         token
       );
       setLocalOffices((prev) => [...prev, created]);
@@ -1229,16 +1255,16 @@ function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; to
     <section className="bg-white border border-line rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex gap-1 rounded-lg bg-page p-1 w-fit">
-          <button onClick={() => setTab('hubs')} className={`px-4 py-2 text-sm font-semibold rounded-md ${tab === 'hubs' ? 'bg-white shadow-sm text-ink' : 'text-muted-foreground'}`}>
-            Hubs ({hubs.length})
+          <button onClick={() => setTab('branches')} className={`px-4 py-2 text-sm font-semibold rounded-md ${tab === 'branches' ? 'bg-white shadow-sm text-ink' : 'text-muted-foreground'}`}>
+            Branches ({branches.length})
           </button>
           <button onClick={() => setTab('offices')} className={`px-4 py-2 text-sm font-semibold rounded-md ${tab === 'offices' ? 'bg-white shadow-sm text-ink' : 'text-muted-foreground'}`}>
             Local Offices ({localOffices.length})
           </button>
         </div>
-        {tab === 'hubs' ? (
-          <button onClick={() => setShowHubForm((s) => !s)} className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
-            <NavIcon name="plus" size={13} color="#fff" /> {showHubForm ? 'Cancel' : 'Add Hub'}
+        {tab === 'branches' ? (
+          <button onClick={() => setShowBranchForm((s) => !s)} className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
+            <NavIcon name="plus" size={13} color="#fff" /> {showBranchForm ? 'Cancel' : 'Add Branch'}
           </button>
         ) : (
           <button onClick={() => setShowOfficeForm((s) => !s)} className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
@@ -1247,29 +1273,29 @@ function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; to
         )}
       </div>
 
-      {tab === 'hubs' && showHubForm && (
-        <form onSubmit={handleCreateHub} className="bg-page rounded-xl p-5 mb-5">
-          <h3 className="font-display font-bold text-sm mb-3">New Hub</h3>
+      {tab === 'branches' && showBranchForm && (
+        <form onSubmit={handleCreateBranch} className="bg-page rounded-xl p-5 mb-5">
+          <h3 className="font-display font-bold text-sm mb-3">New Branch</h3>
           <div className="grid md:grid-cols-2 gap-x-6 gap-y-3">
-            <Field label="Hub Name">
-              <input type="text" required className={inputCls} value={hubForm.name} onChange={(e) => setHubForm({ ...hubForm, name: e.target.value })} />
+            <Field label="Branch Name">
+              <input type="text" required className={inputCls} value={branchForm.name} onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })} />
             </Field>
-            <Field label="Branch">
-              <select className={inputCls} value={hubForm.branch_id} onChange={(e) => setHubForm({ ...hubForm, branch_id: e.target.value })}>
-                <option value="">Select branch</option>
-                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            <Field label="Hub">
+              <select className={inputCls} value={branchForm.hub_id} onChange={(e) => setBranchForm({ ...branchForm, hub_id: e.target.value })}>
+                <option value="">Select hub</option>
+                {hubs.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
               </select>
             </Field>
             <Field label="Address">
-              <input type="text" className={inputCls} value={hubForm.address} onChange={(e) => setHubForm({ ...hubForm, address: e.target.value })} />
+              <input type="text" className={inputCls} value={branchForm.address} onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })} />
             </Field>
             <Field label="Phone">
-              <input type="text" className={inputCls} value={hubForm.phone} onChange={(e) => setHubForm({ ...hubForm, phone: e.target.value })} />
+              <input type="text" className={inputCls} value={branchForm.phone} onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })} />
             </Field>
           </div>
           <div className="flex justify-end mt-4">
             <button type="submit" disabled={saving} className="text-sm font-bold px-5 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white disabled:opacity-60">
-              {saving ? 'Saving…' : 'Create Hub'}
+              {saving ? 'Saving…' : 'Create Branch'}
             </button>
           </div>
         </form>
@@ -1283,15 +1309,9 @@ function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; to
               <input type="text" required className={inputCls} value={officeForm.name} onChange={(e) => setOfficeForm({ ...officeForm, name: e.target.value })} />
             </Field>
             <Field label="Branch">
-              <select className={inputCls} value={officeForm.branch_id} onChange={(e) => setOfficeForm({ ...officeForm, branch_id: e.target.value, hub_id: '' })}>
+              <select className={inputCls} value={officeForm.branch_id} onChange={(e) => setOfficeForm({ ...officeForm, branch_id: e.target.value })}>
                 <option value="">Select branch</option>
                 {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </Field>
-            <Field label="Hub">
-              <select className={inputCls} value={officeForm.hub_id} onChange={(e) => setOfficeForm({ ...officeForm, hub_id: e.target.value })} disabled={!officeForm.branch_id}>
-                <option value="">Select hub</option>
-                {filteredHubsForOffice.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
               </select>
             </Field>
             <Field label="Address">
@@ -1312,25 +1332,25 @@ function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; to
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-muted-foreground text-xs border-b border-line">
-            <th className="py-2 pr-4">Name</th><th className="py-2 pr-4">{tab === 'hubs' ? 'Branch' : 'Hub / Branch'}</th><th className="py-2 pr-4">Contact</th>
+            <th className="py-2 pr-4">Name</th><th className="py-2 pr-4">{tab === 'branches' ? 'Hub' : 'Branch / Hub'}</th><th className="py-2 pr-4">Contact</th>
             <th className="py-2 pr-4">Manager</th><th className="py-2 pr-4">Status</th><th className="py-2">Actions</th>
           </tr></thead>
           <tbody>
             {loading ? (
               <tr><td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">Loading…</td></tr>
-            ) : tab === 'hubs' ? (
-              hubs.length === 0 ? (
-                <tr><td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No hubs yet.</td></tr>
-              ) : hubs.map((h) => (
-                <tr key={h.id} className="border-b border-line last:border-0">
-                  <td className="py-3 pr-4"><div className="font-bold text-ink">{h.name}</div><div className="text-xs text-muted-foreground">{h.address}</div></td>
-                  <td className="py-3 pr-4"><Pill status="blue" label={branchName(h.branch_id)} /></td>
-                  <td className="py-3 pr-4 text-xs text-muted-foreground">{h.phone || '—'}</td>
-                  <td className="py-3 pr-4 text-xs text-muted-foreground">{h.manager_name || 'Unassigned'}</td>
-                  <td className="py-3 pr-4"><Pill status={h.status || 'active'} /></td>
+            ) : tab === 'branches' ? (
+              branches.length === 0 ? (
+                <tr><td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No branches yet.</td></tr>
+              ) : branches.map((b) => (
+                <tr key={b.id} className="border-b border-line last:border-0">
+                  <td className="py-3 pr-4"><div className="font-bold text-ink">{b.name}</div><div className="text-xs text-muted-foreground">{b.address}</div></td>
+                  <td className="py-3 pr-4"><Pill status="blue" label={hubName(b.hub_id)} /></td>
+                  <td className="py-3 pr-4 text-xs text-muted-foreground">{b.phone || '—'}</td>
+                  <td className="py-3 pr-4 text-xs text-muted-foreground">{b.manager_name || 'Unassigned'}</td>
+                  <td className="py-3 pr-4"><Pill status={b.status || 'active'} /></td>
                   <td className="py-3">
-                    <button onClick={() => toggleHubStatus(h)} className="text-xs font-bold text-muted-foreground hover:underline">
-                      {h.status === 'active' ? 'Deactivate' : 'Activate'}
+                    <button onClick={() => toggleBranchStatus(b)} className="text-xs font-bold text-muted-foreground hover:underline">
+                      {b.status === 'active' ? 'Deactivate' : 'Activate'}
                     </button>
                   </td>
                 </tr>
@@ -1341,8 +1361,8 @@ function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; to
               <tr key={o.id} className="border-b border-line last:border-0">
                 <td className="py-3 pr-4"><div className="font-bold text-ink">{o.name}</div><div className="text-xs text-muted-foreground">{o.address}</div></td>
                 <td className="py-3 pr-4">
-                  <Pill status="blue" label={o.hub_name || '—'} />
-                  <div className="text-xs text-muted-foreground mt-1">{o.branch_name || '—'}</div>
+                  <Pill status="blue" label={o.branch_name || '—'} />
+                  <div className="text-xs text-muted-foreground mt-1">{o.hub_name || '—'}</div>
                 </td>
                 <td className="py-3 pr-4 text-xs text-muted-foreground">{o.phone || '—'}</td>
                 <td className="py-3 pr-4 text-xs text-muted-foreground">{o.manager_name || 'Unassigned'}</td>
@@ -1364,7 +1384,7 @@ function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; to
 // ============================================================
 // ZONES
 // ============================================================
-function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Branch[]; onDelete: (z: Zone) => void }) {
+function ZonesView({ zones, hubs, onDelete }: { zones: Zone[]; hubs: Hub[]; onDelete: (z: Zone) => void }) {
 
   interface ZoneFormState{
     zone_name: string;
@@ -1372,14 +1392,14 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
   }
 
 
-  const branchCount = (zoneId: string) => branches.filter((b) => b.zone_id === zoneId).length;
+  const branchCount = (zoneId: string) => hubs.filter((h) => h.zone_id === zoneId).length;
   return (
 
     <section className="bg-white border border-line rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-display font-bold text-base">Service Zones</h2>
-          <p className="text-xs text-muted-foreground">Coverage areas grouping branches together - each is a city (use "Add City" to create one with its first branch)</p>
+          <p className="text-xs text-muted-foreground">Coverage areas grouping hubs together - each is a city (use "Add City" to create one with its first hub)</p>
         </div>
       </div>
       <table className="w-full text-sm">
@@ -1387,7 +1407,7 @@ function ZonesView({ zones, branches, onDelete }: { zones: Zone[]; branches: Bra
           <tr className="text-left text-muted-foreground text-xs border-b border-line">
             <th className="py-2">Zone</th>
             <th className="py-2">Description</th>
-            <th className="py-2">Branches</th>
+            <th className="py-2">Hubs</th>
             <th className="py-2">Status</th>
             <th className="py-2">Live</th>
             <th className='py-2'>Actions</th>
@@ -1606,11 +1626,11 @@ function AddCityModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p
   )
 }
 
-function CreateUserModal({ branches, zones, onClose, onCreate }: {
-  branches: Branch[]; zones: Zone[]; onClose: () => void; onCreate: (payload: AdminCreateUserPayload) => void;
+function CreateUserModal({ hubs, branches, localOffices, zones, onClose, onCreate }: {
+  hubs: Hub[]; branches: Branch[]; localOffices: LocalOffice[]; zones: Zone[]; onClose: () => void; onCreate: (payload: AdminCreateUserPayload) => void;
 }) {
   const [form, setForm] = useState<AdminCreateUserPayload>({
-    full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff', designation: '', zone_id: '', branch_id: '',
+    full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff', designation: '', zone_id: '', hub_id: '',
   });
   function update<K extends keyof AdminCreateUserPayload>(key: K, val: AdminCreateUserPayload[K]) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -1633,15 +1653,21 @@ function CreateUserModal({ branches, zones, onClose, onCreate }: {
   if (digits.length > 12) out = out.slice(0, 13) + '-' + digits.slice(12);
   return out;
   }
+  const needsHub = form.role === 'staff' || form.role === 'rider' || form.role === 'manager' || form.role === 'admin';
+  const needsBranch = form.role === 'hub_manager';
+  const needsLocalBranch = form.role === 'local_office_manager';
   return (
     <Modal title="Create staff, rider or admin account" onClose={onClose} wide>
       <form onSubmit={(e) => { e.preventDefault(); onCreate(form); }} className="grid sm:grid-cols-2 gap-4">
         <Field label="Full name"><input required className={inputCls} value={form.full_name} onChange={(e) => update('full_name', e.target.value)} /></Field>
         <Field label="Role">
-          <select className={inputCls} value={form.role} onChange={(e) => update('role', e.target.value as AdminCreateUserPayload['role'])}>
+          <select className={inputCls} value={form.role} onChange={(e) => { const r = e.target.value as AdminCreateUserPayload['role']; setForm((f) => ({ ...f, role: r, hub_id: '', branch_id: '', local_branch_id: '' })); }}>
             <option value="staff">Staff</option>
             <option value="rider">Rider</option>
+            <option value="manager">Hub Manager (city)</option>
             <option value="admin">Admin</option>
+            <option value="hub_manager">Branch Manager (sorting)</option>
+            <option value="local_office_manager">Local Office Manager</option>
           </select>
         </Field>
         <Field label="Email"><input required type="email" className={inputCls} value={form.email} onChange={(e) => update('email', e.target.value)} /></Field>
@@ -1657,12 +1683,30 @@ function CreateUserModal({ branches, zones, onClose, onCreate }: {
             {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
           </select>
         </Field>
-        <Field label="Branch">
-          <select className={inputCls} value={form.branch_id} onChange={(e) => update('branch_id', e.target.value)}>
-            <option value="">Select a branch</option>
-            {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
-        </Field>
+        {needsHub && (
+          <Field label="Hub (city office)">
+            <select className={inputCls} value={form.hub_id} onChange={(e) => update('hub_id', e.target.value)}>
+              <option value="">Select a hub</option>
+              {hubs.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+            </select>
+          </Field>
+        )}
+        {needsBranch && (
+          <Field label="Branch (sorting)">
+            <select className={inputCls} value={form.branch_id} onChange={(e) => update('branch_id', e.target.value)}>
+              <option value="">Select a branch</option>
+              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </Field>
+        )}
+        {needsLocalBranch && (
+          <Field label="Local Office">
+            <select className={inputCls} value={form.local_branch_id} onChange={(e) => update('local_branch_id', e.target.value)}>
+              <option value="">Select a local office</option>
+              {localOffices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          </Field>
+        )}
         <div className="sm:col-span-2 flex justify-end gap-2 mt-2">
           <button type="button" onClick={onClose} className="text-sm font-bold px-4 py-2.5 rounded-lg border border-line text-ink hover:bg-page">Cancel</button>
           <button type="submit" className="text-sm font-bold px-4 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white">Create Account</button>
@@ -1675,7 +1719,25 @@ function CreateUserModal({ branches, zones, onClose, onCreate }: {
 // ============================================================
 // BUSINESS ACCOUNTS
 // ============================================================
-function BusinessView({ accounts }: { accounts: AdminSeller[] }) {
+function BusinessView({ accounts, token, toast, onChanged }: {
+  accounts: AdminSeller[]; token: string; toast: (msg: string) => void;
+  onChanged: React.Dispatch<React.SetStateAction<AdminSeller[]>>;
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function runAction(businessId: string, action: (id: string, t: string) => Promise<any>, success: string) {
+    setBusyId(businessId);
+    try {
+      const updated = await action(businessId, token);
+      onChanged((prev) => prev.map((s) => (s.business_id === businessId ? { ...s, status: updated.status, is_active: updated.is_active } : s)));
+      toast(success);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update account.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <section className="bg-white border border-line rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
@@ -1687,11 +1749,11 @@ function BusinessView({ accounts }: { accounts: AdminSeller[] }) {
       <table className="w-full text-sm">
         <thead><tr className="text-left text-muted-foreground text-xs border-b border-line">
           <th className="py-2 pr-4">Business</th><th className="py-2 pr-4">Type</th><th className="py-2 pr-4">Total Orders</th>
-          <th className="py-2 pr-4">COD</th><th className="py-2 pr-4">City</th><th className="py-2">Status</th>
+          <th className="py-2 pr-4">COD</th><th className="py-2 pr-4">City</th><th className="py-2 pr-4">Status</th><th className="py-2">Actions</th>
         </tr></thead>
         <tbody>
           {accounts.length === 0 && (
-            <tr><td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No business accounts yet.</td></tr>
+            <tr><td colSpan={7} className="py-8 text-center text-sm text-muted-foreground">No business accounts yet.</td></tr>
           )}
           {accounts.map((b) => (
             <tr key={b.business_id} className="border-b border-line last:border-0">
@@ -1701,6 +1763,24 @@ function BusinessView({ accounts }: { accounts: AdminSeller[] }) {
               <td className="py-3 pr-4"><Pill status={b.cod_service ? 'green' : 'gray'} label={b.cod_service ? 'Enabled' : 'Disabled'} /></td>
               <td className="py-3 pr-4 text-muted-foreground">{b.city}</td>
               <td className="py-3"><Pill status={b.status} /></td>
+              <td className="py-3">
+                {b.status === 'pending' && (
+                  <div className="flex items-center gap-2">
+                    <button disabled={busyId === b.business_id} onClick={() => runAction(b.business_id, approveSeller, `${b.company_name} approved.`)}
+                      className="text-xs font-bold text-white bg-[#1E8E5A] hover:opacity-90 rounded-lg px-3 py-1.5 disabled:opacity-50">Approve</button>
+                    <button disabled={busyId === b.business_id} onClick={() => runAction(b.business_id, rejectSeller, `${b.company_name} rejected.`)}
+                      className="text-xs font-bold text-[#db2203] border border-danger/30 rounded-lg px-3 py-1.5 hover:bg-[#FBEAE7] disabled:opacity-50">Reject</button>
+                  </div>
+                )}
+                {b.status === 'active' && (
+                  <button disabled={busyId === b.business_id} onClick={() => runAction(b.business_id, deactivateSeller, `${b.company_name} deactivated.`)}
+                    className="text-xs font-bold text-[#db2203] border border-danger/30 rounded-lg px-3 py-1.5 hover:bg-[#FBEAE7] disabled:opacity-50">Deactivate</button>
+                )}
+                {(b.status === 'suspended' || b.status === 'rejected') && (
+                  <button disabled={busyId === b.business_id} onClick={() => runAction(b.business_id, activateSeller, `${b.company_name} reactivated.`)}
+                    className="text-xs font-bold text-navy border border-line rounded-lg px-3 py-1.5 hover:bg-page disabled:opacity-50">Reactivate</button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -1919,6 +1999,12 @@ function SettingsView({ toast, token }: { toast: (msg: string) => void; token: s
           </button>
         </div>
       </form>
+
+      <div className="mt-8">
+        <h2 className="font-display font-bold text-base mb-1">Announcements & Notifications</h2>
+        <p className="text-xs text-muted-foreground mb-4">Broadcast to the network or a single hub</p>
+        <AnnouncementsPanel token={token} admin />
+      </div>
     </section>
   );
 }

@@ -9,6 +9,9 @@ from app.models.tracking_event import TrackingEvent
 from app.models.phone_otp import PhoneOTP
 from app.models.zone import Zone
 from app.models.branch import Branch
+from app.models.hub import Hub
+from app.models.headquarter import Headquarter
+from app.models.local_branch import LocalBranch
 from app.models.pricing_rule import PricingRule
 from app.models.warehouse import Warehouse
 from app.models.activity_log import ActivityLog
@@ -39,7 +42,7 @@ from app.models.messaging import AssignmentRule, MessageTemplate
 from app.models.branch_service_area import BranchServiceArea
 from app.models.order_message import OrderMessage
 from app.models.hub import Hub
-from app.models.local_office import LocalOffice
+from app.models.local_branch import LocalBranch
 
 __all__ = [
     "Role",
@@ -88,5 +91,6 @@ __all__ = [
     "BranchServiceArea",
     "OrderMessage",
     "Hub",
-    "LocalOffice",
+    "LocalBranch",
+    "Headquarter",
 ]

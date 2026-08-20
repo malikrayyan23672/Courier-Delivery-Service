@@ -33,15 +33,16 @@ class StaffProfile(Base, TimestampMixin):
     # Comma-separated weekday abbreviations, e.g. "Mon,Tue,Wed,Thu,Fri".
     shift_days = Column(String(50), nullable=True)
 
+    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=True)
+    hub = relationship("Hub", back_populates="staff_members")
+
     branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=True)
-    branch = relationship("Branch", back_populates="staff_members")
+    branch = relationship("Branch")
 
     # Set only for hub_manager / local_office_manager accounts - narrows
-    # their scope to one specific hub/office within `branch`, the same way
-    # `branch_id` narrows a "manager" account to one branch within a city.
-    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=True)
-    hub = relationship("Hub")
-    local_office_id = Column(UUID_TYPE, ForeignKey("local_offices.id"), nullable=True)
-    local_office = relationship("LocalOffice")
+    # their scope to one specific hub/branch within the network, the same way
+    # `hub_id` narrows a "manager" account to one city hub.
+    local_branch_id = Column(UUID_TYPE, ForeignKey("local_branches.id"), nullable=True)
+    local_branch = relationship("LocalBranch")
 
     user = relationship("User", back_populates="staff_profile")
