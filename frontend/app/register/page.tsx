@@ -64,6 +64,27 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const nextErrors: Record<string, string> = {};
+
+    if(!form.full_name.trim()){
+
+      nextErrors.full_name = 'Full name is required';
+
+    }
+    
+    if(!form.email.trim()){
+
+      nextErrors.email = 'Email is required';
+
+    }
+
+    if(!form.phone.trim()){
+      nextErrors.phone = 'Phone number is required';
+    }
+    if(!form.password.trim()){
+
+      nextErrors.password = 'Password is required'
+
+    }
     if (form.password !== form.confirm) {
       nextErrors.confirm = "Passwords don't match.";
     }
@@ -71,6 +92,8 @@ export default function RegisterPage() {
     // CNIC format check was itself dead (a malformed, always-uncommented-out
     // regex) - an incomplete CNIC used to sail through the form and only
     // fail with a generic error after a round trip to the server.
+
+    
     if (form.cnic.replace(/[^0-9]/g, '').length !== 13) {
       nextErrors.cnic = 'CNIC must be 13 digits.';
     }
@@ -190,6 +213,7 @@ export default function RegisterPage() {
                   placeholder="Enter your full name"
                   required
                   value={form.full_name}
+                  error={errors.full_name}
                   onChange={(e) => updateField('full_name', e.target.value)}
                 />
                 <Field
@@ -200,6 +224,7 @@ export default function RegisterPage() {
                   placeholder="Enter your email"
                   required
                   value={form.email}
+                  error={errors.email}
                   onChange={(e) => updateField('email', e.target.value)}
                 />
                 <Field
@@ -209,6 +234,7 @@ export default function RegisterPage() {
                   icon={PHONE_ICON}
                   placeholder="e.g. 03001234567"
                   required
+                  error={errors.phone}
                   value={form.phone}
                   // onChange={(e) => updateField('phone', e.target.value)}
                   onChange={(e) => set('phone', formatPhone(e.target.value))}
@@ -232,6 +258,7 @@ export default function RegisterPage() {
                   minLength={8}
                   required
                   value={form.password}
+                  error={errors.password}
                   onChange={(e) => updateField('password', e.target.value)}
                 />
                 <Field

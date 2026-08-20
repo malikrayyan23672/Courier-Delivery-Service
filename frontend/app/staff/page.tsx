@@ -20,6 +20,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Field } from '@/components/Field';
+import { SelectField } from '@/components/Select';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'secondary'> = {
   created: 'info',
@@ -72,6 +74,7 @@ function StaffContent() {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [ordersError, setOrdersError] = useState('');
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Fetch branch orders and zone riders when switching to orders tab
   useEffect(() => {
@@ -108,9 +111,56 @@ function StaffContent() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!token) return;
+
+    const nextErrors: Record<string, string> = {};
+
+    if (!form.guest_full_name.trim()) {
+      nextErrors.guest_full_name = 'Guest full name is required';
+    }
+
+    if (!form.guest_phone.trim()) {
+      nextErrors.guest_phone = 'Guest phone number is required';
+    }
+
+    if (!form.pickup_address.trim()) {
+      nextErrors.pickup_address = 'Pickup address is required';
+    }
+
+    if (!form.pickup_city.trim()) {
+      nextErrors.pickup_city = 'Pickup city is required';
+    }
+
+    if (!form.dropoff_address.trim()) {
+      nextErrors.dropoff_address = 'Drop-off address is required';
+    }
+
+    if (!form.dropoff_city.trim()) {
+      nextErrors.dropoff_city = 'Drop-off city is required';
+    }
+
+    if(!form.package_size.trim()){
+      nextErrors.package_size = 'Package size is required'
+    }
+
+    if(!form.weight.trim()){
+      nextErrors.weight = 'Packege weight is required'
+    }
+
+    if(!form.description.trim()){
+      nextErrors.description = 'Description is required'
+    }
+
+
+    setFormErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
     setSubmitting(true);
     setError('');
     setBooked(null);
+
     try {
       const order = await bookStaffOrder(
         {
@@ -164,6 +214,12 @@ function StaffContent() {
 
   const selectCls =
     'flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
+
+  const USER_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+  </svg>
+);
 
   return (
     <div className="min-h-screen bg-page">
@@ -222,63 +278,87 @@ function StaffContent() {
                 </CardHeader>
                 <CardContent className="px-0 space-y-6">
                   <div className="grid md:grid-cols-2 gap-x-6 gap-y-4">
-                    <div className="space-y-1.5">
+                    {/* <div className="space-y-1.5">
                       <Label htmlFor="guest_full_name">Full Name</Label>
                       <Input id="guest_full_name" placeholder="Customer's name" required value={form.guest_full_name} onChange={(e) => update('guest_full_name', e.target.value)} />
-                    </div>
-                    <div className="space-y-1.5">
+                    </div> */}
+                    <Field icon={USER_ICON} id='full_name' label='Full Name' error={formErrors.guest_full_name} placeholder="Customer's name" value={form.guest_full_name} onChange={(e) => update('guest_full_name', e.target.value)} />
+                    <Field icon={USER_ICON} error={formErrors.guest_phone} id='phone' label='Phone Number' placeholder="Customer's Phone number" value={form.guest_phone} onChange={(e) => update('guest_phone', e.target.value)} />
+                    {/* <div className="space-y-1.5">
                       <Label htmlFor="guest_phone">Phone Number</Label>
                       <Input id="guest_phone" placeholder="e.g. 03001234567" required value={form.guest_phone} onChange={(e) => update('guest_phone', e.target.value)} />
-                    </div>
+                    </div> */}
                   </div>
 
                   <div>
                     <CardTitle className="text-lg mb-4">Pickup &amp; Drop-off</CardTitle>
                     <div className="grid md:grid-cols-2 gap-x-6 gap-y-4">
-                      <div className="space-y-1.5">
+                    <Field icon={USER_ICON} error={formErrors.pickup_address} id='pickupaddress' label='Pickup Address' placeholder="House/street, area" value={form.pickup_address} onChange={(e) => update('pickup_address', e.target.value)} />
+                    <Field icon={USER_ICON} id='pickupcity' error={formErrors.pickup_city} label='Pickup City' placeholder="Islamabad" value={form.pickup_city} onChange={(e) => update('pickup_city', e.target.value)} />
+                      {/* <div className="space-y-1.5">
                         <Label htmlFor="pickup_address">Pickup Address</Label>
                         <Input id="pickup_address" placeholder="House/street, area" required value={form.pickup_address} onChange={(e) => update('pickup_address', e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
+                      </div> */}
+                      {/* <div className="space-y-1.5">
                         <Label htmlFor="pickup_city">Pickup City</Label>
                         <Input id="pickup_city" placeholder="e.g. Rawalpindi" value={form.pickup_city} onChange={(e) => update('pickup_city', e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
+                      </div> */}
+                    <Field icon={USER_ICON} id='dropoffaddress' label='Dropoff Address' error={formErrors.dropoff_address} placeholder="House/street, area" value={form.dropoff_address} onChange={(e) => update('dropoff_address', e.target.value)} />
+                    <Field icon={USER_ICON} id='dropoffcity' label='Dropoff City' placeholder="Islamabad" error={formErrors.dropoff_city} value={form.dropoff_city} onChange={(e) => update('dropoff_city', e.target.value)} />
+                      {/* <div className="space-y-1.5">
                         <Label htmlFor="dropoff_address">Drop-off Address</Label>
                         <Input id="dropoff_address" placeholder="House/street, area" required value={form.dropoff_address} onChange={(e) => update('dropoff_address', e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
+                      </div> */}
+                      {/* <div className="space-y-1.5">
                         <Label htmlFor="dropoff_city">Drop-off City</Label>
                         <Input id="dropoff_city" placeholder="e.g. Lahore" value={form.dropoff_city} onChange={(e) => update('dropoff_city', e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
+                      </div> */}
+                      {/* <div className="space-y-1.5">
                         <Label htmlFor="weight">Package Weight (kg)</Label>
                         <Input id="weight" type="number" step="0.1" placeholder="e.g. 1.5" value={form.weight} onChange={(e) => update('weight', e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="description">Package Description</Label>
-                        <Input id="description" placeholder="e.g. Small parcel" value={form.description} onChange={(e) => update('description', e.target.value)} />
-                      </div>
+                      </div> */}
+                      <Field icon={USER_ICON} label='Package Weight (kg)' id='weight' error={formErrors.weight} type='number' placeholder='e.g 1.5' value={form.weight} onChange={(e) => update('weight', e.target.value)} />
+                      {/* // <div className="space-y-1.5">
+                      //   <Label htmlFor="description">Package Description</Label>
+                      //   <Input id="description" placeholder="e.g. Small parcel" value={form.description} onChange={(e) => update('description', e.target.value)} />
+                      // </div> */}
+                      <Field icon={USER_ICON} label='Package Description' error={formErrors.description} id='description' placeholder='e.g. Small Parcel' value={form.description} onChange={(e) => update('description', e.target.value)} />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="payment_method">Payment Method</Label>
+                    {/* <Label htmlFor="payment_method">Payment Method</Label>
                     <select id="payment_method" value={form.payment_method} onChange={(e) => update('payment_method', e.target.value)} className={selectCls}>
                       <option value="cash">Cash</option>
                       <option value="card">Card</option>
                       <option value="online_gateway">Online payment link</option>
-                    </select>
+                    </select> */}
+                    <SelectField label='Payment method' error={formErrors.payment_method} value={form.payment_method} onChange={(e) => setForm((f) => ({...f, payment_method: e.target.value}))} icon={USER_ICON} options={
+                      [
+                        {label: "Cash", value: "cash"},
+                        {label: "Card", value: "card"},
+                        {label: "Online", value: "online"},
+                      ]
+                    } />
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="package_size">Package Size</Label>
+                    {/* <Label htmlFor="package_size">Package Size</Label>
                     <select id="package_size" value={form.package_size} onChange={(e) => setForm((f) => ({ ...f, package_size: e.target.value }))} className={selectCls}>
                       <option value="small">Small</option>
                       <option value="medium">Medium</option>
                       <option value="large">Large</option>
                       <option value="documents">Documents</option>
-                    </select>
+                    </select> */}
+
+                    <SelectField icon={USER_ICON} error={formErrors.package_size} label="Package Size" value={form.package_size} onChange={(e) => setForm((f) => ({...f, package_size: e.target.value}))} options={
+                      [
+                        {label: "Small", value: "small"},
+                        {label: "Medium", value: "medium"},
+                        {label: "Large", value: "large"},
+                        {label: "Documents", value: "documents"},
+                      ]
+                    }  />
                   </div>
 
                   {error && <p className="text-sm text-[#db2203]">{error}</p>}

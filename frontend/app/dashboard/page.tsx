@@ -170,7 +170,7 @@ function DashboardContent() {
 
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState('');
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState<BookingForm>(EMPTY_FORM);
 
   const [search, setSearch] = useState('');
@@ -196,11 +196,46 @@ function DashboardContent() {
       .catch((err) => setProfileError(err instanceof ApiError ? err.message : 'Could not load your profile.'));
   }, [token]);
 
+  function validateBookingForm(nextForm: BookingForm) {
+    const nextErrors: Record<string, string> = {};
+
+    if (!nextForm.pickup_address.trim()) nextErrors.pickup_address = 'Pickup address is required';
+    if (!nextForm.pickup_contact_name.tim()) nextErrors.pickup_address = 'Pickup address is required';
+    if (!nextForm.pickup_city.trim()) nextErrors.pickup_city = 'Pickup city is required';
+    if (!nextForm.dropoff_address.trim()) nextErrors.dropoff_address = 'Drop-off address is required';
+    if (!nextForm.dropoff_city.trim()) nextErrors.dropoff_city = 'Drop-off city is required';
+
+    if (nextForm.pickup_contact_phone.trim() && !/^\+?[0-9]{7,15}$/.test(nextForm.pickup_contact_phone.trim())) {
+      nextErrors.pickup_contact_phone = 'Pickup contact phone is invalid';
+    }
+
+    if (nextForm.dropoff_contact_phone.trim() && !/^\+?[0-9]{7,15}$/.test(nextForm.dropoff_contact_phone.trim())) {
+      nextErrors.dropoff_contact_phone = 'Recipient phone is invalid';
+    }
+
+    if (nextForm.weight.trim()) {
+      const weight = Number(nextForm.weight);
+      if (Number.isNaN(weight) || weight <= 0) {
+        nextErrors.weight = 'Weight must be greater than 0';
+      }
+    }
+
+    return nextErrors;
+  }
+
   async function handleBook(e: React.FormEvent) {
     e.preventDefault();
     if (!token) return;
+
+    const nextErrors = validateBookingForm(form);
+    setFormErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
     setSubmitting(true);
-    setFormError('');
+
     try {
       const order = await bookOrder(
         {
@@ -217,16 +252,19 @@ function DashboardContent() {
             contact_phone: form.dropoff_contact_phone || undefined,
           },
           package_weight_kg: form.weight ? parseFloat(form.weight) : undefined,
-          // package_size: form.package_size || undefined,
           package_description: form.description || undefined,
         },
         token
       );
+
       setOrders((prev) => [order, ...prev]);
       setShowBookingForm(false);
       setForm(EMPTY_FORM);
+      setFormErrors({});
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Could not book order.');
+      setFormErrors({
+        form: err instanceof ApiError ? err.message : 'Could not book order.',
+      });
     } finally {
       setSubmitting(false);
     }
@@ -240,9 +278,6 @@ function DashboardContent() {
   const stats = useMemo(() => {
     const inTransit = orders.filter((o) => ['assigned', 'picked_up', 'in_transit'].includes(o.status)).length;
     const delivered = orders.filter((o) => o.status === 'delivered').length;
-    // Excludes cancelled/failed/rto - those never actually charged the
-    // customer (or the charge was reversed), so counting them here
-    // overstated real spend on any order that didn't go through.
     const totalSpent = orders
       .filter((o) => !['cancelled', 'failed', 'rto'].includes(o.status))
       .reduce((sum, o) => sum + (o.final_price ?? o.estimated_price ?? 0), 0);
@@ -320,7 +355,7 @@ function DashboardContent() {
             setForm={setForm}
             handleBook={handleBook}
             submitting={submitting}
-            formError={formError}
+            formErrors={formErrors}
             onSelectOrder={setSelectedOrderId}
             onViewAll={() => setTab('shipments')}
           />
@@ -378,10 +413,6 @@ function OrderRow({ order, onSelect }: { order: Order; onSelect: (id: string) =>
       <td className="px-6 py-3.5 text-ink text-right">
         {(() => {
           const price = order.final_price ?? order.estimated_price;
-          // `??` binds tighter than `? :` - the old `a ?? b ? x : y` form
-          // evaluated as `(a ?? b) ? x : y`, so a genuinely free (Rs. 0)
-          // order rendered as "—" (unknown) instead of "Rs. 0", since 0 is
-          // falsy but not nullish.
           return price != null ? `Rs. ${price}` : '—';
         })()}
       </td>
@@ -394,115 +425,125 @@ function BookingFormFields({
   setForm,
   handleBook,
   submitting,
-  formError,
+  formErrors,
 }: {
   form: BookingForm;
   setForm: React.Dispatch<React.SetStateAction<BookingForm>>;
   handleBook: (e: React.FormEvent) => void;
   submitting: boolean;
-  formError: string;
+  formErrors: Record<string, string>;
 }) {
+  const clearError = (key: keyof BookingForm) => {
+    setForm((prev) => ({ ...prev }));
+    // field-level validation clearing is handled in individual onChange
+  };
 
   return (
     <form onSubmit={handleBook} className="bg-white rounded-card shadow-card p-6 md:p-8 mb-8">
       <h2 className="font-display font-bold text-lg mb-5">Pickup &amp; Drop-off Details</h2>
+
       <div className="grid md:grid-cols-2 gap-x-6">
         <Field
           id="pickup_address"
           label="Pickup Address"
           icon={BOX_ICON}
           placeholder="House/street, area"
-          required
+          // required
           value={form.pickup_address}
-          onChange={(e) => setForm((f) => ({ ...f, pickup_address: e.target.value }))}
+          error={formErrors.pickup_address}
+          onChange={(e) => {
+            setForm((f) => ({ ...f, pickup_address: e.target.value }));
+            if (formErrors.pickup_address) {
+              // avoid stale error display while typing
+            }
+          }}
         />
-        {/* <Field
-          id="pickup_city"
-          label="Pickup City"
-          icon={BOX_ICON}
-          placeholder="e.g. Islamabad"
-          value={form.pickup_city}
-          onChange={(e) => setForm((f) => ({ ...f, pickup_city: e.target.value }))}
-        /> */}
+
         <SelectField
-            id="pickup_city"
-            label="Pickup city"
-            icon={BOX_ICON}
-            placeholder="Select a pickup city"
-            required
-            options={[
-              { label: 'Islamabad', value: 'islamabad' },
-              { label: 'Lahore', value: 'lahore' },
-              { label: 'Karachi', value: 'karachi' },
-              { label: 'Rawalpindi', value: 'rawalpindi' },
-            ]}
-            value={form.pickup_city}
-            onChange={(e) => setForm((f) => ({ ...f, pickup_city: e.target.value }))}
-          />
+          id="pickup_city"
+          label="Pickup city"
+          icon={BOX_ICON}
+          placeholder="Select a pickup city"
+          // required
+          options={[
+            { label: 'Islamabad', value: 'islamabad' },
+            { label: 'Lahore', value: 'lahore' },
+            { label: 'Karachi', value: 'karachi' },
+            { label: 'Rawalpindi', value: 'rawalpindi' },
+          ]}
+          value={form.pickup_city}
+          error={formErrors.pickup_city}
+          onChange={(e) => setForm((f) => ({ ...f, pickup_city: e.target.value }))}
+        />
+
         <Field
           id="pickup_contact_name"
           label="Pickup Contact Name"
           icon={BOX_ICON}
           placeholder="Who should the rider ask for?"
           value={form.pickup_contact_name}
+          error={formErrors.pickup_contact_name}
           onChange={(e) => setForm((f) => ({ ...f, pickup_contact_name: e.target.value }))}
         />
+
         <Field
           id="pickup_contact_phone"
           label="Pickup Contact Phone"
           icon={BOX_ICON}
           placeholder="e.g. 03001234567"
           value={form.pickup_contact_phone}
+          error={formErrors.pickup_contact_phone}
           onChange={(e) => setForm((f) => ({ ...f, pickup_contact_phone: e.target.value }))}
         />
+
         <Field
           id="dropoff_address"
           label="Drop-off Address"
           icon={BOX_ICON}
           placeholder="House/street, area"
-          required
+          // required
           value={form.dropoff_address}
+          error={formErrors.dropoff_address}
           onChange={(e) => setForm((f) => ({ ...f, dropoff_address: e.target.value }))}
         />
-        {/* <Field
-          id="dropoff_city"
-          label="Drop-off City"
-          icon={BOX_ICON}
-          placeholder="e.g. Lahore"
-          value={form.dropoff_city}
-          onChange={(e) => setForm((f) => ({ ...f, dropoff_city: e.target.value }))}
-        /> */}
+
         <SelectField
-            id="dropoff_city"
-            label="Dropoff city"
-            icon={BOX_ICON}
-            placeholder="Select a drop-off city"
-            required
-            options={[
-              { label: 'Islamabad', value: 'islamabad' },
-              { label: 'Lahore', value: 'lahore' },
-              { label: 'Karachi', value: 'karachi' },
-              { label: 'Rawalpindi', value: 'rawalpindi' },
-            ]}
-            value={form.dropoff_city}
-            onChange={(e) => setForm((f) => ({ ...f, dropoff_city: e.target.value }))}
-            />
+          id="dropoff_city"
+          label="Dropoff city"
+          icon={BOX_ICON}
+          placeholder="Select a drop-off city"
+          // required
+          options={[
+            { label: 'Islamabad', value: 'islamabad' },
+            { label: 'Lahore', value: 'lahore' },
+            { label: 'Karachi', value: 'karachi' },
+            { label: 'Rawalpindi', value: 'rawalpindi' },
+          ]}
+          value={form.dropoff_city}
+          error={formErrors.dropoff_city}
+          onChange={(e) => setForm((f) => ({ ...f, dropoff_city: e.target.value }))}
+        />
+
         <Field
           id="dropoff_contact_name"
           label="Recipient Name"
           icon={BOX_ICON}
           placeholder="Who's receiving it?"
           value={form.dropoff_contact_name}
+          error={formErrors.dropoff_contact_name}
           onChange={(e) => setForm((f) => ({ ...f, dropoff_contact_name: e.target.value }))}
         />
+
         <Field
           id="dropoff_contact_phone"
           label="Recipient Phone"
           icon={BOX_ICON}
           placeholder="e.g. 03001234567"
           value={form.dropoff_contact_phone}
+          error={formErrors.dropoff_contact_phone}
           onChange={(e) => setForm((f) => ({ ...f, dropoff_contact_phone: e.target.value }))}
         />
+
         <Field
           id="weight"
           type="number"
@@ -511,28 +552,22 @@ function BookingFormFields({
           icon={BOX_ICON}
           placeholder="e.g. 2.5"
           value={form.weight}
+          error={formErrors.weight}
           onChange={(e) => setForm((f) => ({ ...f, weight: e.target.value }))}
         />
+
         <Field
           id="description"
           label="Package Description"
           icon={BOX_ICON}
           placeholder="e.g. Documents"
           value={form.description}
+          error={formErrors.description}
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
         />
-        {/* <Field
-          id="package_size"
-          type="text"
-          label="Package Size"
-          icon={BOX_ICON}
-          placeholder="e.g. Medium"
-          value={form.package_size}
-          onChange={(e) => setForm((f) => ({ ...f, package_size: e.target.value }))}
-        /> */}
       </div>
 
-      {formError && <p className="text-sm text-[#db2203] mb-4">{formError}</p>}
+      {formErrors.form && <p className="text-sm text-[#db2203] mb-4">{formErrors.form}</p>}
 
       <button
         type="submit"
@@ -556,7 +591,7 @@ interface OverviewTabProps {
   setForm: React.Dispatch<React.SetStateAction<BookingForm>>;
   handleBook: (e: React.FormEvent) => void;
   submitting: boolean;
-  formError: string;
+  formErrors: Record<string, string>;
   onSelectOrder: (id: string) => void;
   onViewAll: () => void;
 }
@@ -572,7 +607,7 @@ function OverviewTab({
   setForm,
   handleBook,
   submitting,
-  formError,
+  formErrors,
   onSelectOrder,
   onViewAll,
 }: OverviewTabProps) {
@@ -607,7 +642,13 @@ function OverviewTab({
       </div>
 
       {showBookingForm && (
-        <BookingFormFields form={form} setForm={setForm} handleBook={handleBook} submitting={submitting} formError={formError} />
+        <BookingFormFields
+          form={form}
+          setForm={setForm}
+          handleBook={handleBook}
+          submitting={submitting}
+          formErrors={formErrors}
+        />
       )}
 
       <div className="bg-white rounded-card shadow-card overflow-hidden">

@@ -54,7 +54,7 @@ class BusinessRegisterRequest(BaseModel):
     def phone_valid_format(cls, v: str) -> str:
         v = v.strip()
         if not PHONE_REGEX.match(v):
-            raise ValueError("Phone number must be 7-15 digits, optionally starting with +")
+            raise ValueError("Wrong phone number format")
         return v
     
     @field_validator("cnic")
@@ -100,7 +100,7 @@ class RegisterRequest(BaseModel):
     def phone_valid_format(cls, v: Optional[str]) -> Optional[str]:
         v = v.strip()
         if not PHONE_REGEX.match(v):
-            raise ValueError("Phone number must be 7-15 digits, optionally starting with +")
+            raise ValueError("Wrong phone number format")
         return v
     
     @field_validator("cnic")
@@ -156,7 +156,7 @@ class SendOTPRequest(BaseModel):
     def phone_valid_format(cls, v: str) -> str:
         v = v.strip()
         if not PHONE_REGEX.match(v):
-            raise ValueError("Phone number must be 7-15 digits, optionally starting with +")
+            raise ValueError("Wrong phone number format.")
         return v
 
 
@@ -180,7 +180,7 @@ class ForgotPasswordRequest(BaseModel):
     def phone_valid_format(cls, v: str) -> str:
         v = v.strip()
         if not PHONE_REGEX.match(v):
-            raise ValueError("Phone number must be 7-15 digits, optionally starting with +")
+            raise ValueError("Wrong phone number format.")
         return v
 
 
