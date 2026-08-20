@@ -11,7 +11,8 @@ class Hub(Base, TimestampMixin):
     main office). Hub operations themselves (scan-in/out, manifests,
     warehouse occupancy) still run against `Branch` in `app/api/v1/hub.py` -
     this model exists to give a hub its own location record and manager
-    account, scoped to its parent branch.
+    account, scoped to its parent branch. Every LocalOffice (guest walk-in
+    counter) belongs to exactly one Hub - see app/models/local_office.py.
     """
     __tablename__ = "hubs"
 
@@ -26,3 +27,5 @@ class Hub(Base, TimestampMixin):
 
     manager_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
     manager = relationship("User", back_populates="managed_hubs")
+
+    local_offices = relationship("LocalOffice", back_populates="hub")

@@ -1098,7 +1098,7 @@ function BranchesView({ branches, zones, token, toast, setBranches }: {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-muted-foreground text-xs border-b border-line">
-            <th className="py-2 pr-4">Branch</th><th className="py-2 pr-4">Zone</th><th className="py-2 pr-4">Contact</th>
+            <th className="py-2 pr-4">Branch</th><th className="py-2 pr-4">Zone</th><th className="py-2 pr-4">Admin</th><th className="py-2 pr-4">Contact</th>
             <th className="py-2 pr-4">Hours</th><th className="py-2 pr-4">Status</th><th className="py-2 pr-4">Location</th><th className="py-2">Actions</th>
           </tr></thead>
           <tbody>
@@ -1106,6 +1106,7 @@ function BranchesView({ branches, zones, token, toast, setBranches }: {
               <tr key={b.id} className="border-b border-line last:border-0">
                 <td className="py-3 pr-4"><div className="font-bold text-ink">{b.name}</div><div className="text-xs text-muted-foreground">{b.address}</div></td>
                 <td className="py-3 pr-4"><Pill status="blue" label={zoneName(b.zone_id)} /></td>
+                <td className="py-3 pr-4 text-xs text-muted-foreground">{b.admin_name || 'Unassigned'}</td>
                 <td className="py-3 pr-4 text-xs text-muted-foreground">{b.phone}<br />{b.email}</td>
                 <td className="py-3 pr-4 text-xs text-muted-foreground">{b.opening_time} – {b.closing_time}</td>
                 <td className="py-3 pr-4"><Pill status={b.status || 'active'} /></td>
@@ -1124,7 +1125,7 @@ function BranchesView({ branches, zones, token, toast, setBranches }: {
                 </td>
               </tr>
             ))}
-            {branches.length === 0 && <tr><td colSpan={7} className="py-8 text-center text-sm text-muted-foreground">No branches yet.</td></tr>}
+            {branches.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-sm text-muted-foreground">No branches yet.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1136,7 +1137,9 @@ function BranchesView({ branches, zones, token, toast, setBranches }: {
 // HUBS & LOCAL OFFICES (sub-locations under a branch)
 // ============================================================
 const INITIAL_HUB_FORM = { name: '', branch_id: '', address: '', phone: '' };
-const INITIAL_OFFICE_FORM = { name: '', branch_id: '', address: '', phone: '' };
+// branch_id here is UI-only (narrows the hub dropdown below) - the office
+// itself is only ever linked by hub_id, per the office -> hub -> branch chain.
+const INITIAL_OFFICE_FORM = { name: '', branch_id: '', hub_id: '', address: '', phone: '' };
 
 function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; token: string; toast: (msg: string) => void }) {
   const [tab, setTab] = useState<'hubs' | 'offices'>('hubs');
@@ -1158,6 +1161,7 @@ function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; to
   }, [token]);
 
   const branchName = (id: string) => branches.find((b) => b.id === id)?.name || '—';
+  const filteredHubsForOffice = hubs.filter((h) => h.branch_id === officeForm.branch_id);
 
   async function handleCreateHub(e: React.FormEvent) {
     e.preventDefault();
@@ -1192,11 +1196,11 @@ function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; to
 
   async function handleCreateOffice(e: React.FormEvent) {
     e.preventDefault();
-    if (!officeForm.name.trim() || !officeForm.branch_id) { toast('Local office name and branch are required.'); return; }
+    if (!officeForm.name.trim() || !officeForm.hub_id) { toast('Local office name and hub are required.'); return; }
     setSaving(true);
     try {
       const created = await createLocalOffice(
-        { name: officeForm.name.trim(), branch_id: officeForm.branch_id, address: officeForm.address || undefined, phone: officeForm.phone || undefined },
+        { name: officeForm.name.trim(), hub_id: officeForm.hub_id, address: officeForm.address || undefined, phone: officeForm.phone || undefined },
         token
       );
       setLocalOffices((prev) => [...prev, created]);
@@ -1279,9 +1283,15 @@ function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; to
               <input type="text" required className={inputCls} value={officeForm.name} onChange={(e) => setOfficeForm({ ...officeForm, name: e.target.value })} />
             </Field>
             <Field label="Branch">
-              <select className={inputCls} value={officeForm.branch_id} onChange={(e) => setOfficeForm({ ...officeForm, branch_id: e.target.value })}>
+              <select className={inputCls} value={officeForm.branch_id} onChange={(e) => setOfficeForm({ ...officeForm, branch_id: e.target.value, hub_id: '' })}>
                 <option value="">Select branch</option>
                 {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Hub">
+              <select className={inputCls} value={officeForm.hub_id} onChange={(e) => setOfficeForm({ ...officeForm, hub_id: e.target.value })} disabled={!officeForm.branch_id}>
+                <option value="">Select hub</option>
+                {filteredHubsForOffice.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
               </select>
             </Field>
             <Field label="Address">
@@ -1302,7 +1312,7 @@ function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; to
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-muted-foreground text-xs border-b border-line">
-            <th className="py-2 pr-4">Name</th><th className="py-2 pr-4">Branch</th><th className="py-2 pr-4">Contact</th>
+            <th className="py-2 pr-4">Name</th><th className="py-2 pr-4">{tab === 'hubs' ? 'Branch' : 'Hub / Branch'}</th><th className="py-2 pr-4">Contact</th>
             <th className="py-2 pr-4">Manager</th><th className="py-2 pr-4">Status</th><th className="py-2">Actions</th>
           </tr></thead>
           <tbody>
@@ -1330,7 +1340,10 @@ function HubsAndOfficesView({ branches, token, toast }: { branches: Branch[]; to
             ) : localOffices.map((o) => (
               <tr key={o.id} className="border-b border-line last:border-0">
                 <td className="py-3 pr-4"><div className="font-bold text-ink">{o.name}</div><div className="text-xs text-muted-foreground">{o.address}</div></td>
-                <td className="py-3 pr-4"><Pill status="blue" label={branchName(o.branch_id)} /></td>
+                <td className="py-3 pr-4">
+                  <Pill status="blue" label={o.hub_name || '—'} />
+                  <div className="text-xs text-muted-foreground mt-1">{o.branch_name || '—'}</div>
+                </td>
                 <td className="py-3 pr-4 text-xs text-muted-foreground">{o.phone || '—'}</td>
                 <td className="py-3 pr-4 text-xs text-muted-foreground">{o.manager_name || 'Unassigned'}</td>
                 <td className="py-3 pr-4"><Pill status={o.status || 'active'} /></td>

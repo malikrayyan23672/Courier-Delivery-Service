@@ -403,7 +403,9 @@ def create_staff_or_rider(
 
     if payload.role == "rider":
         db.add(RiderProfile(user_id=user.id, status=RiderStatus.active, is_available=False, branch_id=payload.branch_id))
-    elif payload.role in ("staff", "manager"):
+    elif payload.role == "staff":
+        db.add(StaffProfile(user_id=user.id, branch_id=payload.branch_id, designation=payload.designation))
+    elif payload.role == "manager":
         db.add(StaffProfile(user_id=user.id, branch_id=payload.branch_id, designation=payload.designation))
         branch = db.query(Branch).filter(Branch.id == payload.branch_id).first()
 
@@ -411,18 +413,19 @@ def create_staff_or_rider(
             raise HTTPException(status_code=400, detail='branch could not found')
 
         branch.manager_id = user.id
-        # db.add(TrackingEvent())
         db.commit()
     elif payload.role == "admin" and payload.branch_id:
         # A per-branch admin (scoped to their own city by resolve_city_branch_ids,
         # see app/core/scope.py) - optional, since an admin created without a
         # branch_id stays the network-wide oversight admin this role has always
         # meant, for backward compatibility with accounts created before Hub/
-        # LocalOffice existed.
+        # LocalOffice existed. `branch.admin_id` is the branch's single
+        # designated admin, mirroring hub_manager/local_office_manager below.
         branch = db.query(Branch).filter(Branch.id == payload.branch_id).first()
         if not branch:
             raise HTTPException(status_code=400, detail='branch could not found')
         db.add(StaffProfile(user_id=user.id, branch_id=payload.branch_id, designation=payload.designation))
+        branch.admin_id = user.id
         db.commit()
     elif payload.role == "hub_manager":
         if not payload.hub_id:
@@ -441,7 +444,13 @@ def create_staff_or_rider(
         if not office:
             raise HTTPException(status_code=400, detail="Local office not found")
 
-        db.add(StaffProfile(user_id=user.id, branch_id=office.branch_id, local_office_id=office.id, designation=payload.designation))
+        # branch_id/hub_id are both derived from the office's hub - the
+        # office -> hub -> branch chain, so this account inherits scope at
+        # every layer above it (see app/core/scope.py).
+        db.add(StaffProfile(
+            user_id=user.id, branch_id=office.hub.branch_id, hub_id=office.hub_id,
+            local_office_id=office.id, designation=payload.designation,
+        ))
         office.manager_id = user.id
         db.commit()
 
@@ -842,6 +851,8 @@ def _branch_out(b: Branch) -> dict:
         "zone_id": str(b.zone_id) if b.zone_id else None,
         "zone_name": b.zone.name if b.zone else None,
         "status": b.status,
+        "admin_id": str(b.admin_id) if b.admin_id else None,
+        "admin_name": b.admin.full_name if b.admin else None,
     }
 
 
@@ -988,7 +999,7 @@ def update_hub(
 
 
 # ============================================================
-# LOCAL OFFICES (guest walk-in booking counters under a branch)
+# LOCAL OFFICES (guest walk-in booking counters under a hub)
 # ============================================================
 def _local_office_out(o: LocalOffice) -> dict:
     return {
@@ -997,8 +1008,10 @@ def _local_office_out(o: LocalOffice) -> dict:
         "address": o.address,
         "phone": o.phone,
         "status": o.status,
-        "branch_id": str(o.branch_id),
-        "branch_name": o.branch.name if o.branch else None,
+        "hub_id": str(o.hub_id),
+        "hub_name": o.hub.name if o.hub else None,
+        "branch_id": str(o.hub.branch_id) if o.hub else None,
+        "branch_name": o.hub.branch.name if o.hub and o.hub.branch else None,
         "manager_id": str(o.manager_id) if o.manager_id else None,
         "manager_name": o.manager.full_name if o.manager else None,
     }
@@ -1007,12 +1020,16 @@ def _local_office_out(o: LocalOffice) -> dict:
 @router.get("/local-offices")
 def list_local_offices_admin(
     branch_id: str | None = None,
+    hub_id: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
     query = db.query(LocalOffice).order_by(LocalOffice.name)
-    if branch_id:
-        query = query.filter(LocalOffice.branch_id == branch_id)
+    if hub_id:
+        query = query.filter(LocalOffice.hub_id == hub_id)
+    elif branch_id:
+        # No branch_id column on LocalOffice any more - join through its hub.
+        query = query.join(Hub, LocalOffice.hub_id == Hub.id).filter(Hub.branch_id == branch_id)
     return [_local_office_out(o) for o in query.all()]
 
 
@@ -1023,16 +1040,16 @@ def create_local_office(
     current_user: User = Depends(require_roles("admin", "super_admin")),
 ):
     name = payload.get("name")
-    branch_id = payload.get("branch_id")
+    hub_id = payload.get("hub_id")
     if not name:
         raise HTTPException(status_code=400, detail="Local office name is required")
-    if not branch_id:
-        raise HTTPException(status_code=400, detail="branch_id is required")
-    branch = db.query(Branch).filter(Branch.id == branch_id).first()
-    if not branch:
-        raise HTTPException(status_code=404, detail="Branch not found")
+    if not hub_id:
+        raise HTTPException(status_code=400, detail="hub_id is required")
+    hub = db.query(Hub).filter(Hub.id == hub_id).first()
+    if not hub:
+        raise HTTPException(status_code=404, detail="Hub not found")
 
-    office = LocalOffice(name=name, address=payload.get("address"), phone=payload.get("phone"), branch_id=branch_id)
+    office = LocalOffice(name=name, address=payload.get("address"), phone=payload.get("phone"), hub_id=hub_id)
     db.add(office)
     db.commit()
     db.refresh(office)
@@ -1052,6 +1069,11 @@ def update_local_office(
 
     if "name" in payload and not payload["name"]:
         raise HTTPException(status_code=400, detail="Local office name cannot be empty")
+    if "hub_id" in payload:
+        new_hub = db.query(Hub).filter(Hub.id == payload["hub_id"]).first()
+        if not new_hub:
+            raise HTTPException(status_code=400, detail="Hub not found")
+        office.hub_id = payload["hub_id"]
     for field in ("name", "address", "phone"):
         if field in payload:
             setattr(office, field, payload[field] or None)

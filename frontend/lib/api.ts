@@ -912,6 +912,8 @@ export interface Branch{
   status: string;
   zone_id: string | null;
   zone_name: string | null;
+  admin_id: string | null;
+  admin_name: string | null;
 }
 
 export interface BranchInput {
@@ -987,7 +989,11 @@ export interface LocalOffice {
   address: string | null;
   phone: string | null;
   status: string;
-  branch_id: string;
+  hub_id: string;
+  hub_name: string | null;
+  // Derived from hub.branch_id server-side - a local office belongs to a
+  // hub, not directly to a branch (city -> branch -> hub -> local office).
+  branch_id: string | null;
   branch_name: string | null;
   manager_id: string | null;
   manager_name: string | null;
@@ -995,13 +1001,13 @@ export interface LocalOffice {
 
 export interface LocalOfficeInput {
   name: string;
-  branch_id: string;
+  hub_id: string;
   address?: string;
   phone?: string;
 }
 
-export function listLocalOffices(token: string, branchId?: string) {
-  return request<LocalOffice[]>(`/admin/local-offices${branchId ? `?branch_id=${branchId}` : ''}`, { method: 'GET' }, token);
+export function listLocalOffices(token: string, hubId?: string) {
+  return request<LocalOffice[]>(`/admin/local-offices${hubId ? `?hub_id=${hubId}` : ''}`, { method: 'GET' }, token);
 }
 
 export function createLocalOffice(payload: LocalOfficeInput, token: string) {

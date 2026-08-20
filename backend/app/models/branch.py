@@ -11,7 +11,12 @@ class Branch(Base, TimestampMixin):
     name = Column(String(150), nullable=False)
     address = Column(String(255), nullable=True)
     manager_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
-    manager = relationship("User", back_populates="managed_branches")
+    manager = relationship("User", back_populates="managed_branches", foreign_keys=[manager_id])
+    # The branch's designated "admin" role account - distinct from `manager`
+    # (day-to-day branch operations boss). Mirrors Hub.manager_id/
+    # LocalOffice.manager_id: one designated account per location tier.
+    admin_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    admin = relationship("User", back_populates="administered_branches", foreign_keys=[admin_id])
     phone = Column(String(20), nullable=True)
     email = Column(String(150), nullable=True)
     latitude = Column(String(50), nullable=True)
@@ -37,5 +42,6 @@ class Branch(Base, TimestampMixin):
     riders = relationship("RiderProfile", back_populates="branch")
     warehouses = relationship("Warehouse", back_populates="branch")
     service_areas = relationship("BranchServiceArea", back_populates="branch", cascade="all, delete-orphan")
+    # LocalOffice now nests under Hub, not directly under Branch - reach a
+    # branch's local offices via hubs[].local_offices (see app/models/hub.py).
     hubs = relationship("Hub", back_populates="branch")
-    local_offices = relationship("LocalOffice", back_populates="branch")

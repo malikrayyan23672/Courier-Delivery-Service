@@ -89,7 +89,7 @@ function TeamAccountsSection({ token }: { token: string }) {
 
   const filteredBranches = branches.filter((b) => b.zone_id === form.zone_id);
   const filteredHubs = hubs.filter((h) => h.branch_id === form.branch_id);
-  const filteredLocalOffices = localOffices.filter((o) => o.branch_id === form.branch_id);
+  const filteredLocalOffices = localOffices.filter((o) => o.hub_id === form.hub_id);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return users;
@@ -209,20 +209,23 @@ function TeamAccountsSection({ token }: { token: string }) {
                   </div>
                 </>
               )}
-              {form.role === 'hub_manager' && (
+              {(form.role === 'hub_manager' || form.role === 'local_office_manager') && (
                 <div>
                   <label className="mb-1.5 block text-sm font-semibold text-ink">Hub</label>
-                  <select value={form.hub_id} onChange={(e) => setForm((f) => ({ ...f, hub_id: e.target.value }))}
+                  <select value={form.hub_id} onChange={(e) => setForm((f) => ({ ...f, hub_id: e.target.value, local_office_id: '' }))}
                     className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm outline-none focus:border-ring">
                     <option value="">Select hub</option>
                     {filteredHubs.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
                   </select>
+                  {form.role === 'local_office_manager' && (
+                    <p className="mt-1 text-xs text-muted-foreground">Every local office belongs to a hub - pick the hub first.</p>
+                  )}
                 </div>
               )}
               {form.role === 'local_office_manager' && (
                 <div>
                   <label className="mb-1.5 block text-sm font-semibold text-ink">Local Office</label>
-                  <select value={form.local_office_id} onChange={(e) => setForm((f) => ({ ...f, local_office_id: e.target.value }))}
+                  <select value={form.local_office_id} onChange={(e) => setForm((f) => ({ ...f, local_office_id: e.target.value }))} disabled={!form.hub_id}
                     className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm outline-none focus:border-ring">
                     <option value="">Select local office</option>
                     {filteredLocalOffices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
