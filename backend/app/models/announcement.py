@@ -17,8 +17,13 @@ class Announcement(Base, TimestampMixin):
     title = Column(String(150), nullable=False)
     body = Column(String(1000), nullable=False)
 
-    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id", ondelete="SET NULL"), nullable=True)
-    hub = relationship("Hub")
+    # Hub-scoped announcements are owned by that hub - deleting the hub takes
+    # its announcements with it (CASCADE). A NULL hub_id is a network-wide
+    # announcement that is intentionally independent of any single hub, so it
+    # must NOT be promoted to global when a hub disappears (which SET NULL would
+    # wrongly do).
+    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id", ondelete="CASCADE"), nullable=True)
+    hub = relationship("Hub", back_populates="announcements")
 
     created_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by = relationship("User", foreign_keys=[created_by_id])

@@ -63,3 +63,7 @@ class Hub(Base, TimestampMixin):
     warehouses = relationship("Warehouse", back_populates="hub")
     service_areas = relationship("BranchServiceArea", back_populates="hub", cascade="all, delete-orphan")
     branches = relationship("Branch", back_populates="hub", cascade='all, delete-orphan')
+    # Hub-scoped announcements are removed when the hub is dissolved.
+    announcements = relationship("Announcement", back_populates="hub", cascade="all, delete-orphan")
+
+    # announcements = relationship("Announcement", back_populates="hubs")
