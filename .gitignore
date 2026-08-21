@@ -10,6 +10,8 @@ env/
 .env
 *.env.local
 
+credentials.txt
+
 ## IDE
 .vscode/
 .idea/
