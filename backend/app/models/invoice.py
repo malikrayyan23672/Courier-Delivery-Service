@@ -7,7 +7,7 @@ class Invoice(Base, TimestampMixin):
     __tablename__ = "invoices"
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
-    order_id = Column(UUID_TYPE, ForeignKey("orders.id"), nullable=False)
+    order_id = Column(UUID_TYPE, ForeignKey("orders.id", ondelete='CASCADE'), nullable=False)
     order = relationship("Order", back_populates="invoice")
 
     # Deterministic, derived from the order's own unique tracking_number

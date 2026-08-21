@@ -17,7 +17,7 @@ class ParcelUnlockRequest(Base, TimestampMixin):
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
 
-    order_id = Column(UUID_TYPE, ForeignKey("orders.id"), nullable=False, index=True)
+    order_id = Column(UUID_TYPE, ForeignKey("orders.id", ondelete='CASCADE'), nullable=False, index=True)
     order = relationship("Order")
 
     rider_id = Column(UUID_TYPE, ForeignKey("riders.id"), nullable=False, index=True)
@@ -30,6 +30,6 @@ class ParcelUnlockRequest(Base, TimestampMixin):
 
     status = Column(Enum(RequestStatus, native_enum=False, length=20), default=RequestStatus.pending, index=True)
     resolution_note = Column(String(500), nullable=True)
-    resolved_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    resolved_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     resolved_by = relationship("User", foreign_keys=[resolved_by_id])
     resolved_at = Column(DateTime(timezone=True), nullable=True)

@@ -978,6 +978,10 @@ export function updateHub(hubId: string, payload: Partial<HubInput>, token: stri
   return request<Hub>(`/admin/hubs/${hubId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
 }
 
+export function deleteHub(hubId: string, token: string){
+  return request<Hub>(`/admin/hubs/delete/${hubId}`, {method: 'DELETE'}, token)
+}
+
 // Branches = sorting/scan facilities under a hub. hub_id/hub_name point at the
 // parent city hub.
 export interface Branch {

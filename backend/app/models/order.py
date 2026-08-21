@@ -55,9 +55,10 @@ class Order(Base, TimestampMixin):
     customer_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=False)
     customer = relationship("User", foreign_keys=[customer_id], back_populates="orders_placed")
 
-    # Who actually created the order record (audit trail)
+    # Who actually created the order record (audit trail). Nulled if the user
+    # is later removed - the order history itself is preserved.
     created_by_type = Column(Enum(CreatedByType), nullable=False, default=CreatedByType.customer)
-    created_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=False)
+    created_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     booking_channel = Column(Enum(BookingChannel), nullable=False, default=BookingChannel.online)
 
     pickup_address_id = Column(UUID_TYPE, ForeignKey("addresses.id"), nullable=False)
@@ -72,20 +73,23 @@ class Order(Base, TimestampMixin):
     # a new status later is a plain column default, never an `ALTER TYPE`.
     status = Column(Enum(OrderStatus, native_enum=False, length=30), default=OrderStatus.created, index=True)
 
-    rider_id = Column(UUID_TYPE, ForeignKey("riders.id"), nullable=True)
+    rider_id = Column(UUID_TYPE, ForeignKey("riders.id", ondelete='SET NULL'), nullable=True)
     rider = relationship("RiderProfile", back_populates="deliveries")
     # None = offer awaiting rider response, True = accepted. Declining unassigns the order entirely.
     rider_accepted = Column(Boolean, nullable=True)
 
-    zone_id = Column(UUID_TYPE, ForeignKey("zones.id"), nullable=True)
-    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=True)
+    # Orders are historical records that must outlive the office that handled
+    # them - so dropping a hub/zone/counter just dissociates the order (SET NULL)
+    # rather than deleting shipment history.
+    zone_id = Column(UUID_TYPE, ForeignKey("zones.id", ondelete='SET NULL'), nullable=True)
+    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id", ondelete='SET NULL'), nullable=True)
     zone = relationship("Zone")
     hub = relationship("Hub")
 
     # Set only when this order was booked as a walk-in guest at a local
     # branch counter (see app/api/v1/local_branch.py) - records exactly
     # which counter booked it, distinct from `hub_id`'s routing role.
-    local_branch_id = Column(UUID_TYPE, ForeignKey("local_branches.id"), nullable=True)
+    local_branch_id = Column(UUID_TYPE, ForeignKey("local_branches.id", ondelete='SET NULL'), nullable=True)
     local_branch = relationship("LocalBranch")
 
     # Which physical branch this parcel is currently associated with - the
@@ -109,13 +113,13 @@ class Order(Base, TimestampMixin):
     final_price = Column(Float, nullable=True)
 
     # Layer 6 - login-only discount applied at booking time.
-    discount_id = Column(UUID_TYPE, ForeignKey("discounts.id"), nullable=True)
+    discount_id = Column(UUID_TYPE, ForeignKey("discounts.id", ondelete='SET NULL'), nullable=True)
     discount_amount = Column(Float, nullable=True)
 
     # Layer 5 - Marketplace. Only set when this order originated from a direct
     # product purchase rather than a generic shipment booking. `unit_price` is
     # a snapshot at purchase time, since the product's live price can move.
-    product_id = Column(UUID_TYPE, ForeignKey("products.id"), nullable=True)
+    product_id = Column(UUID_TYPE, ForeignKey("products.id", ondelete='SET NULL'), nullable=True)
     product = relationship("Product", back_populates="orders")
     quantity = Column(Integer, nullable=True)
     unit_price = Column(Float, nullable=True)
@@ -126,7 +130,7 @@ class Order(Base, TimestampMixin):
     # order (mirrors product.business_id there) - one column every seller
     # query (dashboard, parcel list, returns) can filter on, instead of each
     # needing to know which of several paths created the order.
-    seller_business_id = Column(UUID_TYPE, ForeignKey("businesses.id"), nullable=True, index=True)
+    seller_business_id = Column(UUID_TYPE, ForeignKey("businesses.id", ondelete='SET NULL'), nullable=True, index=True)
     seller_business = relationship("Business", foreign_keys=[seller_business_id])
 
     proof_of_delivery_url = Column(String(500), nullable=True)
@@ -138,10 +142,10 @@ class Order(Base, TimestampMixin):
     # ever happening, distinct from the return manifest merely "arriving".
     rto_collected_at = Column(DateTime(timezone=True), nullable=True)
 
-    payment = relationship("Payment", back_populates="order", uselist=False)
-    settlement = relationship("Settlement", back_populates="order", uselist=False)
-    manifest_items = relationship("ManifestItem", back_populates="order")
-    tracking_events = relationship("TrackingEvent", back_populates="order", order_by="TrackingEvent.created_at")
-    delivery_attempts = relationship("DeliveryAttempt", back_populates="order")
-    invoice = relationship("Invoice", back_populates="order", uselist=False)
-    ratings = relationship("Rating", back_populates="order")
+    payment = relationship("Payment", back_populates="order", uselist=False, cascade="all, delete-orphan")
+    settlement = relationship("Settlement", back_populates="order", uselist=False, cascade="all, delete-orphan")
+    manifest_items = relationship("ManifestItem", back_populates="order", cascade="all, delete-orphan")
+    tracking_events = relationship("TrackingEvent", back_populates="order", order_by="TrackingEvent.created_at", cascade="all, delete-orphan")
+    delivery_attempts = relationship("DeliveryAttempt", back_populates="order", cascade="all, delete-orphan")
+    invoice = relationship("Invoice", back_populates="order", uselist=False, cascade="all, delete-orphan")
+    ratings = relationship("Rating", back_populates="order", cascade="all, delete-orphan")

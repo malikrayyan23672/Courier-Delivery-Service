@@ -33,16 +33,18 @@ class StaffProfile(Base, TimestampMixin):
     # Comma-separated weekday abbreviations, e.g. "Mon,Tue,Wed,Thu,Fri".
     shift_days = Column(String(50), nullable=True)
 
-    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=True)
+    # Deleting a hub/branch/local branch must NOT delete the employee - they
+    # are simply unassigned (SET NULL) so a manager can re-home them elsewhere.
+    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id", ondelete='SET NULL'), nullable=True)
     hub = relationship("Hub", back_populates="staff_members")
 
-    branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=True)
+    branch_id = Column(UUID_TYPE, ForeignKey("branches.id", ondelete='SET NULL'), nullable=True)
     branch = relationship("Branch")
 
     # Set only for hub_manager / local_office_manager accounts - narrows
     # their scope to one specific hub/branch within the network, the same way
     # `hub_id` narrows a "manager" account to one city hub.
-    local_branch_id = Column(UUID_TYPE, ForeignKey("local_branches.id"), nullable=True)
+    local_branch_id = Column(UUID_TYPE, ForeignKey("local_branches.id", ondelete='SET NULL'), nullable=True)
     local_branch = relationship("LocalBranch")
 
     user = relationship("User", back_populates="staff_profile")

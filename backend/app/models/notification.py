@@ -7,9 +7,9 @@ class Notification(Base, TimestampMixin):
     __tablename__ = "notifications"
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
-    user_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=False)
+    user_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='CASCADE'), nullable=False)
     user = relationship("User", back_populates="notifications")
-    order_id = Column(UUID_TYPE, ForeignKey("orders.id"), nullable=True)
+    order_id = Column(UUID_TYPE, ForeignKey("orders.id", ondelete='CASCADE'), nullable=True)
     order = relationship("Order")
     title = Column(String(100), nullable=False)
     type = Column(String(50), nullable=False)  # e.g., "info", "warning", "error"

@@ -25,10 +25,10 @@ class Dispute(Base, TimestampMixin):
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
 
-    order_id = Column(UUID_TYPE, ForeignKey("orders.id"), nullable=False)
+    order_id = Column(UUID_TYPE, ForeignKey("orders.id", ondelete='CASCADE'), nullable=False)
     order = relationship("Order")
 
-    business_id = Column(UUID_TYPE, ForeignKey("businesses.id"), nullable=True)
+    business_id = Column(UUID_TYPE, ForeignKey("businesses.id", ondelete='SET NULL'), nullable=True)
     business = relationship("Business")
 
     raised_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=False)
@@ -41,7 +41,7 @@ class Dispute(Base, TimestampMixin):
     status = Column(Enum(DisputeStatus, native_enum=False, length=20), default=DisputeStatus.open, index=True)
 
     resolution_note = Column(String(500), nullable=True)
-    resolved_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    resolved_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     resolved_at = Column(DateTime(timezone=True), nullable=True)
 
     def resolve(self, resolved_by_id: str, note: str | None, accepted: bool) -> None:

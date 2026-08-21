@@ -36,6 +36,6 @@ class RiderStatusRequest(Base, TimestampMixin):
 
     status = Column(Enum(RequestStatus, native_enum=False, length=20), default=RequestStatus.pending, index=True)
     resolution_note = Column(String(500), nullable=True)
-    resolved_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    resolved_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     resolved_by = relationship("User", foreign_keys=[resolved_by_id])
     resolved_at = Column(DateTime(timezone=True), nullable=True)

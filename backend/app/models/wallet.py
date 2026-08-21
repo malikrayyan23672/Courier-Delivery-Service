@@ -29,7 +29,7 @@ class WalletTransaction(Base, TimestampMixin):
     balance_after = Column(Float, nullable=True)
     transaction_type = Column(Enum(WalletTransactionType), default=WalletTransactionType.settlement_credit)
     reference = Column(String(255), nullable=True)  # e.g. settlement id, order tracking number
-    created_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    created_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
 
 
 class ReconciliationLog(Base, TimestampMixin):
@@ -48,4 +48,4 @@ class ReconciliationLog(Base, TimestampMixin):
     difference = Column(Float, default=0.0)
     status = Column(String(50), default="matched")  # matched / mismatched / in_review
     notes = Column(String(500), nullable=True)
-    reconciled_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    reconciled_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)

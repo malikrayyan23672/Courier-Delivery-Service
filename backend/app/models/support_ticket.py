@@ -23,7 +23,7 @@ class SupportTicket(Base, TimestampMixin):
     raised_by = relationship("User", foreign_keys=[raised_by_id])
 
     subject = Column(String(200), nullable=False)
-    order_id = Column(UUID_TYPE, ForeignKey("orders.id"), nullable=True)
+    order_id = Column(UUID_TYPE, ForeignKey("orders.id", ondelete='CASCADE'), nullable=True)
     order = relationship("Order")
 
     status = Column(Enum(SupportTicketStatus, native_enum=False, length=20), default=SupportTicketStatus.open, index=True)

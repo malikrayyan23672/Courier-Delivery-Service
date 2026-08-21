@@ -10,7 +10,7 @@ class Warehouse(Base, TimestampMixin):
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
     name = Column(String(150), nullable=False)
     # Relationship to the Branch model
-    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=False)
+    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id", ondelete='SET NULL'), nullable=True)
     hub = relationship("Hub", back_populates="warehouses")
 
     manager_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)

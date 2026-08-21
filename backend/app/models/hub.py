@@ -41,14 +41,25 @@ class Hub(Base, TimestampMixin):
     # Rough capacity for the hub console's warehouse occupancy view (count of
     # parcels physically at this hub vs this number).
     warehouse_capacity = Column(Integer, nullable=True)
-
-    headquarter_id = Column(UUID_TYPE, ForeignKey("headquarters.id"), nullable=True)
+    headquarter_id = Column(UUID_TYPE, ForeignKey("headquarters.id", ondelete='CASCADE'), nullable=True)
     headquarter = relationship("Headquarter", back_populates="hubs")
 
+    # The city/zone this hub serves. Deleting the zone must NOT wipe the hub
+    # (the physical office outlives a pricing corridor), so no ondelete here -
+    # removal is blocked until the hub is re-homed or deleted first.
     zone_id = Column(UUID_TYPE, ForeignKey("zones.id"), nullable=True)
     zone = relationship("Zone", back_populates="hubs")
+
+    # Manager / admin accounts are nullable: removing the user simply vacates
+    # the seat rather than deleting the hub.
+    manager_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
+    manager = relationship("User", back_populates="managed_hubs", foreign_keys=[manager_id])
+    admin_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
+    admin = relationship("User", back_populates="administered_hubs", foreign_keys=[admin_id])
+
     staff_members = relationship("StaffProfile", back_populates="hub")
     riders = relationship("RiderProfile", back_populates="hub")
+    # Warehouses are unassigned (SET NULL) when the hub closes, not deleted.
     warehouses = relationship("Warehouse", back_populates="hub")
     service_areas = relationship("BranchServiceArea", back_populates="hub", cascade="all, delete-orphan")
-    branches = relationship("Branch", back_populates="hub")
+    branches = relationship("Branch", back_populates="hub", cascade='all, delete-orphan')

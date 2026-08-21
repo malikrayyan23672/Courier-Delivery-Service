@@ -21,10 +21,11 @@ class Branch(Base, TimestampMixin):
     phone = Column(String(20), nullable=True)
     status = Column(String(50), default="active")  # e.g., "active", "inactive"
 
-    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=False)
+    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id", ondelete='CASCADE'), nullable=False,)
     hub = relationship("Hub", back_populates="branches")
 
-    manager_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    # Removing the manager user just vacates the seat; the branch stays.
+    manager_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     manager = relationship("User", back_populates="managed_branches")
 
-    local_branches = relationship("LocalBranch", back_populates="branch")
+    local_branches = relationship("LocalBranch", back_populates="branch", cascade='all, delete-orphan')

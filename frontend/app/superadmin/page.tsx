@@ -64,12 +64,18 @@ import {
   listLocalOffices,
   createLocalOffice,
   updateLocalOffice,
+  deleteHub,
 } from '@/lib/api';
 import {
   Pill, AvatarChip, KpiCard, StatStrip, Toasts, NavIcon, NavBadge, Modal, inputCls,
 } from './components';
 import { RequestsView } from '@/components/ops/RequestsView';
 import { BusNetworkTab, DiscountsTab, AdminOrderDetailModal } from '@/app/admin/components';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { ChevronDown, LogOut, Settings } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 type View =
   | 'overview' | 'orders' | 'map'
@@ -94,8 +100,8 @@ const NAV_SECTIONS: { label: string; items: { view: View; label: string; icon: s
     { view: 'requests', label: 'Rider Requests', icon: 'alert' },
   ]},
   { label: 'Network', items: [
-    { view: 'branches', label: 'Branches', icon: 'building' },
-    { view: 'hubops', label: 'Hubs & Offices', icon: 'building' },
+    { view: 'hubops', label: 'Hubs', icon: 'building' },
+    { view: 'branches', label: 'Branches & Offices', icon: 'building' },
     { view: 'zones', label: 'Service Zones', icon: 'zone' },
     { view: 'bus', label: 'Bus Network', icon: 'truck' },
   ]},
@@ -124,8 +130,8 @@ const PAGE_META: Record<View, { title: string; sub: string }> = {
   assignment: { title: 'Rider Assignment', sub: 'Automatic rules, proximity logic and manual overrides' },
   requests: { title: 'Rider Requests', sub: 'Availability changes, parcel unlocks and support tickets across every branch' },
   leaderboard: { title: 'Rider Leaderboard', sub: 'Full network ranking by deliveries, earnings and success rate' },
-  branches: { title: 'Branches', sub: 'Manage every branch in the network' },
-  hubops: { title: 'Hubs & Local Offices', sub: 'Sorting hubs and guest booking counters within each branch' },
+  hubops: { title: 'Hub', sub: 'Manage every branch in the network' },
+  branches: { title: 'Branches & Local Offices', sub: 'Sorting hubs and guest booking counters within each branch' },
   zones: { title: 'Service Zones', sub: 'Coverage areas and delivery capabilities' },
   bus: { title: 'Bus Network', sub: 'Operators, corridors and manifests across every branch' },
   staff: { title: 'Staff & Admins', sub: 'Every internal account and its role' },
@@ -185,14 +191,13 @@ function mapAdminRiders(apiRiders: AdminRider[]): RiderCard[] {
 
 export default function AdminDashboardPage() {
   return (
-    <RoleGuard allowedRoles={['admin', 'super_admin']}>
+    <RoleGuard allowedRoles={['super_admin']}>
       <AdminDashboardContent />
     </RoleGuard>
   );
 }
 
 function AdminDashboardContent() {
-  const { token } = useAuth();
 
   const [view, setView] = useState<View>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -226,6 +231,10 @@ function AdminDashboardContent() {
   const [showCreateUser, setShowCreateUser] = useState(false);
 
   const [showAddNewZone, setShowAddNewZone] = useState(false);
+
+  const {token, setToken} = useAuth();
+
+  const router = useRouter()
 
   const riders = useMemo(() => mapAdminRiders(adminRiders), [adminRiders]);
 
@@ -407,6 +416,11 @@ function AdminDashboardContent() {
     return true;
   }), [orders, orderSearch, orderStatusFilter]);
 
+  function handleLogout() {
+    setToken(null);
+    router.push('/login');
+  }
+
   const filteredUsers = useMemo(() => users.filter((u) => !userRoleFilter || u.role === userRoleFilter), [users, userRoleFilter]);
 
   return (
@@ -467,6 +481,27 @@ function AdminDashboardContent() {
             <div className="text-xs text-muted-foreground truncate">{PAGE_META[view].sub}</div>
           </div>
           <NotificationBell token={token!} className="text-ink" />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="gap-2 px-2">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-navy text-xs font-bold text-white">OA</AvatarFallback>
+                </Avatar>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Super Admin</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => switchView('settings')}>
+                <Settings className="mr-2 h-4 w-4" /> Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                <LogOut className="mr-2 h-4 w-4" /> Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {view === 'zones' && (
             <button onClick={() => setShowAddNewZone(true)} className="hidden sm:flex items-center gap-1.5 bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-sm px-4 py-2.5 rounded-[10px] transition-colors whitespace-nowrap">
               <NavIcon name="plus" size={14} color="#fff" /> Add City
@@ -516,13 +551,13 @@ function AdminDashboardContent() {
 
           {view === 'discounts' && <DiscountsTab token={token!} />}
 
-          {view === 'branches' && (
+          {view === 'hubops' && (
             <HubsView hubs={hubs} zones={zones} headquarters={headquarters} token={token!} toast={toast} setHubs={setHubs} />
           )}
 
           {view === 'zones' && <ZonesView zones={zones} hubs={hubs} onDelete={handleDeleteZone} />}
 
-          {view === 'hubops' && <BranchesAndOfficesView hubs={hubs} token={token!} toast={toast} />}
+          {view === 'branches' && <BranchesAndOfficesView hubs={hubs} token={token!} toast={toast} />}
 
           {view === 'staff' && (
             <StaffView users={filteredUsers} roleFilter={userRoleFilter} setRoleFilter={setUserRoleFilter}
@@ -1009,6 +1044,23 @@ function HubsView({ hubs, zones, headquarters, token, toast, setHubs }: {
     setShowForm(true);
   }
 
+  async function handleDelete(hub_id: string){
+
+    if(!window.confirm('Do you realy want to delete hub')){
+      return
+    }
+
+    try{
+
+      await deleteHub(hub_id,token)
+
+    }catch(err){
+      setHubs((prev) => prev.filter((hub) => hub.id !== hub_id))
+
+    }
+
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) { toast('Hub name is required.'); return; }
@@ -1149,6 +1201,7 @@ function HubsView({ hubs, zones, headquarters, token, toast, setHubs }: {
                     <button onClick={() => toggleStatus(h)} className="text-xs font-bold text-muted-foreground hover:underline">
                       {h.status === 'active' ? 'Deactivate' : 'Activate'}
                     </button>
+                    <button onClick={() => handleDelete(h.id)} className="text-xs font-bold text-danger hover:underline">Delete</button>
                   </div>
                 </td>
               </tr>
@@ -1607,13 +1660,13 @@ function AddCityModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p
         <Field label="COD fee (%)"><input type="number" min={0} step={0.1} className={inputCls} value={form.cod_fee_percentage} onChange={(e) => update('cod_fee_percentage', Number(e.target.value))} /></Field>
 
         <div className="sm:col-span-2 border-t border-line pt-3 mt-1">
-          <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1">First branch in this city</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1">First Hub in this city</p>
           <p className="text-xs text-muted-foreground">A city needs at least one active branch to actually receive bookings.</p>
         </div>
-        <Field label="Branch Name"><input required className={inputCls} value={form.branch_name} onChange={(e) => update('branch_name', e.target.value)} /></Field>
-        <Field label="Branch Address"><input className={inputCls} value={form.branch_address} onChange={(e) => update('branch_address', e.target.value)} /></Field>
-        <Field label="Branch Phone"><input className={inputCls} value={form.branch_phone} onChange={(e) => update('branch_phone', e.target.value)} /></Field>
-        <Field label="Branch Email"><input type="email" className={inputCls} value={form.branch_email} onChange={(e) => update('branch_email', e.target.value)} /></Field>
+        <Field label="Hub Name"><input required className={inputCls} value={form.branch_name} onChange={(e) => update('branch_name', e.target.value)} /></Field>
+        <Field label="Hub Address"><input className={inputCls} value={form.branch_address} onChange={(e) => update('branch_address', e.target.value)} /></Field>
+        <Field label="Hub Phone"><input className={inputCls} value={form.branch_phone} onChange={(e) => update('branch_phone', e.target.value)} /></Field>
+        <Field label="Hub Email"><input type="email" className={inputCls} value={form.branch_email} onChange={(e) => update('branch_email', e.target.value)} /></Field>
         <Field label="Opening Time"><input placeholder="09:00 AM" className={inputCls} value={form.opening_time} onChange={(e) => update('opening_time', e.target.value)} /></Field>
         <Field label="Closing Time"><input placeholder="09:00 PM" className={inputCls} value={form.closing_time} onChange={(e) => update('closing_time', e.target.value)} /></Field>
 

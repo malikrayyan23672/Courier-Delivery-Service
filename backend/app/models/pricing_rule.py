@@ -7,7 +7,7 @@ from app.models.base import TimestampMixin, UUID_TYPE, gen_uuid
 class PricingRule(Base, TimestampMixin):
     __tablename__ = "pricing_rules"
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
-    zone_id = Column(UUID_TYPE, ForeignKey("zones.id"), nullable=False)
+    zone_id = Column(UUID_TYPE, ForeignKey("zones.id", ondelete='CASCADE'), nullable=False)
     zone = relationship("Zone", back_populates="pricing_rules")
     weight_range_min = Column(Integer, nullable=False)  # Minimum weight in grams
     weight_range_max = Column(Integer, nullable=False)  # Maximum weight in grams

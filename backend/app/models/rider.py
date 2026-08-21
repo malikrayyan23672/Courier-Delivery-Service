@@ -17,9 +17,9 @@ class RiderProfile(Base, TimestampMixin):
     __tablename__ = "riders"
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
-    user_id = Column(UUID_TYPE, ForeignKey("users.id"), unique=True, nullable=False)
+    user_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='CASCADE'), unique=True, nullable=False)
 
-    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=True)
+    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id", ondelete='SET NULL'), nullable=True)
     hub = relationship("Hub", back_populates="riders")
 
     vehicle_type = Column(String(50), nullable=True)   # bike, van, truck

@@ -16,6 +16,8 @@ class Zone(Base, TimestampMixin):
     base_rate = Column(Float, nullable=False, default=5.0)
     cod_fee_percentage = Column(Float, nullable=False, default=3.0)
 
+    # A zone is a pricing corridor - deleting it must not wipe the physical
+    # hubs that serve the city (they simply become un-homed until re-assigned).
     hubs = relationship("Hub", back_populates="zone")
-    pricing_rules = relationship("PricingRule", back_populates="zone")
+    pricing_rules = relationship("PricingRule", back_populates="zone", cascade='all, delete-orphan')
     

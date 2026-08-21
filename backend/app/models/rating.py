@@ -22,14 +22,15 @@ class Rating(Base, TimestampMixin):
     __table_args__ = (CheckConstraint("score >= 1 AND score <= 5", name="ck_rating_score_range"),)
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
-    order_id = Column(UUID_TYPE, ForeignKey("orders.id"), nullable=False, index=True)
+    order_id = Column(UUID_TYPE, ForeignKey("orders.id", ondelete='CASCADE'), nullable=False, index=True)
     order = relationship("Order", back_populates="ratings")
 
     rater_role = Column(String(20), nullable=False)     # 'customer' | 'seller'
     target_type = Column(String(20), nullable=False)    # 'seller' | 'customer'
 
-    target_business_id = Column(UUID_TYPE, ForeignKey("businesses.id"), nullable=True, index=True)
-    target_user_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True, index=True)
+    # Targets are kept (not deleted) if the rated party is removed.
+    target_business_id = Column(UUID_TYPE, ForeignKey("businesses.id", ondelete='SET NULL'), nullable=True, index=True)
+    target_user_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True, index=True)
     target_phone = Column(String(20), nullable=True, index=True)
 
     score = Column(Integer, nullable=False)

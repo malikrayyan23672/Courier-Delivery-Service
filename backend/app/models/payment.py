@@ -24,7 +24,7 @@ class Payment(Base, TimestampMixin):
     __tablename__ = "payments"
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
-    order_id = Column(UUID_TYPE, ForeignKey("orders.id"), unique=True, nullable=False)
+    order_id = Column(UUID_TYPE, ForeignKey("orders.id", ondelete='CASCADE'), unique=True, nullable=False)
 
     amount = Column(Float, nullable=False)
     method = Column(Enum(PaymentMethod), nullable=False)

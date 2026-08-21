@@ -35,7 +35,7 @@ class ParcelIncident(Base, TimestampMixin):
 
     # Nullable - a "missing" report may not resolve to a known order/tracking
     # number at the moment it's raised.
-    order_id = Column(UUID_TYPE, ForeignKey("orders.id"), nullable=True)
+    order_id = Column(UUID_TYPE, ForeignKey("orders.id", ondelete='CASCADE'), nullable=True)
     order = relationship("Order")
     manifest_id = Column(UUID_TYPE, ForeignKey("bus_manifests.id"), nullable=True)
 
@@ -43,10 +43,10 @@ class ParcelIncident(Base, TimestampMixin):
     status = Column(Enum(IncidentStatus, native_enum=False, length=20), default=IncidentStatus.open, index=True)
     note = Column(Text, nullable=True)
 
-    reported_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    reported_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     reported_by = relationship("User", foreign_keys=[reported_by_id])
 
     resolution_note = Column(Text, nullable=True)
-    resolved_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    resolved_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     resolved_by = relationship("User", foreign_keys=[resolved_by_id])
     resolved_at = Column(DateTime(timezone=True), nullable=True)

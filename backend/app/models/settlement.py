@@ -29,7 +29,7 @@ class Settlement(Base, TimestampMixin):
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
 
-    order_id = Column(UUID_TYPE, ForeignKey("orders.id"), unique=True, nullable=False)
+    order_id = Column(UUID_TYPE, ForeignKey("orders.id", ondelete='CASCADE'), unique=True, nullable=False)
     payment_id = Column(UUID_TYPE, ForeignKey("payments.id"), nullable=True)
 
     # The seller/business that receives this payout (null for retail customers).

@@ -926,6 +926,18 @@ def update_hub(
     db.refresh(hub)
     return _hub_out(hub)
 
+@router.delete("/hubs/delete/{hub_id}")
+def delete_hub(hub_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_roles('admin','super_admin'))):
+
+    hub = db.query(Hub).filter(Hub.id == hub_id).first()
+
+    if not hub:
+        raise HTTPException(status_code=502, detail='hub not found')
+
+    db.delete(hub)
+    db.commit()
+
+
 
 # ============================================================
 # BRANCHES (sorting/scan facilities under a hub)

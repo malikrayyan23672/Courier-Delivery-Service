@@ -18,7 +18,7 @@ class TrackingEvent(Base, TimestampMixin):
     __tablename__ = "tracking_events"
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
-    order_id = Column(UUID_TYPE, ForeignKey("orders.id"), nullable=False, index=True)
+    order_id = Column(UUID_TYPE, ForeignKey("orders.id", ondelete='CASCADE'), nullable=False, index=True)
 
     status = Column(String(50), nullable=False)
     note = Column(String(255), nullable=True)

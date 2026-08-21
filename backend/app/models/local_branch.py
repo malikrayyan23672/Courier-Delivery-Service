@@ -20,8 +20,8 @@ class LocalBranch(Base, TimestampMixin):
     phone = Column(String(20), nullable=True)
     status = Column(String(50), default="active")  # e.g., "active", "inactive"
 
-    branch_id = Column(UUID_TYPE, ForeignKey("branches.id"), nullable=False)
+    branch_id = Column(UUID_TYPE, ForeignKey("branches.id", ondelete='CASCADE'), nullable=False)
     branch = relationship("Branch", back_populates="local_branches")
 
-    manager_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    manager_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     manager = relationship("User", back_populates="managed_local_branches")

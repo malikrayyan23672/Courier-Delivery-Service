@@ -15,7 +15,7 @@ class BranchServiceArea(Base, TimestampMixin):
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
 
-    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=False, index=True)
+    hub_id = Column(UUID_TYPE, ForeignKey("hubs.id", ondelete='CASCADE'), nullable=False, index=True)
     hub = relationship("Hub", back_populates="service_areas")
 
     zone_name = Column(String(150), nullable=False)

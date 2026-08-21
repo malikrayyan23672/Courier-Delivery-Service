@@ -16,7 +16,7 @@ class OrderMessage(Base, TimestampMixin):
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
 
-    order_id = Column(UUID_TYPE, ForeignKey("orders.id"), nullable=False, index=True)
+    order_id = Column(UUID_TYPE, ForeignKey("orders.id", ondelete='CASCADE'), nullable=False, index=True)
     order = relationship("Order")
 
     sender_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=False)

@@ -48,4 +48,4 @@ class User(Base, TimestampMixin):
     managed_hubs = relationship("Hub", back_populates="manager", foreign_keys="Hub.manager_id")
     managed_local_branches = relationship("LocalBranch", back_populates="manager")
     managed_headquarters = relationship("Headquarter", back_populates="manager")
-    notifications = relationship("Notification", back_populates="user")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")

@@ -20,7 +20,8 @@ class Headquarter(Base, TimestampMixin):
     email = Column(String(150), nullable=True)
     status = Column(String(50), default="active")  # e.g., "active", "inactive"
 
-    manager_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    manager_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     manager = relationship("User", back_populates="managed_headquarters")
 
-    hubs = relationship("Hub", back_populates="headquarter")
+    # Dissolving the national head office cascades to its city hubs.
+    hubs = relationship("Hub", back_populates="headquarter", cascade="all, delete-orphan")

@@ -53,15 +53,15 @@ class BusSchedule(Base, TimestampMixin):
 
     origin_city = Column(String(100), nullable=False)
     destination_city = Column(String(100), nullable=False)
-    origin_hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=True)
-    destination_hub_id = Column(UUID_TYPE, ForeignKey("hubs.id"), nullable=True)
+    origin_hub_id = Column(UUID_TYPE, ForeignKey("hubs.id", ondelete='SET NULL'), nullable=True)
+    destination_hub_id = Column(UUID_TYPE, ForeignKey("hubs.id", ondelete='SET NULL'), nullable=True)
 
     departure_time = Column(String(10), nullable=True)  # e.g. "06:30"
     departure_interval_min = Column(Integer, default=30)
     fare = Column(Float, nullable=True)
     status = Column(String(50), default="active")
 
-    manifests = relationship("BusManifest", back_populates="schedule")
+    manifests = relationship("BusManifest", back_populates="schedule", cascade='all, delete-orphan')
 
 
 class BusManifest(Base, TimestampMixin):
@@ -73,7 +73,7 @@ class BusManifest(Base, TimestampMixin):
     __tablename__ = "bus_manifests"
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
-    schedule_id = Column(UUID_TYPE, ForeignKey("bus_schedules.id"), nullable=True)
+    schedule_id = Column(UUID_TYPE, ForeignKey("bus_schedules.id", ondelete='CASCADE'), nullable=True)
     schedule = relationship("BusSchedule", back_populates="manifests")
 
     # Only set on auto-created RTO return batches (see order_service.
@@ -90,7 +90,7 @@ class BusManifest(Base, TimestampMixin):
 
     status = Column(Enum(ManifestStatus), default=ManifestStatus.in_preparation, index=True)
 
-    items = relationship("ManifestItem", back_populates="manifest")
+    items = relationship("ManifestItem", back_populates="manifest", cascade='all, delete-orphan')
 
 
 class ManifestItem(Base, TimestampMixin):
@@ -102,10 +102,10 @@ class ManifestItem(Base, TimestampMixin):
     __tablename__ = "manifest_items"
 
     id = Column(UUID_TYPE, primary_key=True, default=gen_uuid)
-    manifest_id = Column(UUID_TYPE, ForeignKey("bus_manifests.id"), nullable=False)
+    manifest_id = Column(UUID_TYPE, ForeignKey("bus_manifests.id", ondelete='CASCADE'), nullable=False)
     manifest = relationship("BusManifest", back_populates="items")
 
-    order_id = Column(UUID_TYPE, ForeignKey("orders.id"), nullable=True)
+    order_id = Column(UUID_TYPE, ForeignKey("orders.id", ondelete='CASCADE'), nullable=True)
     order = relationship("Order", back_populates="manifest_items")
     crate_label = Column(String(100), nullable=True)
 
