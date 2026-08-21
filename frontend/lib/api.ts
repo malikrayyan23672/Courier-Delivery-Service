@@ -895,8 +895,33 @@ export interface AddCityPayload {
   closing_time?: string;
 }
 
+export interface AddCityPayload {
+  city_name: string;
+  description?: string;
+  base_rate?: number;
+  cod_fee_percentage?: number;
+  branch_name: string;
+  branch_address?: string;
+  branch_phone?: string;
+  branch_email?: string;
+  opening_time?: string;
+  closing_time?: string;
+}
+
+export interface EditCityPayload{
+  name: string;
+  description: string;
+  base_rate?: number
+  cod_fee_percentage?: number
+  is_active: boolean
+}
+
 export function addCity(payload: AddCityPayload, token: string) {
   return request<{ zone: Zone; branch: Branch }>('/admin/cities', { method: 'POST', body: JSON.stringify(payload) }, token);
+}
+
+export function editCity(zone_id: string, payload: EditCityPayload, token: string){
+  return request<Zone>(`/admin/cities/${zone_id}`, {method: 'PATCH', body: JSON.stringify(payload)}, token)
 }
 
 // ---- Network hierarchy: Headquarter -> Hub -> Branch -> LocalBranch ----

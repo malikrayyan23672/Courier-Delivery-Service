@@ -65,6 +65,8 @@ import {
   createLocalOffice,
   updateLocalOffice,
   deleteHub,
+  EditCityPayload,
+  editCity,
 } from '@/lib/api';
 import {
   Pill, AvatarChip, KpiCard, StatStrip, Toasts, NavIcon, NavBadge, Modal, inputCls,
@@ -76,6 +78,8 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ChevronDown, LogOut, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { Select, SelectItem } from '@/components/ui/select';
+import { SelectField } from '@/components/Select';
 
 type View =
   | 'overview' | 'orders' | 'map'
@@ -230,7 +234,6 @@ function AdminDashboardContent() {
   const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
   const [showCreateUser, setShowCreateUser] = useState(false);
 
-  const [showAddNewZone, setShowAddNewZone] = useState(false);
 
   const {token, setToken} = useAuth();
 
@@ -307,20 +310,7 @@ function AdminDashboardContent() {
     }
   }
 
-  async function handleAddCity(payload: AddCityPayload){
-    if(!token){
-      return;
-    }
-
-    try{
-      await addCity(payload, token);
-      toast(`${payload.city_name} added with branch "${payload.branch_name}".`);
-      setShowAddNewZone(false);
-      loadAll()
-    }catch(err){
-      toast(err instanceof ApiError ? err.message : 'Could not add city.');
-    }
-  }
+  
 
   async function handleCreateUser(payload: AdminCreateUserPayload) {
     if (!token) return;
@@ -502,11 +492,11 @@ function AdminDashboardContent() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {view === 'zones' && (
+          {/* {view === 'zones' && (
             <button onClick={() => setShowAddNewZone(true)} className="hidden sm:flex items-center gap-1.5 bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-sm px-4 py-2.5 rounded-[10px] transition-colors whitespace-nowrap">
               <NavIcon name="plus" size={14} color="#fff" /> Add City
             </button>
-          )}
+          )} */}
           {view === 'staff' && (
             <button onClick={() => setShowCreateUser(true)} className="hidden sm:flex items-center gap-1.5 bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-sm px-4 py-2.5 rounded-[10px] transition-colors whitespace-nowrap">
               <NavIcon name="plus" size={14} color="#fff" /> New Account
@@ -589,9 +579,7 @@ function AdminDashboardContent() {
         />
       )}
 
-      {showAddNewZone && (
-        <AddCityModal onClose={() => setShowAddNewZone(false)} onCreate={handleAddCity} />
-      )}
+      
 
       {showCreateUser && (
         <CreateUserModal hubs={hubs} branches={branchList} localOffices={localOffices} zones={zones} onClose={() => setShowCreateUser(false)} onCreate={handleCreateUser} />
@@ -1439,22 +1427,88 @@ function BranchesAndOfficesView({ hubs, token, toast }: { hubs: Hub[]; token: st
 // ============================================================
 function ZonesView({ zones, hubs, onDelete }: { zones: Zone[]; hubs: Hub[]; onDelete: (z: Zone) => void }) {
 
+  const [showAddNewZone, setShowAddNewZone] = useState(false);
+  const [showEditZoneForm, setshowEditZoneForm] = useState(false);
+  const {token, setToken} = useAuth();
+  const [zone, setZone] = useState<Zone>({
+    id: '',
+    name: '',
+    description: '',
+    base_rate: 0,
+    cod_fee_percentage: 0,
+    branch_count: 0,
+    is_live: false,
+    is_active: false 
+  })
+
+  
+
+  
+
+  async function handleAddCity(payload: AddCityPayload){
+    if(!token){
+      return;
+    }
+
+    try{
+      await addCity(payload, token);
+      // toast(`${payload.city_name} added with branch "${payload.branch_name}".`);
+      setShowAddNewZone(false);
+      // loadAll()
+    }catch(err){
+      // toast(err instanceof ApiError ? err.message : 'Could not add city.');
+    }
+  }
+
   interface ZoneFormState{
     zone_name: string;
     zone_description: string;
+  }
+
+  
+
+  async function handleEditCity(payload: EditCityPayload){
+
+    if(!token) return
+
+    try{
+
+      await editCity(zone.id,payload, token)
+      setshowEditZoneForm(false)
+
+    }catch(err){
+
+    }
+
   }
 
 
   const branchCount = (zoneId: string) => hubs.filter((h) => h.zone_id === zoneId).length;
   return (
 
+    
+
     <section className="bg-white border border-line rounded-2xl p-5">
+      {showAddNewZone && (
+        <AddCityModal onClose={() => setShowAddNewZone(false)} onCreate={handleAddCity} />
+      )}
+      {showEditZoneForm && (
+        <EditCityModel onClose={() => setshowEditZoneForm(false)} onCreate={handleEditCity} zone={zone}/>
+      )}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-display font-bold text-base">Service Zones</h2>
           <p className="text-xs text-muted-foreground">Coverage areas grouping hubs together - each is a city (use "Add City" to create one with its first hub)</p>
         </div>
+
+        <div>
+          <button onClick={() => setShowAddNewZone(true)}>
+              Add City
+          </button>
+        </div>
       </div>
+
+     
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-muted-foreground text-xs border-b border-line">
@@ -1482,7 +1536,15 @@ function ZonesView({ zones, hubs, onDelete }: { zones: Zone[]; hubs: Hub[]; onDe
                   <Pill status="green" label="Live" />
                 )}
               </td>
-              <td className="py-3">
+              <td className="py-3 flex gap-3 items-center justify-items-center">
+                <button className='className="text-xs font-bold text-[#909d00] border border-danger/30 rounded-lg px-3 py-1.5 hover:bg-[#FBEAE7] flex items-center gap-1"' onClick={() => {
+
+                  setZone(z)
+                  setshowEditZoneForm(true)
+
+                }}> 
+                  Edit
+                </button>
                 <button onClick={
                   () => onDelete(z)
                   // () => null
@@ -1673,6 +1735,59 @@ function AddCityModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p
         <div className="sm:col-span-2 flex justify-end gap-2 mt-2">
           <button type="button" onClick={onClose} className="text-sm font-bold px-4 py-2.5 rounded-lg border border-line text-ink hover:bg-page">Cancel</button>
           <button type="submit" className="text-sm font-bold px-4 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white">Add City</button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function EditCityModel({ onClose, onCreate, zone }: { onClose: () => void; zone: Zone; onCreate: (payload: EditCityPayload) => void }) {
+  const [form, setForm] = useState<EditCityPayload>({
+    name: zone.name,
+    description: zone.description,
+    base_rate: zone.base_rate,
+    cod_fee_percentage: zone.cod_fee_percentage,
+    is_active: zone.is_active
+  });
+  
+
+  function update<K extends keyof EditCityPayload>(key: K, value: EditCityPayload[K]) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  return (
+    <Modal title="Edit City" onClose={onClose} wide>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onCreate(form);
+        }}
+        className="grid sm:grid-cols-2 gap-4"
+      >
+        <Field label="City Name"><input required className={inputCls} value={form.name} onChange={(e) => update('name', e.target.value)} /></Field>
+        <Field label="Description (optional)"><input className={inputCls} value={form.description} onChange={(e) => update('description', e.target.value)} /></Field>
+        <Field label="Base delivery rate (PKR)"><input type="number" min={0} className={inputCls} value={form.base_rate} onChange={(e) => update('base_rate', Number(e.target.value))} /></Field>
+        <Field label="COD fee (%)"><input type="number" min={0} step={0.1} className={inputCls} value={form.cod_fee_percentage} onChange={(e) => update('cod_fee_percentage', Number(e.target.value))} /></Field>
+        
+        <Field label="Is Active">
+          <select
+            className={inputCls}
+            value={String(form.is_active)}
+            onChange={(e) => update('is_active', e.target.value === 'true')}
+          >
+            <option value="true">Active</option>
+            <option value="false">Disable</option>
+          </select>
+        </Field>
+
+        <div className="sm:col-span-2 border-t border-line pt-3 mt-1">
+          <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1">First Hub in this city</p>
+          <p className="text-xs text-muted-foreground">A city needs at least one active branch to actually receive bookings.</p>
+        </div>
+
+        <div className="sm:col-span-2 flex justify-end gap-2 mt-2">
+          <button type="button" onClick={onClose} className="text-sm font-bold px-4 py-2.5 rounded-lg border border-line text-ink hover:bg-page">Cancel</button>
+          <button type="submit" className="text-sm font-bold px-4 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white">Edit City</button>
         </div>
       </form>
     </Modal>

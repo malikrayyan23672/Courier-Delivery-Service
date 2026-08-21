@@ -838,6 +838,23 @@ def add_city(
     return {"zone": _zone_out(db, zone), "branch": _hub_out(hub)}
 
 
+@router.patch("/cities/{zone_id}")
+def update_city(zone_id, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin","super_admin"))):
+    zone = db.query(Zone).filter(Zone.id == zone_id).first()
+
+    if not zone:
+
+        raise HTTPException(status_code=404, detail='zone not found')
+
+    cols = ["name", "description", "is_active", "base_rate", "cod_fee_percentage"]
+
+    for c in cols:
+        setattr(zone, c, payload[c] or None)
+
+    db.commit()
+    db.refresh(zone)
+    return _zone_out(db, zone)
+
 def _hub_out(h: Hub) -> dict:
     return {
         "id": str(h.id),
@@ -989,6 +1006,7 @@ def create_branch(
     db.commit()
     db.refresh(branch)
     return _branch_out(branch)
+
 
 
 @router.patch("/branches/{branch_id}")
