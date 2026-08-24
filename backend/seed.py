@@ -46,7 +46,9 @@ PASSWORD = "Password123"
 
 ROLES = [
     ("customer", "Books shipments and tracks orders"),
-    ("staff", "Office/counter staff who book walk-in orders"),
+    ("staff_hub", "Office/counter staff who book walk-in orders"),
+    ("staff_branch", "Office/counter staff who book walk-in orders"),
+    ("staff_local_branch", "Office/counter staff who book walk-in orders"),
     ("rider", "Delivery partner who fulfills orders"),
     ("admin", "Operations staff with broad management access"),
     ("manager", "Manages branch operations"),

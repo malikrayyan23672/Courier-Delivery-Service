@@ -1880,7 +1880,7 @@ function CreateUserModal({ hubs, branches, localOffices, zones, onClose, onCreat
   hubs: Hub[]; branches: Branch[]; localOffices: LocalOffice[]; zones: Zone[]; onClose: () => void; onCreate: (payload: AdminCreateUserPayload) => void;
 }) {
   const [form, setForm] = useState<AdminCreateUserPayload>({
-    full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff', designation: '', zone_id: '', hub_id: '',
+    full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff_hub', designation: '', zone_id: '', hub_id: '',
   });
   function update<K extends keyof AdminCreateUserPayload>(key: K, val: AdminCreateUserPayload[K]) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -1903,7 +1903,7 @@ function CreateUserModal({ hubs, branches, localOffices, zones, onClose, onCreat
   if (digits.length > 12) out = out.slice(0, 13) + '-' + digits.slice(12);
   return out;
   }
-  const needsHub = form.role === 'staff' || form.role === 'rider' || form.role === 'manager' || form.role === 'admin';
+  const needsHub = form.role === 'staff_hub' || form.role === 'rider' || form.role === 'manager' || form.role === 'admin';
   const needsBranch = form.role === 'hub_manager';
   const needsLocalBranch = form.role === 'local_office_manager';
   return (
@@ -1912,7 +1912,9 @@ function CreateUserModal({ hubs, branches, localOffices, zones, onClose, onCreat
         <Field label="Full name"><input required className={inputCls} value={form.full_name} onChange={(e) => update('full_name', e.target.value)} /></Field>
         <Field label="Role">
           <select className={inputCls} value={form.role} onChange={(e) => { const r = e.target.value as AdminCreateUserPayload['role']; setForm((f) => ({ ...f, role: r, hub_id: '', branch_id: '', local_branch_id: '' })); }}>
-            <option value="staff">Staff</option>
+            <option value="staff_hub">Staff (Hub)</option>
+            <option value="staff_branch">Staff (Branch)</option>
+            <option value="staff_local_branch">Staff (Local Branch)</option>
             <option value="rider">Rider</option>
             <option value="manager">Hub Manager (city)</option>
             <option value="admin">Admin</option>

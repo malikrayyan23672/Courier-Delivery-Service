@@ -33,8 +33,8 @@ from app.services.settlement_service import (
 
 router = APIRouter(prefix="/hub", tags=["Hub Operations"])
 
-# Branch console access: branch staff, branch/hub managers, and admin oversight.
-HUB_ROLES = ("staff", "admin", "super_admin", "manager", "hub_manager")
+# Hub console access: branch staff, branch/hub managers, and admin oversight.
+HUB_ROLES = ("admin", "super_admin", "manager", "hub_manager")
 
 
 def _resolve_branch_id(current_user: User, branch_id: str | None, db: Session) -> str:

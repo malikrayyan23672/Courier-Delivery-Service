@@ -53,11 +53,11 @@ export default function AdminUsersPage() {
 
 interface FormState {
   full_name: string; email: string; phone: string; cnic: string; password: string;
-  role: 'staff' | 'rider' | 'admin' | 'manager' | 'hub_manager' | 'local_office_manager' | 'customer';
+  role: 'staff_hub' | 'staff_branch' | 'staff_local_branch' | 'rider' | 'admin' | 'manager' | 'hub_manager' | 'local_office_manager' | 'customer';
   designation: string; zone_id: string; hub_id: string; branch_id: string; local_branch_id: string;
 }
 const INITIAL_FORM: FormState = {
-  full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff',
+  full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff_hub',
   designation: '', zone_id: '', hub_id: '', branch_id: '', local_branch_id: '',
 };
 
@@ -179,7 +179,9 @@ function TeamAccountsSection({ token }: { token: string }) {
                 <label className="mb-1.5 block text-sm font-semibold text-ink">Role</label>
                 <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as FormState['role'], zone_id: '', hub_id: '', branch_id: '', local_branch_id: '' }))}
                   className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm outline-none focus:border-ring">
-                  <option value="staff">Staff</option>
+                  <option value="staff_hub">Staff (Hub)</option>
+                  <option value="staff_branch">Staff (Branch)</option>
+                  <option value="staff_local_branch">Staff (Local Branch)</option>
                   <option value="manager">Hub Manager (city)</option>
                   <option value="hub_manager">Branch Manager (sorting)</option>
                   <option value="local_office_manager">Local Office Manager</option>
@@ -188,7 +190,7 @@ function TeamAccountsSection({ token }: { token: string }) {
                   <option value="customer">Customer</option>
                 </select>
               </div>
-              {(form.role === 'staff' || form.role === 'rider' || form.role === 'manager' || form.role === 'hub_manager' || form.role === 'local_office_manager' || form.role === 'admin') && (
+              {(form.role === 'staff_hub' || form.role === 'rider' || form.role === 'manager' || form.role === 'hub_manager' || form.role === 'local_office_manager' || form.role === 'admin') && (
                 <>
                   <div>
                     <label className="mb-1.5 block text-sm font-semibold text-ink">Zone / City</label>

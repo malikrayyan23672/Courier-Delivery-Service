@@ -1104,7 +1104,7 @@ export interface AdminCreateUserPayload {
   phone: string;
   cnic: string;
   password: string;
-  role: 'staff' | 'rider' | 'admin' | 'manager' | 'hub_manager' | 'local_office_manager' | 'customer';
+  role: 'staff_hub' | 'staff_branch' | 'staff_local_branch' | 'rider' | 'admin' | 'manager' | 'hub_manager' | 'local_office_manager' | 'customer';
   designation: string;
   zone_id: string;
   hub_id?: string;

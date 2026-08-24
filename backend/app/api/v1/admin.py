@@ -251,7 +251,7 @@ def list_staff_and_riders(
     users = (
         db.query(User)
         .join(Role)
-        .filter(Role.name.in_(["staff", "rider", "admin", "super_admin", "customer"]))
+        .filter(Role.name.in_(["staff_hub", "staff_branch", "staff_local_branch", "rider", "admin", "super_admin", "customer", "hub_manager", "business", "finance", "local_office_manager", "manager"]))
         .order_by(User.created_at.desc())
         .all()
     )
@@ -403,7 +403,7 @@ def create_staff_or_rider(
 
     if payload.role == "rider":
         db.add(RiderProfile(user_id=user.id, status=RiderStatus.active, is_available=False, hub_id=payload.hub_id))
-    elif payload.role == "staff":
+    elif payload.role == "staff_hub" or payload.role == "staff_branch" or payload.role == "staff_local_branch":
         db.add(StaffProfile(user_id=user.id, hub_id=payload.hub_id, designation=payload.designation))
     elif payload.role == "manager":
         db.add(StaffProfile(user_id=user.id, hub_id=payload.hub_id, designation=payload.designation))

@@ -914,14 +914,14 @@ interface FormState {
   phone: string;
   cnic: string;
   password: string;
-  role: 'staff' | 'rider' | 'admin' | 'customer';
+  role: 'staff_hub' | 'staff_branch' | 'staff_local_branch' | 'rider' | 'admin' | 'customer';
   designation: string;
   zone_id: string;
   hub_id: string;
 }
 
 const INITIAL_FORM: FormState = {
-  full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff' as 'staff' | 'rider' | 'admin' | 'customer', designation: '', zone_id: '', hub_id: '',
+  full_name: '', email: '', phone: '', cnic: '', password: '', role: 'staff_hub' as 'staff_hub' | 'staff_branch' | 'staff_local_branch' | 'rider' | 'admin' | 'customer', designation: '', zone_id: '', hub_id: '',
 };
 
 const USER_ICON = (
@@ -1018,7 +1018,7 @@ function TeamTab({ token }: { token: string }) {
       const newUser = await createStaffOrRider(form, token);
       setUsers((prev) => [newUser, ...prev]);
       setShowForm(false);
-      setForm({ full_name: '', email: '', phone: '', cnic: '', password: '', designation: '', role: 'staff', zone_id: '', hub_id: '' });
+      setForm({ full_name: '', email: '', phone: '', cnic: '', password: '', designation: '', role: 'staff_hub', zone_id: '', hub_id: '' });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create account.');
     } finally {
@@ -1082,8 +1082,8 @@ function TeamTab({ token }: { token: string }) {
                   onChange={(e) => {
                     const newRole = e.target.value as typeof form.role;
                     setForm((f) => ({ ...f, role: newRole, zone_id: '', hub_id: '', designation: '' }));
-                    setShowStaffZoneSelector(newRole === 'staff' || newRole === 'rider');
-                    setShowDesignationSelector(newRole === 'staff');
+                    setShowStaffZoneSelector(newRole === 'staff_hub' || newRole === 'rider');
+                    setShowDesignationSelector(newRole === 'staff_hub');
                     setShowStaffBranchSelector(false);
                   }}
                   className="h-11 w-full rounded-lg border-[1.5px] border-input bg-[#FBFCFE] px-3 text-sm text-ink outline-none focus:border-ring"
