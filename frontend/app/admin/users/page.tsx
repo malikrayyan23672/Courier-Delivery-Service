@@ -231,7 +231,7 @@ function TeamAccountsSection({ token }: { token: string }) {
                   </select>
                 </div>
               )}
-              {form.role === 'staff' && (
+              {form.role === 'staff_hub' && (
                 <div>
                   <label className="mb-1.5 block text-sm font-semibold text-ink">Designation</label>
                   <select value={form.designation} onChange={(e) => setForm((f) => ({ ...f, designation: e.target.value }))}

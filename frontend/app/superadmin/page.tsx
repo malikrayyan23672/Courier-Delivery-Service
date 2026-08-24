@@ -1904,8 +1904,8 @@ function CreateUserModal({ hubs, branches, localOffices, zones, onClose, onCreat
   return out;
   }
   const needsHub = form.role === 'staff_hub' || form.role === 'rider' || form.role === 'manager' || form.role === 'admin';
-  const needsBranch = form.role === 'hub_manager';
-  const needsLocalBranch = form.role === 'local_office_manager';
+  const needsBranch = form.role === 'hub_manager' || form.role == 'rider';
+  const needsLocalBranch = form.role === 'local_office_manager' || form.role == 'rider';
   return (
     <Modal title="Create staff, rider or admin account" onClose={onClose} wide>
       <form onSubmit={(e) => { e.preventDefault(); onCreate(form); }} className="grid sm:grid-cols-2 gap-4">
