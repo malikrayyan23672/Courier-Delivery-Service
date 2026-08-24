@@ -15,6 +15,10 @@ import {
   Order,
   StaffRider,
   ApiError,
+  StaffProfile,
+  getStaffOrderBookingDetails,
+  Zone,
+  listZones,
 } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,7 +45,7 @@ const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' |
 
 export default function StaffPage() {
   return (
-    <RoleGuard allowedRoles={['staff', 'admin', 'super_admin']}>
+    <RoleGuard allowedRoles={['staff_hub', 'staff_branch', 'staff_local_office', 'admin', 'super_admin']}>
       <StaffContent />
     </RoleGuard>
   );
@@ -50,6 +54,35 @@ export default function StaffPage() {
 function StaffContent() {
   const { token, setToken } = useAuth();
   const router = useRouter();
+  const [staffData, setStaffData] = useState<StaffProfile>();
+  const [zones, setZones] = useState<Zone[]>([]);
+
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadZones() {
+      if (!token) {
+        setZones([]);
+        return;
+      }
+
+      try {
+        const data = await listZones(token);
+        if (!cancelled) setZones(data);
+      } catch (err) {
+        if (!cancelled) {
+          setOrdersError(err instanceof ApiError ? err.message : 'Could not load zones.');
+        }
+      }
+    }
+
+    loadZones();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token])
 
   const [tab, setTab] = useState<'book' | 'orders'>('book');
 
@@ -144,8 +177,8 @@ function StaffContent() {
       nextErrors.package_size = 'Package size is required'
     }
 
-    if(!form.weight.trim()){
-      nextErrors.weight = 'Packege weight is required'
+    if(!form.weight.trim() || !Number.isFinite(Number(form.weight)) || Number(form.weight) <= 0) {
+      nextErrors.weight = 'Package weight must be greater than 0';
     }
 
     if(!form.description.trim()){
@@ -210,21 +243,21 @@ function StaffContent() {
     }
   }
 
-  async function handleAssign(orderId: string, riderId: string) {
-    if (!riderId || !token) return;
-    setAssigningId(orderId);
-    setOrdersError('');
-    try {
-      await staffAssignRider(orderId, riderId, token);
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: 'assigned', rider_accepted: null } : o))
-      );
-    } catch (err) {
-      setOrdersError(err instanceof ApiError ? err.message : 'Could not assign rider.');
-    } finally {
-      setAssigningId(null);
-    }
-  }
+  // async function handleAssign(orderId: string, riderId: string) {
+  //   if (!riderId || !token) return;
+  //   setAssigningId(orderId);
+  //   setOrdersError('');
+  //   try {
+  //     await staffAssignRider(orderId, riderId, token);
+  //     setOrders((prev) =>
+  //       prev.map((o) => (o.id === orderId ? { ...o, status: 'assigned', rider_accepted: null } : o))
+  //     );
+  //   } catch (err) {
+  //     setOrdersError(err instanceof ApiError ? err.message : 'Could not assign rider.');
+  //   } finally {
+  //     setAssigningId(null);
+  //   }
+  // }
 
   const selectCls =
     'flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
@@ -316,7 +349,17 @@ function StaffContent() {
                     <CardTitle className="text-lg mb-4">Pickup &amp; Drop-off</CardTitle>
                     <div className="grid md:grid-cols-2 gap-x-6 gap-y-4">
                     <Field icon={USER_ICON} error={formErrors.pickup_address} id='pickupaddress' label='Pickup Address' placeholder="House/street, area" value={form.pickup_address} onChange={(e) => update('pickup_address', e.target.value)} />
-                    <Field icon={USER_ICON} id='pickupcity' error={formErrors.pickup_city} label='Pickup City' placeholder="Islamabad" value={form.pickup_city} onChange={(e) => update('pickup_city', e.target.value)} />
+                    <SelectField
+                      icon
+                      label="Pickup City"
+                      error={formErrors.pickup_city}
+                      value={form.pickup_city}
+                      onChange={(e) => update('pickup_city', e.target.value)}
+                      options={zones.map((z) => ({
+                        label: z.name,
+                        value: z.name,
+                      }))}
+                    />
                       {/* <div className="space-y-1.5">
                         <Label htmlFor="pickup_address">Pickup Address</Label>
                         <Input id="pickup_address" placeholder="House/street, area" required value={form.pickup_address} onChange={(e) => update('pickup_address', e.target.value)} />
@@ -326,7 +369,17 @@ function StaffContent() {
                         <Input id="pickup_city" placeholder="e.g. Rawalpindi" value={form.pickup_city} onChange={(e) => update('pickup_city', e.target.value)} />
                       </div> */}
                     <Field icon={USER_ICON} id='dropoffaddress' label='Dropoff Address' error={formErrors.dropoff_address} placeholder="House/street, area" value={form.dropoff_address} onChange={(e) => update('dropoff_address', e.target.value)} />
-                    <Field icon={USER_ICON} id='dropoffcity' label='Dropoff City' placeholder="Islamabad" error={formErrors.dropoff_city} value={form.dropoff_city} onChange={(e) => update('dropoff_city', e.target.value)} />
+                    <SelectField
+                      icon
+                      label="Dropoff City"
+                      error={formErrors.dropoff_city}
+                      value={form.dropoff_city}
+                      onChange={(e) => update('dropoff_city', e.target.value)}
+                      options={zones.map((z) => ({
+                        label: z.name,
+                        value: z.name,
+                      }))}
+                    />
                       {/* <div className="space-y-1.5">
                         <Label htmlFor="dropoff_address">Drop-off Address</Label>
                         <Input id="dropoff_address" placeholder="House/street, area" required value={form.dropoff_address} onChange={(e) => update('dropoff_address', e.target.value)} />
@@ -335,15 +388,7 @@ function StaffContent() {
                         <Label htmlFor="dropoff_city">Drop-off City</Label>
                         <Input id="dropoff_city" placeholder="e.g. Lahore" value={form.dropoff_city} onChange={(e) => update('dropoff_city', e.target.value)} />
                       </div> */}
-                      {/* <div className="space-y-1.5">
-                        <Label htmlFor="weight">Package Weight (kg)</Label>
-                        <Input id="weight" type="number" step="0.1" placeholder="e.g. 1.5" value={form.weight} onChange={(e) => update('weight', e.target.value)} />
-                      </div> */}
                       <Field icon={USER_ICON} label='Package Weight (kg)' id='weight' error={formErrors.weight} type='number' placeholder='e.g 1.5' value={form.weight} onChange={(e) => update('weight', e.target.value)} />
-                      {/* // <div className="space-y-1.5">
-                      //   <Label htmlFor="description">Package Description</Label>
-                      //   <Input id="description" placeholder="e.g. Small parcel" value={form.description} onChange={(e) => update('description', e.target.value)} />
-                      // </div> */}
                       <Field icon={USER_ICON} label='Package Description' error={formErrors.description} id='description' placeholder='e.g. Small Parcel' value={form.description} onChange={(e) => update('description', e.target.value)} />
                     </div>
                   </div>
@@ -373,14 +418,21 @@ function StaffContent() {
                       <option value="documents">Documents</option>
                     </select> */}
 
-                    <SelectField icon={USER_ICON} error={formErrors.package_size} label="Package Size" value={form.package_size} onChange={(e) => setForm((f) => ({...f, package_size: e.target.value}))} options={
-                      [
-                        {label: "Small", value: "small"},
-                        {label: "Medium", value: "medium"},
-                        {label: "Large", value: "large"},
-                        {label: "Documents", value: "documents"},
-                      ]
-                    }  />
+                    <SelectField
+                      icon
+                      label="Package Size"
+                      error={formErrors.package_size}
+                      value={form.package_size}
+                      onChange={(e) => setForm((f) => ({...f, package_size: e.target.value}))}
+                      options={
+                        [
+                          {label: "Small", value: "small"},
+                          {label: "Medium", value: "medium"},
+                          {label: "Large", value: "large"},
+                          {label: "Documents", value: "documents"},
+                        ]
+                      }
+                    />
                   </div>
 
                   {error && <p className="text-sm text-[#db2203]">{error}</p>}
@@ -440,7 +492,7 @@ function StaffContent() {
                               {order.status === 'created' ? (
                                 <select
                                   disabled={assigningId === order.id}
-                                  onChange={(e) => handleAssign(order.id, e.target.value)}
+                                  // onChange={(e) => handleAssign(order.id, e.target.value)}
                                   defaultValue=""
                                   className="text-sm py-1.5 px-2.5 rounded-[8px] border border-line bg-page text-ink max-w-[180px] outline-none focus:border-orange cursor-pointer"
                                 >

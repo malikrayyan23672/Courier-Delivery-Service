@@ -363,6 +363,17 @@ export function getMyProfile(token: string) {
 
 // ---- Staff (walk-in booking) ----
 
+export interface StaffBookingDetails{
+
+  staff_type: string;
+  
+
+}
+
+export function getStaffOrderBookingDetails(staff_id: string, token: string){
+  return request(`/staff/booking/details/${staff_id}`, {method: 'GET'}, token)
+}
+
 export interface StaffOrderPayload extends OrderCreatePayload {
   customer_id?: string;
   guest_full_name?: string;

@@ -223,8 +223,8 @@ def create_order(
     db.commit()
     db.refresh(order)
 
-    if _network_auto_assign_enabled(db):
-        _auto_assign_rider(db, order)
+    # if _network_auto_assign_enabled(db):
+    #     _auto_assign_rider(db, order)
     db.commit()
     db.refresh(order)
     return order

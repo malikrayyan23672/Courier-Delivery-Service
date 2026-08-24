@@ -700,7 +700,7 @@ def _zone_out(db: Session, zone: Zone) -> dict:
 @router.get("/zones")
 def list_zones(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin")),
+    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch","admin", "super_admin")),
 ):
     return [_zone_out(db, z) for z in db.query(Zone).order_by(Zone.name).all()]
 
