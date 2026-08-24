@@ -67,6 +67,7 @@ import {
   deleteHub,
   EditCityPayload,
   editCity,
+  deleteBranch,
 } from '@/lib/api';
 import {
   Pill, AvatarChip, KpiCard, StatStrip, Toasts, NavIcon, NavBadge, Modal, inputCls,
@@ -80,6 +81,7 @@ import { ChevronDown, LogOut, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Select, SelectItem } from '@/components/ui/select';
 import { SelectField } from '@/components/Select';
+import { error } from 'console';
 
 type View =
   | 'overview' | 'orders' | 'map'
@@ -975,6 +977,14 @@ interface HubFormState {
   longitude: string;
 }
 
+interface BranchFormState{
+
+  name: string;
+  hub_id: string;
+  address: string;
+  phone: string;
+}
+
 const INITIAL_HUB_FORM: HubFormState = {
   name: '',
   address: '',
@@ -989,6 +999,7 @@ const INITIAL_HUB_FORM: HubFormState = {
   longitude: '',
 };
 
+
 function hubToForm(h: Hub): HubFormState {
   return {
     name: h.name,
@@ -1002,6 +1013,19 @@ function hubToForm(h: Hub): HubFormState {
     headquarter_id: h.headquarter_id || '',
     latitude: h.latitude || '',
     longitude: h.longitude || '',
+  };
+}
+
+function branchToForm(b: Branch): BranchFormState {
+  return {
+    name: b.name,
+    address: b.address || '',
+    phone: b.phone || '',
+    // status: (b.status as 'active' | 'inactive') || 'active',
+    hub_id: b.hub_id || '',
+    // headquarter_id: b.headquarter_id || '',
+    // latitude: b.latitude || '',
+    // longitude: b.longitude || '',
   };
 }
 
@@ -1219,6 +1243,7 @@ function BranchesAndOfficesView({ hubs, token, toast }: { hubs: Hub[]; token: st
   const [branchForm, setBranchForm] = useState(INITIAL_BRANCH_FORM);
   const [officeForm, setOfficeForm] = useState(INITIAL_OFFICE_FORM);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string>('')
 
   useEffect(() => {
     setLoading(true);
@@ -1235,16 +1260,59 @@ function BranchesAndOfficesView({ hubs, token, toast }: { hubs: Hub[]; token: st
     if (!branchForm.name.trim() || !branchForm.hub_id) { toast('Branch name and hub are required.'); return; }
     setSaving(true);
     try {
-      const created = await createBranch(
+      const updated = await createBranch(
         { name: branchForm.name.trim(), hub_id: branchForm.hub_id, address: branchForm.address || undefined, phone: branchForm.phone || undefined },
         token
       );
-      setBranches((prev) => [...prev, created]);
+      // setBranches((prev) => [...prev, created]);
+      setBranches((prev) => prev.map((h) => (h.id === editingId ? updated : h)))
       setShowBranchForm(false);
       setBranchForm(INITIAL_BRANCH_FORM);
       toast('Branch created.');
     } catch (err) {
       toast(err instanceof ApiError ? err.message : 'Could not create branch.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(branch_id: string){
+
+    if(!token) return
+
+    if(!window.confirm("Do you realy want to delete this branch")){
+      return
+    }
+
+    try{
+
+      await deleteBranch(branch_id, token)
+
+    }catch(err){
+
+
+    toast(err instanceof ApiError ? err.message : 'Coudl not delete branch')
+
+  }finally{
+
+  }
+}
+
+  async function handleEditBranch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!branchForm.name.trim() || !branchForm.hub_id) { toast('Branch name and hub are required.'); return; }
+    setSaving(true);
+    try {
+      const created = await updateBranch(editingId,
+        { name: branchForm.name.trim(), hub_id: branchForm.hub_id, address: branchForm.address || undefined, phone: branchForm.phone || undefined },
+        token
+      );
+      // setBranches((prev) => [...prev, created]);
+      setShowBranchForm(false);
+      setBranchForm(INITIAL_BRANCH_FORM);
+      toast('Branch details updated.');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update branch details.');
     } finally {
       setSaving(false);
     }
@@ -1304,7 +1372,14 @@ function BranchesAndOfficesView({ hubs, token, toast }: { hubs: Hub[]; token: st
           </button>
         </div>
         {tab === 'branches' ? (
-          <button onClick={() => setShowBranchForm((s) => !s)} className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
+          <button onClick={() => {
+
+
+            setBranchForm({name: '', hub_id: '', address: '', phone: ''}) 
+            setEditingId('')
+            setShowBranchForm((s) => !s)}
+            
+            } className="bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
             <NavIcon name="plus" size={13} color="#fff" /> {showBranchForm ? 'Cancel' : 'Add Branch'}
           </button>
         ) : (
@@ -1315,8 +1390,8 @@ function BranchesAndOfficesView({ hubs, token, toast }: { hubs: Hub[]; token: st
       </div>
 
       {tab === 'branches' && showBranchForm && (
-        <form onSubmit={handleCreateBranch} className="bg-page rounded-xl p-5 mb-5">
-          <h3 className="font-display font-bold text-sm mb-3">New Branch</h3>
+        <form onSubmit={editingId ? handleEditBranch : handleCreateBranch} className="bg-page rounded-xl p-5 mb-5">
+          <h3 className="font-display font-bold text-sm mb-3">{editingId ? 'Update Branch' : 'New Branch'}</h3>
           <div className="grid md:grid-cols-2 gap-x-6 gap-y-3">
             <Field label="Branch Name">
               <input type="text" required className={inputCls} value={branchForm.name} onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })} />
@@ -1336,7 +1411,7 @@ function BranchesAndOfficesView({ hubs, token, toast }: { hubs: Hub[]; token: st
           </div>
           <div className="flex justify-end mt-4">
             <button type="submit" disabled={saving} className="text-sm font-bold px-5 py-2.5 rounded-lg bg-[#db2203] hover:bg-[#db2203]-light text-white disabled:opacity-60">
-              {saving ? 'Saving…' : 'Create Branch'}
+              {saving ? 'Saving…' : (editingId ? 'Update Branch' : 'Create Branch')}
             </button>
           </div>
         </form>
@@ -1389,10 +1464,16 @@ function BranchesAndOfficesView({ hubs, token, toast }: { hubs: Hub[]; token: st
                   <td className="py-3 pr-4 text-xs text-muted-foreground">{b.phone || '—'}</td>
                   <td className="py-3 pr-4 text-xs text-muted-foreground">{b.manager_name || 'Unassigned'}</td>
                   <td className="py-3 pr-4"><Pill status={b.status || 'active'} /></td>
-                  <td className="py-3">
+                  <td className="py-3 flex items-center gap-2">
+                    <button className='font-bold' onClick={() => {
+                      setEditingId(b.id)
+                      setBranchForm(branchToForm(b))
+                      setShowBranchForm(true)
+                    }}>Edit</button>
                     <button onClick={() => toggleBranchStatus(b)} className="text-xs font-bold text-muted-foreground hover:underline">
                       {b.status === 'active' ? 'Deactivate' : 'Activate'}
                     </button>
+                    <button onClick={() => handleDelete(b.id)} className='text-danger font-bold'>Delete</button>
                   </td>
                 </tr>
               ))
@@ -1421,6 +1502,7 @@ function BranchesAndOfficesView({ hubs, token, toast }: { hubs: Hub[]; token: st
     </section>
   );
 }
+
 
 // ============================================================
 // ZONES
@@ -1502,7 +1584,7 @@ function ZonesView({ zones, hubs, onDelete }: { zones: Zone[]; hubs: Hub[]; onDe
         </div>
 
         <div>
-          <button onClick={() => setShowAddNewZone(true)}>
+          <button className='sm:flex items-center gap-1.5 bg-[#db2203] hover:bg-[#db2203]-light text-white font-bold text-sm px-4 py-2.5 rounded-[10px] transition-colors whitespace-nowrap' onClick={() => setShowAddNewZone(true)}>
               Add City
           </button>
         </div>

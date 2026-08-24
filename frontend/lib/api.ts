@@ -1041,6 +1041,11 @@ export function updateBranch(branchId: string, payload: Partial<BranchInput>, to
   return request<Branch>(`/admin/branches/${branchId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token);
 }
 
+export function deleteBranch(branchId: string, token: string){
+
+  return request<Branch>(`/admin/branches/delete/${branchId}`, {method: 'DELETE'}, token)
+}
+
 // Local branches = guest walk-in booking counters under a branch. The endpoint
 // keeps the historical /admin/local-offices path.
 export interface LocalOffice {

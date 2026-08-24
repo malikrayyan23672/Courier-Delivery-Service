@@ -1034,6 +1034,16 @@ def update_branch(
     db.refresh(branch)
     return _branch_out(branch)
 
+@router.delete("/branches/delete/{branch_id}")
+def delete_branch(branch_id: str,db: Session = Depends(get_db), current_user: User = Depends(require_roles("super_admin"))):
+
+    branch = db.query(Branch).filter(Branch.id == branch_id).first()
+
+    if not branch:
+        raise HTTPException(status_code=404, detail='branch not found')
+
+    db.delete(branch)
+    db.commit()
 
 # ============================================================
 # HEADQUARTERS (national head office - top tier)
