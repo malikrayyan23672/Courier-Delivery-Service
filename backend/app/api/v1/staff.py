@@ -133,6 +133,32 @@ def list_branch_orders(
     return db.query(Order).filter(Order.hub_id == staff_profile.hub_id).order_by(Order.created_at.desc()).all()
 
 
+@router.get("/pickup-requests", response_model=list[OrderOut])
+def list_pickup_requests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+):
+    """
+    The hub/branch "pickup board": parcels booked (by a customer online or at
+    the counter) that belong to THIS facility's area and still need a rider to
+    collect them from the sender. `created` = no rider yet, `assigned` = rider
+    offered. The hub knows an order is theirs because create_order stamped it
+    with this hub's id, resolved from the pickup address city -> zone -> hub.
+    """
+    staff_profile = current_user.staff_profile
+    if not staff_profile or not staff_profile.hub_id:
+        raise HTTPException(status_code=400, detail="You must belong to a branch to view pickups")
+    return (
+        db.query(Order)
+        .filter(
+            Order.hub_id == staff_profile.hub_id,
+            Order.status.in_([OrderStatus.created, OrderStatus.assigned]),
+        )
+        .order_by(Order.created_at.desc())
+        .all()
+    )
+
+
 @router.get("/orders/{order_id}/invoice.pdf")
 def get_order_invoice_pdf(
     order_id: str,

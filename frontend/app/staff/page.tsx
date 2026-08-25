@@ -8,6 +8,7 @@ import { Logo } from '@/components/Logo';
 import {
   bookStaffOrder,
   listStaffOrders,
+  listPickupRequests,
   listStaffRiders,
   staffAssignRider,
   scanStaffOrder,
@@ -86,7 +87,7 @@ function StaffContent() {
     };
   }, [token])
 
-  const [tab, setTab] = useState<'book' | 'orders' | 'scan'>('book');
+  const [tab, setTab] = useState<'book' | 'orders' | 'scan' | 'pickups'>('book');
 
   // Booking Form State
   const [submitting, setSubmitting] = useState(false);
@@ -113,10 +114,54 @@ function StaffContent() {
   const [ordersError, setOrdersError] = useState('');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
+  // Pickup Requests State: customer/counter bookings in this hub's area that
+  // still need a rider to collect them from the sender (status created/assigned).
+  const [pickups, setPickups] = useState<Order[]>([]);
+  const [loadingPickups, setLoadingPickups] = useState(false);
+  const [pickupsError, setPickupsError] = useState('');
+  const [assigningPickupId, setAssigningPickupId] = useState<string | null>(null);
+
+  function loadPickups() {
+    setLoadingPickups(true);
+    setPickupsError('');
+    Promise.all([listPickupRequests(token!), listStaffRiders(token!)])
+      .then(([p, r]) => {
+        setPickups(p);
+        setRiders(r);
+      })
+      .catch((err) => {
+        setPickupsError(err instanceof ApiError ? err.message : 'Could not load pickup requests.');
+      })
+      .finally(() => setLoadingPickups(false));
+  }
+
+  async function handleAssignPickup(orderId: string, riderId: string) {
+    if (!riderId || !token) return;
+    setAssigningPickupId(orderId);
+    setPickupsError('');
+    try {
+      await staffAssignRider(orderId, riderId, token);
+      setPickups((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: 'assigned', rider_accepted: null } : o))
+      );
+    } catch (err) {
+      setPickupsError(err instanceof ApiError ? err.message : 'Could not assign rider.');
+    } finally {
+      setAssigningPickupId(null);
+    }
+  }
+
   // Fetch branch orders and zone riders when switching to orders tab
   useEffect(() => {
     if (tab === 'orders' && token) {
       loadBranchData();
+    }
+  }, [tab, token]);
+
+  // Fetch pickup requests (and zone riders) when switching to the pickups tab
+  useEffect(() => {
+    if (tab === 'pickups' && token) {
+      loadPickups();
     }
   }, [tab, token]);
 
@@ -309,9 +354,93 @@ function StaffContent() {
           >
             Scan Parcel
           </button>
+          <button
+            onClick={() => setTab('pickups')}
+            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+              tab === 'pickups' ? 'border-orange text-[#db2203]' : 'border-transparent text-muted-foreground hover:text-ink'
+            }`}
+          >
+            Pickup Requests
+          </button>
         </div>
 
-        {tab === 'scan' ? (
+        {tab === 'pickups' ? (
+          <div>
+            <h1 className="font-display text-2xl font-bold text-ink mb-1">Pickup Requests</h1>
+            <p className="text-muted-foreground text-sm mb-6">
+              Parcels booked by customers (or at the counter) in your hub&apos;s area that still need a rider to collect them from the sender.
+            </p>
+
+            {pickupsError && (
+              <div className="bg-[#FBEAE7] text-[#db2203] text-sm rounded-[10px] px-4 py-3 mb-6">{pickupsError}</div>
+            )}
+
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                {loadingPickups ? (
+                  <p className="p-6 text-muted-foreground text-sm text-center">Loading pickup requests…</p>
+                ) : pickups.length === 0 ? (
+                  <p className="p-6 text-muted-foreground text-sm text-center">No pickup requests in your area right now.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/30">
+                          <TableHead>Tracking #</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Pickup (Sender)</TableHead>
+                          <TableHead>Destination</TableHead>
+                          <TableHead>Assign Rider</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pickups.map((order) => (
+                          <TableRow key={order.id}>
+                            <TableCell className="font-mono font-bold text-ink">{order.tracking_number}</TableCell>
+                            <TableCell>
+                              <Badge variant={STATUS_VARIANT[order.status] || 'secondary'} className="capitalize">
+                                {order.status.replace('_', ' ')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <p className="text-ink max-w-xs truncate">{order.pickup_address?.full_address}</p>
+                              <span className="text-xs text-muted-foreground block mt-0.5">{order.pickup_address?.city || '—'}</span>
+                            </TableCell>
+                            <TableCell>
+                              <p className="text-ink max-w-xs truncate">{order.dropoff_address?.full_address}</p>
+                              <span className="text-xs text-muted-foreground block mt-0.5">{order.dropoff_address?.city || '—'}</span>
+                            </TableCell>
+                            <TableCell>
+                              {order.status === 'created' ? (
+                                <select
+                                  disabled={assigningPickupId === order.id}
+                                  defaultValue=""
+                                  onChange={(e) => handleAssignPickup(order.id, e.target.value)}
+                                  className="text-sm py-1.5 px-2.5 rounded-[8px] border border-line bg-page text-ink max-w-[200px] outline-none focus:border-orange cursor-pointer"
+                                >
+                                  <option value="" disabled>
+                                    {assigningPickupId === order.id ? 'Assigning…' : 'Select Rider'}
+                                  </option>
+                                  {riders.map((r) => (
+                                    <option key={r.rider_id} value={r.rider_id}>
+                                      {r.full_name} ({r.vehicle_type || 'bike'})
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">Rider assigned</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        ) : tab === 'scan' ? (
           <div>
             <h1 className="font-display text-2xl font-bold text-ink mb-1">Scan Parcel Status</h1>
             <ScanConsole

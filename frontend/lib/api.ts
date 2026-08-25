@@ -499,6 +499,10 @@ export function listStaffOrders(token: string) {
   return request<Order[]>('/staff/orders', { method: 'GET' }, token);
 }
 
+export function listPickupRequests(token: string) {
+  return request<Order[]>('/staff/pickup-requests', { method: 'GET' }, token);
+}
+
 export interface ManagerProfile{
   manager_id: string;
   full_name: string;
