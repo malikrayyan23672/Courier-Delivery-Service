@@ -17,6 +17,7 @@ import {
   listRiders,
   listStaffOrders,
   listStaffRiders,
+  staffAssignRider,
   updateRiderWallet,
   getStaffOrderInvoicePreviewUrl,
   getStaffOrderLabelPreviewUrl,
@@ -28,6 +29,7 @@ import {
   getBranchDetails,
   BranchDetails,
   getHubInboundQueue,
+  getHubPickupRequests,
   getHubDispatchQueue,
   getHubManifestHistory,
   getHubAgingParcels,
@@ -219,6 +221,7 @@ function mapOrdersToPickups(orders: ApiOrder[]): Pickup[] {
 
     return {
       id: order.tracking_number,
+      orderId: order.id,
       customer: order.pickup_address?.contact_name || order.dropoff_address?.contact_name || 'Walk-in customer',
       zone: order.pickup_address?.city || order.dropoff_address?.city || 'Branch zone',
       slot: order.created_at ? new Date(order.created_at).toLocaleString() : 'Today',
@@ -252,6 +255,7 @@ function mapOrdersToDeliveries(orders: ApiOrder[]): Delivery[] {
 
 function mapApiRiders(apiRiders: StaffRider[]): RiderCard[] {
   return apiRiders.map((rider) => ({
+    id: rider.rider_id,
     name: rider.full_name,
     vehicle: `${rider.vehicle_type} · ${rider.phone}`,
     status: rider.is_available ? 'online' as const : 'offline' as const,
@@ -401,14 +405,15 @@ export function BranchConsole() {
 
     const ordersRequest = isAdminScope ? listAllOrders(token) : listStaffOrders(token);
     const ridersRequest = isAdminScope ? listRiders(token) : listStaffRiders(token);
+    const pickupsRequest = isAdminScope ? Promise.resolve(null) : getHubPickupRequests(token);
 
-    Promise.all([ordersRequest, ridersRequest])
-      .then(([ordersData, ridersData]) => {
+    Promise.all([ordersRequest, ridersRequest, pickupsRequest])
+      .then(([ordersData, ridersData, pickupsData]) => {
         setOrders(ordersData);
-        setPickups(mapOrdersToPickups(ordersData));
         setDeliveries(mapOrdersToDeliveries(ordersData));
         setRiders(mapApiRiders(ridersData));
         setStaffRiders(ridersData);
+        setPickups(isAdminScope || !pickupsData ? mapOrdersToPickups(ordersData) : mapOrdersToPickups(pickupsData));
       })
       .catch((err) => {
         setSyncError(err instanceof ApiError ? err.message : 'Could not sync branch data with backend.');
@@ -643,16 +648,21 @@ export function BranchConsole() {
     return true;
   }), [deliveries, deliverySearch, deliveryStatusFilter]);
 
-  function handleQuickAssign(pickupId: string) {
-    const freeRider = riders.find((r) => r.status === 'online');
-    if (!freeRider) {
+  async function handleQuickAssign(orderId: string) {
+    const freeRider = riders.find((r) => r.status === 'online' && r.id);
+    if (!freeRider || !freeRider.id) {
       toast('No available rider right now.');
       return;
     }
-    setPickups((prev) => prev.map((p) =>
-      p.id === pickupId ? { ...p, rider: freeRider.name, arrival: 'En Route', status: 'Assigned' } : p
-    ));
-    toast(`${freeRider.name} assigned to ${pickupId}`);
+    try {
+      await staffAssignRider(orderId, freeRider.id, token!);
+      setPickups((prev) => prev.map((p) =>
+        p.orderId === orderId ? { ...p, rider: freeRider.name, arrival: 'En Route', status: 'Assigned' } : p
+      ));
+      toast(`${freeRider.name} assigned to pickup ${orderId}`);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not assign rider.');
+    }
   }
 
   function handleReschedule(deliveryId: string) {
@@ -1271,7 +1281,7 @@ function PickupsView({ pickups, total, pending, assigned, done, failed, progress
                 </TableCell>
                 <TableCell>
                   {p.status === 'Pending'
-                    ? <Button size="sm" variant="outline" className="text-[#db2203]" onClick={() => onQuickAssign(p.id)}>Quick Assign</Button>
+                    ? <Button size="sm" variant="outline" className="text-[#db2203]" onClick={() => onQuickAssign(p.orderId ?? p.id)}>Quick Assign</Button>
                     : <span className="text-muted-foreground text-xs">—</span>}
                 </TableCell>
                 {onOpenDocument && (

@@ -155,13 +155,22 @@ def create_order(
             if staff_profile.hub:
                 zone_id = staff_profile.hub.zone_id
     elif created_by_type == CreatedByType.customer:
+        zone = None
         if pickup.city:
             zone = db.query(Zone).filter(func.lower(Zone.name) == func.lower(pickup.city.strip())).first()
-            if zone:
-                zone_id = zone.id
-                hub = db.query(Hub).filter(Hub.zone_id == zone.id, Hub.status == "active").first()
-                if hub:
-                    hub_id = hub.id
+        if not zone and dropoff.city:
+            zone = db.query(Zone).filter(func.lower(Zone.name) == func.lower(dropoff.city.strip())).first()
+        if zone:
+            zone_id = zone.id
+            hub = db.query(Hub).filter(Hub.zone_id == zone.id, Hub.status == "active").first()
+            if hub:
+                hub_id = hub.id
+        # Guarantee the parcel is always owned by a hub so it surfaces in a
+        # hub's pickup queue even if the city didn't match a known zone.
+        if hub_id is None:
+            hub = db.query(Hub).filter(Hub.status == "active").order_by(Hub.id.asc()).first()
+            if hub:
+                hub_id = hub.id
 
     # Discount is computed against the delivery fee only, before goods are
     # added in - a guest checkout (allow_discount=False) never reaches

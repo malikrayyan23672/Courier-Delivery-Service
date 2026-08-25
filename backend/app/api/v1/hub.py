@@ -130,6 +130,44 @@ def inbound_queue(
     return [_order_summary(o) for o in orders]
 
 
+@router.get("/pickup-requests")
+def list_hub_pickup_requests(
+    branch_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*HUB_ROLES)),
+):
+    """Customer-booked parcels awaiting pickup assignment at this hub (created/assigned)."""
+    bid = _resolve_branch_id(current_user, branch_id, db)
+    orders = (
+        db.query(Order)
+        .options(joinedload(Order.pickup_address), joinedload(Order.dropoff_address))
+        .filter(Order.hub_id == bid, Order.status.in_([OrderStatus.created, OrderStatus.assigned]))
+        .order_by(Order.created_at.desc())
+        .all()
+    )
+    return [_pickup_summary(o) for o in orders]
+
+
+def _pickup_summary(order: Order) -> dict:
+    return {
+        "id": str(order.id),
+        "tracking_number": order.tracking_number,
+        "status": order.status.value if hasattr(order.status, "value") else order.status,
+        "pickup_address": (
+            {"contact_name": order.pickup_address.contact_name, "city": order.pickup_address.city}
+            if order.pickup_address
+            else None
+        ),
+        "dropoff_address": (
+            {"contact_name": order.dropoff_address.contact_name, "city": order.dropoff_address.city}
+            if order.dropoff_address
+            else None
+        ),
+        "rider_accepted": order.rider_accepted,
+        "created_at": order.created_at.isoformat() if order.created_at else None,
+    }
+
+
 @router.post("/inbound/scan")
 def inbound_scan(
     tracking_number: str,

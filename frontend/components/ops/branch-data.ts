@@ -2,6 +2,7 @@
 // synced data (listStaffOrders/listAllOrders/listStaffRiders) arrives.
 
 export interface Rider {
+  id?: string;
   name: string;
   vehicle: string;
   status: 'online' | 'busy' | 'offline';
@@ -13,12 +14,13 @@ export interface Rider {
 
 export interface Pickup {
   id: string;
+  orderId?: string;
   customer: string;
   zone: string;
   slot: string;
   rider: string | null;
   arrival: string;
-  status: 'Pending' | 'Assigned' | 'Picked Up' | 'Failed';
+  status: 'Created' | 'Pending' | 'Assigned' | 'Picked Up' | 'Failed';
   fail?: string;
 }
 

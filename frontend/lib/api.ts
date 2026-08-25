@@ -503,6 +503,11 @@ export function listPickupRequests(token: string) {
   return request<Order[]>('/staff/pickup-requests', { method: 'GET' }, token);
 }
 
+export function getHubPickupRequests(token: string, branchId?: string | number) {
+  const qs = branchId != null ? `?branch_id=${branchId}` : '';
+  return request<Order[]>(`/hub/pickup-requests${qs}`, { method: 'GET' }, token);
+}
+
 export interface ManagerProfile{
   manager_id: string;
   full_name: string;
@@ -834,6 +839,7 @@ export interface AdminRider {
 }
 
 export interface RiderCard{
+  id?: string;
   name: string;
   vehicle: string;
   status: "online" | "busy" | "offline";
