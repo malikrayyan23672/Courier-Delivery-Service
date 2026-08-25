@@ -33,7 +33,7 @@ def _current_branch_id(db: Session, user: User) -> str | None:
 @router.get("", response_model=dict)
 def list_my_notifications(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "business", "rider", "customer", "hub_manager")),
+    current_user: User = Depends(require_roles("staff_hub", "manager", "admin", "super_admin", "finance", "business", "rider", "customer", "hub_manager")),
 ):
     """Every notification for the signed-in user, newest first, with an unread count."""
     rows = (
@@ -53,7 +53,7 @@ def list_my_notifications(
 def mark_my_notification_read(
     notification_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "business", "rider", "customer", "hub_manager")),
+    current_user: User = Depends(require_roles("staff_hub", "manager", "admin", "super_admin", "finance", "business", "rider", "customer", "hub_manager")),
 ):
     notification = (
         db.query(Notification)
@@ -71,7 +71,7 @@ def mark_my_notification_read(
 @router.post("/read-all", response_model=dict)
 def mark_my_notifications_read_all(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "business", "rider", "customer", "hub_manager")),
+    current_user: User = Depends(require_roles("staff_hub", "manager", "admin", "super_admin", "finance", "business", "rider", "customer", "hub_manager")),
 ):
     db.query(Notification).filter(Notification.user_id == current_user.id, Notification.is_read.is_(False)).update(
         {Notification.is_read: True}
@@ -83,7 +83,7 @@ def mark_my_notifications_read_all(
 @router.get("/announcements", response_model=list[dict])
 def list_visible_announcements(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "business", "rider", "hub_manager")),
+    current_user: User = Depends(require_roles("staff_hub", "manager", "admin", "super_admin", "finance", "business", "rider", "hub_manager")),
 ):
     """Active announcements - network-wide, or scoped to the caller's branch."""
     my_branch = _current_branch_id(db, current_user)
@@ -112,7 +112,7 @@ def list_visible_announcements(
 @router.get("/activity", response_model=list[dict])
 def recent_activity_feed(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff", "manager", "admin", "super_admin", "finance", "hub_manager")),
+    current_user: User = Depends(require_roles("staff_hub", "manager", "admin", "super_admin", "finance", "hub_manager")),
 ):
     """Recent immutable audit entries - powers the activity/audit feeds in the
     branch and super-admin consoles."""

@@ -48,7 +48,7 @@ def list_operators(
     db: Session = Depends(get_db),
     # Read access for the branch console (schedule/operator pickers) too -
     # writing operators stays admin-only.
-    current_user: User = Depends(require_roles("admin", "super_admin", "staff", "manager")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "staff_hub", "manager")),
 ):
     return [BusOperatorOut.model_validate(o) for o in db.query(BusOperator).order_by(BusOperator.name).all()]
 
@@ -110,7 +110,7 @@ def _schedule_out(s: BusSchedule) -> BusScheduleOut:
 def list_schedules(
     db: Session = Depends(get_db),
     # Branch console needs the schedule picker when creating a manifest.
-    current_user: User = Depends(require_roles("admin", "super_admin", "staff", "manager")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "staff_hub", "manager")),
 ):
     return [
         _schedule_out(s)
@@ -213,7 +213,7 @@ def _manifest_out(m: BusManifest) -> BusManifestOut:
 @router.get("/manifests", response_model=list[BusManifestOut])
 def list_manifests(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin", "staff", "manager")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "staff_hub", "manager")),
 ):
     rows = (
         db.query(BusManifest)
@@ -231,7 +231,7 @@ def list_manifests(
 def create_manifest(
     payload: BusManifestIn,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin", "staff", "manager")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "staff_hub", "manager")),
 ):
     manifest = BusManifest(
         **payload.model_dump(exclude_none=True),
@@ -250,7 +250,7 @@ def add_manifest_item(
     order_id: str | None = None,
     crate_label: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin", "staff", "manager")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "staff_hub", "manager")),
 ):
     manifest = db.query(BusManifest).filter(BusManifest.id == manifest_id).first()
     if not manifest:
@@ -298,7 +298,7 @@ def update_manifest_status(
     manifest_id: str,
     payload: ManifestStatusIn,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "super_admin", "staff", "manager")),
+    current_user: User = Depends(require_roles("admin", "super_admin", "staff_hub", "manager")),
 ):
     """
     Advancing a manifest's status also advances every linked order's status

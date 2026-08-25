@@ -7,7 +7,7 @@ from app.models.role import Role
 
 ROLES = [
     ("customer", "Books shipments and tracks orders"),
-    ("staff", "Office/counter staff who book walk-in orders"),
+    ("staff_hub", "Office/counter staff who book walk-in orders"),
     ("rider", "Delivery partner who fulfills orders"),
     ("admin", "Operations staff with broad management access"),
     ("manager", "Manages branch operations"),

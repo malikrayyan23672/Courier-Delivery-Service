@@ -6,7 +6,7 @@ from app.dependencies import get_current_user
 def require_roles(*allowed_roles: str):
     """
     Usage:
-        @router.post("/orders", dependencies=[Depends(require_roles("staff", "admin"))])
+        @router.post("/orders", dependencies=[Depends(require_roles("staff_hub", "admin"))])
     """
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role.name not in allowed_roles:

@@ -200,10 +200,15 @@ function DashboardContent() {
     const nextErrors: Record<string, string> = {};
 
     if (!nextForm.pickup_address.trim()) nextErrors.pickup_address = 'Pickup address is required';
-    if (!nextForm.pickup_contact_name.trim()) nextErrors.pickup_address = 'Pickup address is required';
+    if (!nextForm.pickup_contact_name.trim()) nextErrors.pickup_contact_name = 'Pickup Contact name is required';
+    if (!nextForm.pickup_contact_phone.trim()) nextErrors.pickup_contact_phone = 'Pickup phone no is required';
     if (!nextForm.pickup_city.trim()) nextErrors.pickup_city = 'Pickup city is required';
     if (!nextForm.dropoff_address.trim()) nextErrors.dropoff_address = 'Drop-off address is required';
     if (!nextForm.dropoff_city.trim()) nextErrors.dropoff_city = 'Drop-off city is required';
+    if (!nextForm.dropoff_contact_name.trim()) nextErrors.dropoff_contact_name = 'Recipient name is required';
+    if (!nextForm.dropoff_contact_phone.trim()) nextErrors.dropoff_contact_phone = 'Recipient phone is required';
+    if (!nextForm.weight.trim()) nextErrors.weight = 'Package weight is required';
+    // if (!nextForm.weight.trim()) nextErrors.weight = 'Package weight is required';
 
     if (nextForm.pickup_contact_phone.trim() && !/^\+?[0-9]{7,15}$/.test(nextForm.pickup_contact_phone.trim())) {
       nextErrors.pickup_contact_phone = 'Pickup contact phone is invalid';
