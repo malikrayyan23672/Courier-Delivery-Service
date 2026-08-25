@@ -27,7 +27,7 @@ class TrackingEvent(Base, TimestampMixin):
 
     # Who triggered this change - a rider updating their own delivery, an
     # admin reassigning, a staff member, or None for system-generated events
-    changed_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    changed_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     changed_by = relationship("User", foreign_keys=[changed_by_id])
 
     order = relationship("Order", back_populates="tracking_events")

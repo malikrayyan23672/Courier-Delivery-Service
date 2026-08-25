@@ -2181,6 +2181,16 @@ export function hubScan(
   return request<HubScanResult>(`/hub/scan?${params.toString()}`, { method: 'POST' }, token);
 }
 
+export function scanStaffOrder(trackingNumber: string, action: HubScanAction, token: string) {
+  const params = new URLSearchParams({ tracking_number: trackingNumber, action });
+  return request<HubScanResult>(`/staff/scan?${params.toString()}`, { method: 'POST' }, token);
+}
+
+export function scanLocalOfficeOrder(trackingNumber: string, action: HubScanAction, token: string) {
+  const params = new URLSearchParams({ tracking_number: trackingNumber, action });
+  return request<HubScanResult>(`/local-office/scan?${params.toString()}`, { method: 'POST' }, token);
+}
+
 export function getHubDispatchQueue(token: string, branchId?: string) {
   return request<HubOrderSummary[]>(`/hub/dispatch-queue${branchQuery(branchId)}`, { method: 'GET' }, token);
 }

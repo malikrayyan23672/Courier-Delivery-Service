@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -8,7 +8,7 @@ from app.models.order import CreatedByType, BookingChannel
 from app.models.payment import PaymentMethod
 from app.models.invoice import Invoice
 from app.schemas.order import StaffOrderCreateRequest, OrderOut
-from app.services.order_service import create_order, get_or_create_guest_customer, transition
+from app.services.order_service import create_order, get_or_create_guest_customer, transition, apply_scan_action
 from app.services import notification_service
 from app.services.invoice_pdf_service import generate_invoice_pdf
 from app.services.label_pdf_service import generate_shipping_label_pdf
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/staff", tags=["Staff Panel"])
 def book_walk_in_order(
     payload: StaffOrderCreateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     """
     Staff books a courier on behalf of a walk-in customer.
@@ -83,10 +83,48 @@ from app.schemas.rider import (
 from app.services.settlement_service import rider_wallet_limit, rider_wallet_warning_at
 
 
+@router.post("/scan")
+def staff_scan(
+    tracking_number: str,
+    action: str = Query("in", pattern="^(in|out|arrive)$"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
+):
+    """
+    Counter staff scan: move a parcel through the network from the counter.
+    `in`     -> IN_HUB       (created/picked_up -> in_hub, the normal counter hand-over)
+    `out`    -> IN_TRANSIT   (out of this hub on the bus)
+    `arrive` -> DEST_HUB     (arrived at the destination hub)
+    The staff member is always scoped to their own hub (staff_profile.hub_id).
+    """
+    staff_profile = current_user.staff_profile
+    if not staff_profile or not staff_profile.hub_id:
+        raise HTTPException(status_code=400, detail="You must belong to a branch to scan parcels")
+    hub_id = str(staff_profile.hub_id)
+
+    order = db.query(Order).filter(Order.tracking_number == tracking_number.strip().upper()).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="No parcel found with that tracking number")
+
+    apply_scan_action(db, order, action, actor=current_user, facility_label=f"hub {hub_id}", hub_id=hub_id)
+    db.commit()
+    db.refresh(order)
+    return {
+        "id": str(order.id),
+        "tracking_number": order.tracking_number,
+        "status": order.status.value if hasattr(order.status, "value") else order.status,
+        "package_description": order.package_description,
+        "dropoff_city": order.dropoff_address.city if order.dropoff_address else None,
+        "updated_at": order.updated_at,
+        "scan_action": action,
+        "note": f"Scanned {action} at hub {hub_id}",
+    }
+
+
 @router.get("/orders", response_model=list[OrderOut])
 def list_branch_orders(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     staff_profile = current_user.staff_profile
     if not staff_profile or not staff_profile.hub_id:
@@ -99,7 +137,7 @@ def list_branch_orders(
 def get_order_invoice_pdf(
     order_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     staff_profile = current_user.staff_profile
     if not staff_profile or not staff_profile.hub_id:
@@ -125,7 +163,7 @@ def get_order_invoice_pdf(
 def get_order_label_pdf(
     order_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     """Printable shipping label for sticking on the parcel - same branch
     scope as the invoice above, so hub/branch staff can (re)print it for any
@@ -149,7 +187,7 @@ def get_order_label_pdf(
 @router.get("/riders")
 def list_branch_zone_riders(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     staff_profile = current_user.staff_profile
     if not staff_profile or not staff_profile.hub_id or not staff_profile.hub:
@@ -186,7 +224,7 @@ def list_branch_zone_riders(
 @router.get("/riders/locations", response_model=list[RiderLocationOut])
 def list_branch_zone_rider_locations(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     """Live rider positions for the staff Live Map - scoped to the staff
     member's own branch zone, mirroring list_branch_zone_riders above."""
@@ -229,7 +267,7 @@ def staff_assign_rider(
     order_id: str,
     rider_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     staff_profile = current_user.staff_profile
     if not staff_profile or not staff_profile.hub_id or not staff_profile.hub:
@@ -283,7 +321,7 @@ def staff_assign_rider(
     return {"message": "Rider assigned successfully"}
 
 @router.get("/booking/details/{staff_id}")
-def get_staff_order_booking_details(staff_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager"))):
+def get_staff_order_booking_details(staff_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager"))):
 
     staff = db.query(StaffProfile).filter(StaffProfile.id == staff_id).first()
 
@@ -292,7 +330,7 @@ def get_staff_order_booking_details(staff_id: str, db: Session = Depends(get_db)
 def list_availability_requests(
     status: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     query = db.query(RiderStatusRequest)
     if status == "all":
@@ -325,7 +363,7 @@ def resolve_availability_request(
     request_id: str,
     payload: ResolveRequestPayload,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     request = db.query(RiderStatusRequest).filter(RiderStatusRequest.id == request_id).first()
     if not request:
@@ -364,7 +402,7 @@ def resolve_availability_request(
 def list_unlock_requests(
     status: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     query = db.query(ParcelUnlockRequest)
     if status == "all":
@@ -398,7 +436,7 @@ def resolve_unlock_request(
     request_id: str,
     payload: ResolveRequestPayload,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     request = db.query(ParcelUnlockRequest).filter(ParcelUnlockRequest.id == request_id).first()
     if not request:
@@ -465,7 +503,7 @@ def _support_ticket_out(ticket: SupportTicket) -> SupportTicketOut:
 def list_support_tickets(
     status: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     query = db.query(SupportTicket)
     if status and status != "all":
@@ -479,7 +517,7 @@ def list_support_tickets(
 def support_ticket_detail(
     ticket_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     ticket = db.query(SupportTicket).filter(SupportTicket.id == ticket_id).first()
     if not ticket:
@@ -492,7 +530,7 @@ def reply_to_support_ticket(
     ticket_id: str,
     payload: SupportTicketMessageCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     ticket = db.query(SupportTicket).filter(SupportTicket.id == ticket_id).first()
     if not ticket:
@@ -514,7 +552,7 @@ def update_support_ticket_status(
     ticket_id: str,
     payload: SupportTicketStatusUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("staff_hub", "staff_branch", "staff_local_branch", "admin", "super_admin", "manager", "hub_manager")),
+    current_user: User = Depends(require_roles("staff", "admin", "super_admin", "manager", "hub_manager")),
 ):
     ticket = db.query(SupportTicket).filter(SupportTicket.id == ticket_id).first()
     if not ticket:

@@ -42,7 +42,7 @@ class Settlement(Base, TimestampMixin):
 
     status = Column(Enum(SettlementStatus), default=SettlementStatus.pending, index=True)
     settled_at = Column(DateTime(timezone=True), nullable=True)
-    settled_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    settled_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     settled_by = relationship("User", foreign_keys=[settled_by_id])
     remark = Column(String(255), nullable=True)
 

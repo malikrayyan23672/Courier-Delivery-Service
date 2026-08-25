@@ -23,4 +23,4 @@ class SellerUpload(Base, TimestampMixin):
     file_type = Column(String(20), nullable=True)   # csv / xlsx / doc / docx
     row_count = Column(Integer, nullable=True)
     status = Column(String(50), default="uploaded")  # uploaded / processing / processed / failed
-    uploaded_by_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    uploaded_by_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)

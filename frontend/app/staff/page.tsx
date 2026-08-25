@@ -10,6 +10,7 @@ import {
   listStaffOrders,
   listStaffRiders,
   staffAssignRider,
+  scanStaffOrder,
   getStaffOrderInvoicePreviewUrl,
   getStaffOrderLabelPreviewUrl,
   Order,
@@ -28,6 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Field } from '@/components/Field';
 import { SelectField } from '@/components/Select';
+import { ScanConsole } from '@/components/ops/ScanConsole';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'secondary'> = {
   created: 'info',
@@ -45,7 +47,7 @@ const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' |
 
 export default function StaffPage() {
   return (
-    <RoleGuard allowedRoles={['staff_hub', 'staff_branch', 'staff_local_office', 'admin', 'super_admin']}>
+    <RoleGuard allowedRoles={['staff_hub', 'admin', 'super_admin', 'manager', 'hub_manager']}>
       <StaffContent />
     </RoleGuard>
   );
@@ -84,7 +86,7 @@ function StaffContent() {
     };
   }, [token])
 
-  const [tab, setTab] = useState<'book' | 'orders'>('book');
+  const [tab, setTab] = useState<'book' | 'orders' | 'scan'>('book');
 
   // Booking Form State
   const [submitting, setSubmitting] = useState(false);
@@ -299,9 +301,25 @@ function StaffContent() {
           >
             Branch Orders
           </button>
+          <button
+            onClick={() => setTab('scan')}
+            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+              tab === 'scan' ? 'border-orange text-[#db2203]' : 'border-transparent text-muted-foreground hover:text-ink'
+            }`}
+          >
+            Scan Parcel
+          </button>
         </div>
 
-        {tab === 'book' ? (
+        {tab === 'scan' ? (
+          <div>
+            <h1 className="font-display text-2xl font-bold text-ink mb-1">Scan Parcel Status</h1>
+            <ScanConsole
+              scanFn={(tn, a) => scanStaffOrder(tn, a, token!)}
+              description="Book a walk-in parcel, then scan it here to move it through the network — e.g. Scan In to send it toward the hub."
+            />
+          </div>
+        ) : tab === 'book' ? (
           <div>
             <h1 className="font-display text-2xl font-bold text-ink mb-1">Book a Walk-in Shipment</h1>
             <p className="text-muted-foreground text-sm mb-6">

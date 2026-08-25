@@ -13,7 +13,7 @@ class Warehouse(Base, TimestampMixin):
     hub_id = Column(UUID_TYPE, ForeignKey("hubs.id", ondelete='SET NULL'), nullable=True)
     hub = relationship("Hub", back_populates="warehouses")
 
-    manager_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    manager_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     manager = relationship("User", back_populates="managed_warehouses")
 
     status = Column(String(50), default="active")  # e.g., "active", "inactive"

@@ -11,6 +11,7 @@ import {
   getLocalOfficeReceiptPreviewUrl,
   getLocalOfficeOrderInvoicePreviewUrl,
   getLocalOfficeOrderLabelPreviewUrl,
+  scanLocalOfficeOrder,
   Order,
   ApiError,
 } from '@/lib/api';
@@ -19,10 +20,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Field } from '@/components/Field';
 import { SelectField } from '@/components/Select';
+import { ScanConsole } from '@/components/ops/ScanConsole';
 
 export default function LocalOfficePage() {
   return (
-    <RoleGuard allowedRoles={['local_office_manager', 'staff_local_branch', 'admin', 'super_admin']}>
+    <RoleGuard allowedRoles={['local_office_manager', 'admin', 'super_admin']}>
       <LocalOfficeContent />
     </RoleGuard>
   );
@@ -49,6 +51,7 @@ const INITIAL_FORM = {
 function LocalOfficeContent() {
   const { token, setToken } = useAuth();
   const router = useRouter();
+  const [tab, setTab] = useState<'book' | 'scan'>('book');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -153,7 +156,34 @@ function LocalOfficeContent() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 md:px-10 py-8">
-        {booked && receiptUrl ? (
+        <div className="flex gap-2 mb-6 border-b border-line">
+          <button
+            onClick={() => setTab('book')}
+            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+              tab === 'book' ? 'border-orange text-[#db2203]' : 'border-transparent text-muted-foreground hover:text-ink'
+            }`}
+          >
+            Book Guest Parcel
+          </button>
+          <button
+            onClick={() => setTab('scan')}
+            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+              tab === 'scan' ? 'border-orange text-[#db2203]' : 'border-transparent text-muted-foreground hover:text-ink'
+            }`}
+          >
+            Scan Parcel
+          </button>
+        </div>
+
+        {tab === 'scan' ? (
+          <div>
+            <h1 className="font-display text-2xl font-bold text-ink mb-1">Scan Parcel Status</h1>
+            <ScanConsole
+              scanFn={(tn, a) => scanLocalOfficeOrder(tn, a, token!)}
+              description="Book a walk-in parcel, then scan it here to send it into the network — e.g. Scan In to route it toward the hub."
+            />
+          </div>
+        ) : booked && receiptUrl ? (
           <div>
             <div className="bg-[#EAF7EF] border border-success/30 rounded-[10px] px-5 py-4 mb-6">
               <p className="font-bold text-success">Parcel booked - status: Booked</p>

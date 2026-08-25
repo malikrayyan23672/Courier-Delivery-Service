@@ -30,7 +30,9 @@ from app.services import notification_service
 # Every edge a route handler is allowed to take - anything not listed here is
 # rejected as a security incident (TRD: "no state can be skipped").
 ALLOWED_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
-    OrderStatus.created: {OrderStatus.assigned, OrderStatus.cancelled},
+    # A parcel booked at a counter (staff or local office) is handed straight
+    # into the hub network on scan, so `created` may also jump to `in_hub`.
+    OrderStatus.created: {OrderStatus.assigned, OrderStatus.cancelled, OrderStatus.in_hub},
     OrderStatus.assigned: {OrderStatus.created, OrderStatus.picked_up, OrderStatus.cancelled},
     # Two legitimate paths from here: `in_hub` for a parcel entering the
     # inter-city bus network, or straight to `out_for_delivery` when the same
@@ -384,6 +386,38 @@ def handle_dest_hub_arrival(db: Session, order: Order, hub_id: str, actor: User 
     hub runs automatic assignment."""
     order.hub_id = hub_id
     maybe_auto_assign_last_mile_rider(db, order, actor=actor)
+
+
+# Scan actions shared by the hub, staff, and local-office consoles. Each maps
+# to a single legal edge of the state machine so a mis-scan can't skip a stage.
+_SCAN_ACTIONS = {
+    "in": (OrderStatus.in_hub, "Scanned in at {facility} (created/picked_up -> in_hub)"),
+    "out": (OrderStatus.in_transit, "Departed {facility} on the bus network (in_hub -> in_transit)"),
+    "arrive": (OrderStatus.dest_hub, "Arrived at destination hub (in_transit -> dest_hub)"),
+}
+
+
+def apply_scan_action(
+    db: Session,
+    order: Order,
+    action: str,
+    actor: User | None = None,
+    facility_label: str = "facility",
+    hub_id: str | None = None,
+) -> Order:
+    """Drive an order through the bus network via a scanner action, returning
+    the updated order. `in` is valid from both `created` (counter hand-over)
+    and `picked_up`; `out`/`arrive` follow the normal in_hub -> in_transit ->
+    dest_hub progression. `transition()` enforces the legal edges, so an illegal
+    jump (e.g. `arrive` from `created`) is rejected with a clear error."""
+    if action not in _SCAN_ACTIONS:
+        raise HTTPException(status_code=400, detail="Unknown scan action")
+    target, note = _SCAN_ACTIONS[action]
+    transition(db, order, target, actor=actor, note=note.format(facility=facility_label))
+    if action == "arrive" and hub_id:
+        # The hub now physically holding the parcel is the one that scanned it in.
+        handle_dest_hub_arrival(db, order, str(hub_id), actor=actor)
+    return order
 
 
 # Cancellation is only a legal edge up through `picked_up` (see

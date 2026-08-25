@@ -1,15 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.core.permissions import require_roles
 from app.models.user import User
-from app.models.order import Order, CreatedByType, BookingChannel
+from app.models.order import Order, OrderStatus, CreatedByType, BookingChannel
 from app.models.payment import PaymentMethod
 from app.models.local_branch import LocalBranch
+from app.models.branch import Branch
 from app.models.invoice import Invoice
 from app.schemas.order import StaffOrderCreateRequest, OrderOut
-from app.services.order_service import create_order, get_or_create_guest_customer
+from app.services.order_service import create_order, get_or_create_guest_customer, apply_scan_action
 from app.services.receipt_pdf_service import generate_booking_receipt_pdf
 from app.services.invoice_pdf_service import generate_invoice_pdf
 from app.services.label_pdf_service import generate_shipping_label_pdf
@@ -73,6 +74,49 @@ def book_guest_order(
     db.commit()
     db.refresh(order)
     return order
+
+
+@router.post("/scan")
+def local_office_scan(
+    tracking_number: str,
+    action: str = Query("in", pattern="^(in|out|arrive)$"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*LOCAL_BRANCH_ROLES)),
+):
+    """
+    Local office counter scan: a walk-in parcel booked here is handed into the
+    network. `in`     -> IN_HUB     (created/picked_up -> in_hub at the parent hub)
+    `out`    -> IN_TRANSIT (out of the parent hub on the bus)
+    `arrive` -> DEST_HUB   (arrived at the destination hub)
+    The parcel is routed to the hub that owns this local office's branch.
+    """
+    local_branch = _resolve_local_branch(current_user, db)
+    if not local_branch.branch_id:
+        raise HTTPException(status_code=400, detail="This local office is not linked to a branch")
+    branch = db.query(Branch).filter(Branch.id == local_branch.branch_id).first()
+    if not branch or not branch.hub_id:
+        raise HTTPException(status_code=400, detail="This local office's branch is not linked to a hub")
+    hub_id = str(branch.hub_id)
+
+    order = db.query(Order).filter(Order.tracking_number == tracking_number.strip().upper()).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="No parcel found with that tracking number")
+
+    apply_scan_action(
+        db, order, action, actor=current_user, facility_label=f"local office {local_branch.name}", hub_id=hub_id
+    )
+    db.commit()
+    db.refresh(order)
+    return {
+        "id": str(order.id),
+        "tracking_number": order.tracking_number,
+        "status": order.status.value if hasattr(order.status, "value") else order.status,
+        "package_description": order.package_description,
+        "dropoff_city": order.dropoff_address.city if order.dropoff_address else None,
+        "updated_at": order.updated_at,
+        "scan_action": action,
+        "note": f"Scanned {action} at local office {local_branch.name}",
+    }
 
 
 @router.get("/orders/{order_id}/receipt.pdf")

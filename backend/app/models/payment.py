@@ -35,7 +35,7 @@ class Payment(Base, TimestampMixin):
     gateway_reference = Column(String(255), nullable=True)
 
     # If cash was collected by staff, track who collected it
-    collected_by_staff_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=True)
+    collected_by_staff_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
 
     order = relationship("Order", back_populates="payment")
     settlement = relationship("Settlement", back_populates="payment", uselist=False)
