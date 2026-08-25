@@ -22,7 +22,7 @@ import { SelectField } from '@/components/Select';
 
 export default function LocalOfficePage() {
   return (
-    <RoleGuard allowedRoles={['local_office_manager', 'admin', 'super_admin']}>
+    <RoleGuard allowedRoles={['local_office_manager', 'staff_local_branch', 'admin', 'super_admin']}>
       <LocalOfficeContent />
     </RoleGuard>
   );

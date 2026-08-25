@@ -99,6 +99,9 @@ export function panelPathForRole(role: string | null, designation: string | null
 
     case 'staff_hub':
       return '/staff'
+
+    case 'staff_local_branch':
+      return '/local-office'
     case 'manager':
       return '/branch';
     case 'hub_manager':
