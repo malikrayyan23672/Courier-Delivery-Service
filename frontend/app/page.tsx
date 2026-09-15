@@ -15,9 +15,13 @@ const HOME_STEP_LABELS = ['Picked up', 'In transit', 'Out for delivery', 'Delive
 
 function homeStepIndex(status: string): number {
   switch (status) {
+    case 'in_local_office':
+    case 'in_branch':
     case 'in_hub':
     case 'in_transit':
     case 'dest_hub':
+    case 'dest_branch':
+    case 'dest_local_office':
       return 1;
     case 'out_for_delivery':
       return 2;
@@ -166,7 +170,7 @@ export default function HomePage() {
       {/* ============ TOP NAV ============ */}
       <nav className="nav">
         <a href="/" className="logo">
-        <img src="icon.jpeg" width={45} height={45} alt="" />
+        <img src="icon.png" width={165} height={65} alt="" />
           {/* <svg className="logo-mark" viewBox="0 0 40 40" fill="none">
             <path
               d="M2 20 L24 20 L18 12 L34 20 L18 28 L24 20"
@@ -178,12 +182,12 @@ export default function HomePage() {
             />
           </svg> */}
           
-          <div>
+          {/* <div>
             <div className="brand-name">
               RAFTAAR<span className="text-[#db2203]">EXPRESS</span>
             </div>
             <div className="brand-sub">COURIER SERVICES</div>
-          </div>
+          </div> */}
         </a>
 
         <div className='flex gap-2 items-center'>

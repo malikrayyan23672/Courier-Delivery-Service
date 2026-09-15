@@ -21,7 +21,12 @@ const PAYMENT_STATUS_COLORS: Record<string, string> = {
   refunded: 'bg-[#F0F0F0] text-muted-foreground',
 };
 
-const STATUS_ORDER = ['created', 'assigned', 'picked_up', 'in_transit', 'delivered'];
+const STATUS_ORDER = [
+  'created', 'assigned', 'picked_up',
+  'in_local_office', 'in_branch', 'in_hub', 'in_transit',
+  'dest_hub', 'dest_branch', 'dest_local_office',
+  'out_for_delivery', 'delivered',
+];
 
 function formatDate(iso?: string) {
   if (!iso) return '—';

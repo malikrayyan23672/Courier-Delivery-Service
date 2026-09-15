@@ -422,7 +422,7 @@ function AdminDashboardContent() {
 
         <a href="/">
         <div className="flex items-center gap-2.5 mb-6 px-1">
-          <img src="icon.jpeg" alt="" width={45} height={45} /> 
+          <img src="icon.png" alt="" width={165} height={65} /> 
           
           <div>
             <div className="font-display text-lg font-extrabold leading-none">RAFTAAR<span className="text-[#db2203]">EXPRESS</span></div>

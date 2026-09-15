@@ -79,15 +79,19 @@ def book_guest_order(
 @router.post("/scan")
 def local_office_scan(
     tracking_number: str,
-    action: str = Query("in", pattern="^(in|out|arrive)$"),
+    action: str = Query("in", pattern="^(in|out|arrive|transfer|dispatch)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*LOCAL_BRANCH_ROLES)),
 ):
     """
     Local office counter scan: a walk-in parcel booked here is handed into the
-    network. `in`     -> IN_HUB     (created/picked_up -> in_hub at the parent hub)
-    `out`    -> IN_TRANSIT (out of the parent hub on the bus)
-    `arrive` -> DEST_HUB   (arrived at the destination hub)
+    network. The local office is the bottom of the hierarchy, so its scans feed
+    upward:
+      - in       -> IN_LOCAL_OFFICE (received at this counter)
+      - out      -> IN_BRANCH       (handed up to the parent branch)
+      - transfer -> next step along the full route
+      - dispatch -> OUT_FOR_DELIVERY (start last mile)
+      - arrive   -> DEST_HUB (bus arrival - normally done at a hub)
     The parcel is routed to the hub that owns this local office's branch.
     """
     local_branch = _resolve_local_branch(current_user, db)
@@ -103,7 +107,13 @@ def local_office_scan(
         raise HTTPException(status_code=404, detail="No parcel found with that tracking number")
 
     apply_scan_action(
-        db, order, action, actor=current_user, facility_label=f"local office {local_branch.name}", hub_id=hub_id
+        db,
+        order,
+        action,
+        actor=current_user,
+        facility_label=f"local office {local_branch.name}",
+        hub_id=hub_id,
+        facility_level="local_office",
     )
     db.commit()
     db.refresh(order)

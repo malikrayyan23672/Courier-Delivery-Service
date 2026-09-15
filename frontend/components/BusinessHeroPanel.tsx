@@ -94,7 +94,7 @@ export default function BusinessHeroPanel() {
         <a href="/">
         <div className="flex items-center gap-3 mb-12">
 
-         <img src="icon.jpeg" alt="" width={45} height={45} /> 
+         <img src="icon.png" alt="" width={165} height={65} /> 
 
           <div>
             <h2 className="text-3xl font-extrabold tracking-tight">

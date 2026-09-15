@@ -36,7 +36,23 @@ export default function MarketplacePage() {
   return (
     <div className="min-h-screen bg-page">
       <header className="bg-white border-b border-line px-6 md:px-10 py-4 flex items-center justify-between sticky top-0 z-20">
-        <Logo />
+        {/* <Logo /> */}
+        <a href="/">
+
+
+    <div className="flex items-center gap-2.5">
+
+      <img src="icon.png" alt="" width={165} height={65} /> 
+      {/* <div>
+        <div className="font-display text-2xl font-extrabold tracking-tight leading-none text-navy">
+          RAFTAAR<span className="text-[#db2203]">EXPRESS</span>
+        </div>
+        <div className="text-[0.62rem] tracking-[0.22em] text-muted-foreground font-semibold mt-0.5">
+          COURIER SERVICES
+        </div>
+      </div> */}
+    </div>
+    </a>
         <div className="flex items-center gap-3">
           {token ? (
             <Link href="/dashboard" className="text-sm font-semibold text-navy hover:text-[#db2203] transition-colors">My account</Link>

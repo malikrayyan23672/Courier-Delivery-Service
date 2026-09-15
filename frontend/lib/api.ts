@@ -2175,7 +2175,7 @@ export interface HubScanResult extends HubOrderSummary {
   note: string;
 }
 
-export type HubScanAction = 'in' | 'out' | 'arrive';
+export type HubScanAction = 'in' | 'out' | 'arrive' | 'transfer' | 'dispatch';
 
 export function hubScan(
   trackingNumber: string,

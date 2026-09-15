@@ -21,7 +21,7 @@ from app.models.support_ticket import SupportTicket
 from app.models.parcel_incident import ParcelIncident, IncidentType, IncidentStatus
 from app.models.hub import Hub
 from app.services import notification_service
-from app.services.order_service import transition, offer_last_mile_rider, handle_dest_hub_arrival
+from app.services.order_service import transition, offer_last_mile_rider, handle_dest_hub_arrival, apply_scan_action
 from app.core.scope import resolve_city_hub_ids
 from app.services.settlement_service import (
     rider_wallet_limit,
@@ -187,30 +187,26 @@ def inbound_scan(
     return _order_summary(order)
 
 
-# Each action is what the scanner physically observed, and maps to exactly one
-# legal edge of the state machine. `transition()` rejects a scan that doesn't
-# match the parcel's current status, so a hub can't accidentally double-scan.
-_SCAN_ACTIONS = {
-    # action -> (target status, tracking note)
-    "in": (OrderStatus.in_hub, "received at this hub (picked -> in_hub)"),
-    "out": (OrderStatus.in_transit, "departed this branch on the bus network (in_hub -> in_transit)"),
-    "arrive": (OrderStatus.dest_hub, "arrived at destination hub (in_transit -> dest_hub)"),
-}
+# The hub console drives the hierarchy through the shared scan-action helper.
+# `in`/`out`/`arrive` keep their original bus-network meaning; `transfer` walks
+# the parcel one step further along the route and `dispatch` starts last-mile.
 
 
 @router.post("/scan")
 def hub_scan(
     tracking_number: str,
-    action: str = Query("in", pattern="^(in|out|arrive)$"),
+    action: str = Query("in", pattern="^(in|out|arrive|transfer|dispatch)$"),
     branch_id: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*HUB_ROLES)),
 ):
     """
-    The hub scanner. One endpoint drives a parcel through the bus network:
-      - in     -> IN_HUB       (received at this hub)
-      - out    -> IN_TRANSIT   (out of this branch, on the bus)
-      - arrive -> DEST_HUB     (arrived at the destination hub)
+    The hub scanner. One endpoint drives a parcel through the facility hierarchy:
+      - in       -> IN_HUB       (received at this hub)
+      - out      -> IN_TRANSIT   (out of this hub, on the bus)
+      - arrive   -> DEST_HUB     (arrived at the destination hub)
+      - transfer -> next step along the route (e.g. IN_HUB -> IN_TRANSIT, DEST_HUB -> DEST_BRANCH)
+      - dispatch -> OUT_FOR_DELIVERY (start last mile)
     Returns the parcel with its new status so the console can show the result.
     """
     bid = _resolve_branch_id(current_user, branch_id, db)
@@ -218,13 +214,18 @@ def hub_scan(
     if not order:
         raise HTTPException(status_code=404, detail="No parcel found with that tracking number")
 
-    target, note = _SCAN_ACTIONS[action]
-    transition(db, order, target, actor=current_user, note=f"Scanned {action} - {note} (branch {bid})")
-    if action == "arrive":
-        handle_dest_hub_arrival(db, order, bid, actor=current_user)
+    apply_scan_action(
+        db,
+        order,
+        action,
+        actor=current_user,
+        facility_label=f"hub {bid}",
+        hub_id=bid,
+        facility_level="hub",
+    )
     db.commit()
     db.refresh(order)
-    return {**_order_summary(order), "scan_action": action, "note": f"Scanned {action} - {note} (branch {bid})"}
+    return {**_order_summary(order), "scan_action": action, "note": f"Scanned {action} at hub {bid}"}
 
 
 @router.get("/dispatch-queue")

@@ -8,7 +8,12 @@ import { GoogleMap, MapPinData } from '@/components/GoogleMap';
 import { ApiError, trackPublicOrder, PublicTrackingInfo } from '@/lib/api';
 import { CheckCircle2, Circle, Truck, Search, Phone, Bike } from 'lucide-react';
 
-const STATUS_ORDER = ['created', 'assigned', 'picked_up', 'in_transit', 'out_for_delivery', 'delivered'];
+const STATUS_ORDER = [
+  'created', 'assigned', 'picked_up',
+  'in_local_office', 'in_branch', 'in_hub', 'in_transit',
+  'dest_hub', 'dest_branch', 'dest_local_office',
+  'out_for_delivery', 'delivered',
+];
 
 function titleCase(s: string) {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());

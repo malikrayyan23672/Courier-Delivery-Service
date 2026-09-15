@@ -204,7 +204,13 @@ function activityText(a: AuditActivityItem): string {
 
 function deliveryProgress(status: string) {
   if (status === 'delivered') return 100;
+  if (status === 'dest_local_office') return 90;
+  if (status === 'dest_branch') return 85;
+  if (status === 'dest_hub') return 75;
   if (status === 'in_transit') return 65;
+  if (status === 'in_hub') return 20;
+  if (status === 'in_branch') return 15;
+  if (status === 'in_local_office') return 10;
   if (status === 'picked_up') return 45;
   if (status === 'assigned') return 25;
   if (status === 'failed' || status === 'cancelled') return 100;
@@ -239,7 +245,8 @@ function mapOrdersToDeliveries(orders: ApiOrder[]): Delivery[] {
       order.status === 'created' ? 'Ready'
         : order.status === 'delivered' ? 'Delivered'
           : order.status === 'failed' || order.status === 'cancelled' ? 'Failed'
-            : 'Out for Delivery';
+            : order.status === 'out_for_delivery' ? 'Out for Delivery'
+              : 'Ready';
 
     return {
       id: order.tracking_number,
@@ -1378,6 +1385,8 @@ const SCAN_MODES: { value: HubScanAction; label: string; desc: string }[] = [
   { value: 'in', label: 'Scan In', desc: 'received at this hub' },
   { value: 'out', label: 'Scan Out', desc: 'departed this branch (on the bus)' },
   { value: 'arrive', label: 'Scan Arrive', desc: 'arrived at destination hub' },
+  { value: 'transfer', label: 'Transfer', desc: 'advance to next facility in the route' },
+  { value: 'dispatch', label: 'Dispatch', desc: 'start last-mile delivery' },
 ];
 
 function LastMileQueueRow({ order, riders, busy, onAssign }: {

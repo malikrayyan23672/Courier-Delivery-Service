@@ -20,9 +20,13 @@ class OrderStatus(str, enum.Enum):
     created = "created"                    # BOOKED
     assigned = "assigned"                  # pickup offered to a rider
     picked_up = "picked_up"                # PICKED
+    in_local_office = "in_local_office"    # at the origin local-office counter
+    in_branch = "in_branch"                # at the origin sorting branch
     in_hub = "in_hub"                      # IN_HUB - scanned in at origin hub
     in_transit = "in_transit"              # IN_TRANSIT - manifest departed
     dest_hub = "dest_hub"                  # DEST_HUB - scanned in at destination hub
+    dest_branch = "dest_branch"            # at the destination sorting branch
+    dest_local_office = "dest_local_office"  # at the destination local-office counter
     out_for_delivery = "out_for_delivery"  # OUT_FOR_DELIVERY - last-mile rider assigned
     delivered = "delivered"                # DELIVERED
     failed = "failed"                      # a delivery attempt failed - may retry

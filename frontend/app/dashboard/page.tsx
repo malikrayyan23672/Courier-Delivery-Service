@@ -64,6 +64,8 @@ const STATUS_COLORS: Record<string, string> = {
   in_hub: 'bg-[#FBF3EA] text-[#db2203]',
   in_transit: 'bg-[#FBF3EA] text-[#db2203]',
   dest_hub: 'bg-[#FBF3EA] text-[#db2203]',
+  dest_branch: 'bg-[#FBF3EA] text-[#db2203]',
+  dest_local_office: 'bg-[#FBF3EA] text-[#db2203]',
   out_for_delivery: 'bg-[#FBF3EA] text-[#db2203]',
   delivered: 'bg-[#EAF7EF] text-success',
   failed: 'bg-[#FBEAE7] text-[#db2203]',
@@ -72,7 +74,9 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_FILTERS = [
-  'all', 'created', 'assigned', 'picked_up', 'in_hub', 'in_transit', 'dest_hub',
+  'all', 'created', 'assigned', 'picked_up',
+  'in_local_office', 'in_branch', 'in_hub', 'in_transit',
+  'dest_hub', 'dest_branch', 'dest_local_office',
   'out_for_delivery', 'delivered', 'failed', 'rto', 'cancelled',
 ];
 
@@ -114,8 +118,9 @@ const EMPTY_FORM: BookingForm = {
 function statusSummary(orders: Order[]): string | null {
   if (orders.length === 0) return null;
   const priority: Record<string, number> = {
-    out_for_delivery: 0, dest_hub: 1, in_transit: 2, in_hub: 3, picked_up: 4, assigned: 5, created: 6,
-    failed: 7, rto: 8, delivered: 9, cancelled: 10,
+    out_for_delivery: 0, dest_local_office: 1, dest_branch: 2, dest_hub: 3, in_transit: 4, in_hub: 5,
+    in_branch: 6, in_local_office: 7, picked_up: 8, assigned: 9, created: 10,
+    failed: 11, rto: 12, delivered: 13, cancelled: 14,
   };
   const active = [...orders].sort((a, b) => (priority[a.status] ?? 9) - (priority[b.status] ?? 9))[0];
   const dest = active.dropoff_address?.city || active.dropoff_address?.full_address || 'its destination';
@@ -129,6 +134,14 @@ function statusSummary(orders: Order[]): string | null {
       return `Your parcel ${active.tracking_number} is in transit toward ${dest}.`;
     case 'in_hub':
       return `Your parcel ${active.tracking_number} has reached the origin hub and is being routed toward ${dest}.`;
+    case 'in_branch':
+      return `Your parcel ${active.tracking_number} is at the origin branch, moving toward the hub.`;
+    case 'in_local_office':
+      return `Your parcel ${active.tracking_number} has been received at the local office and is moving through the network.`;
+    case 'dest_branch':
+      return `Your parcel ${active.tracking_number} has reached the destination branch near ${dest}.`;
+    case 'dest_local_office':
+      return `Your parcel ${active.tracking_number} is at the destination local office near ${dest}.`;
     case 'picked_up':
       return `Your parcel ${active.tracking_number} has been picked up and is heading to the hub.`;
     case 'assigned':

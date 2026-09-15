@@ -19,9 +19,9 @@ const STATUS_TO_COLOR: Record<string, string> = {
   Sorted: 'green', 'In Progress': 'amber', Loading: 'amber', Inbound: 'blue', Outbound: 'amber',
   // Raw backend order-status values (snake_case), used directly by the real
   // /hub/* API responses wired into the receiving/dispatch/aging panels.
-  created: 'blue', assigned: 'amber', picked_up: 'green', in_hub: 'amber', in_transit: 'amber',
-  dest_hub: 'amber', out_for_delivery: 'amber', delivered: 'green', failed: 'red', rto: 'red',
-  cancelled: 'gray',
+  created: 'blue', assigned: 'amber', picked_up: 'green', in_local_office: 'blue', in_branch: 'amber',
+  in_hub: 'amber', in_transit: 'amber', dest_hub: 'amber', dest_branch: 'amber', dest_local_office: 'blue',
+  out_for_delivery: 'amber', delivered: 'green', failed: 'red', rto: 'red', cancelled: 'gray',
   // Manifest statuses (bus network)
   in_preparation: 'gray', arrived: 'green',
   // Bus operator statuses

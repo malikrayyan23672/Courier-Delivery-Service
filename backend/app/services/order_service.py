@@ -26,22 +26,42 @@ from app.services import log_service
 from app.services import notification_service
 
 
-# The 8-state parcel journey (+ `assigned`/`cancelled`, see OrderStatus docstring).
-# Every edge a route handler is allowed to take - anything not listed here is
-# rejected as a security incident (TRD: "no state can be skipped").
+# The parcel journey through the full facility hierarchy. Every edge a route
+# handler is allowed to take - anything not listed here is rejected as a
+# security incident (TRD: "no state can be skipped").
+#
+# Origin side (moving UP toward the bus network):
+#   created -> assigned -> picked_up -> in_local_office -> in_branch -> in_hub
+#   (a counter booking may also jump straight into the network)
+# Inter-city bus (existing manifest flow):
+#   in_hub -> in_transit -> dest_hub
+# Destination side (moving DOWN toward the recipient):
+#   dest_hub -> dest_branch -> dest_local_office -> out_for_delivery
+# Local single-city shortcut (original flow, kept):
+#   picked_up -> out_for_delivery
 ALLOWED_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
-    # A parcel booked at a counter (staff or local office) is handed straight
-    # into the hub network on scan, so `created` may also jump to `in_hub`.
-    OrderStatus.created: {OrderStatus.assigned, OrderStatus.cancelled, OrderStatus.in_hub},
+    OrderStatus.created: {
+        OrderStatus.assigned,
+        OrderStatus.cancelled,
+        OrderStatus.in_local_office,
+        OrderStatus.in_branch,
+        OrderStatus.in_hub,
+    },
     OrderStatus.assigned: {OrderStatus.created, OrderStatus.picked_up, OrderStatus.cancelled},
-    # Two legitimate paths from here: `in_hub` for a parcel entering the
-    # inter-city bus network, or straight to `out_for_delivery` when the same
-    # rider who picked it up also does the last mile (local, single-city
-    # delivery - this app's original flow, kept alongside the new hub network).
-    OrderStatus.picked_up: {OrderStatus.in_hub, OrderStatus.out_for_delivery, OrderStatus.cancelled},
-    OrderStatus.in_hub: {OrderStatus.in_transit, OrderStatus.cancelled},
+    OrderStatus.picked_up: {
+        OrderStatus.in_local_office,
+        OrderStatus.in_branch,
+        OrderStatus.in_hub,
+        OrderStatus.out_for_delivery,
+        OrderStatus.cancelled,
+    },
+    OrderStatus.in_local_office: {OrderStatus.in_branch, OrderStatus.cancelled},
+    OrderStatus.in_branch: {OrderStatus.in_local_office, OrderStatus.in_hub, OrderStatus.cancelled},
+    OrderStatus.in_hub: {OrderStatus.in_branch, OrderStatus.in_transit, OrderStatus.cancelled},
     OrderStatus.in_transit: {OrderStatus.dest_hub},
-    OrderStatus.dest_hub: {OrderStatus.out_for_delivery},
+    OrderStatus.dest_hub: {OrderStatus.dest_branch, OrderStatus.out_for_delivery},
+    OrderStatus.dest_branch: {OrderStatus.dest_hub, OrderStatus.dest_local_office, OrderStatus.out_for_delivery, OrderStatus.cancelled},
+    OrderStatus.dest_local_office: {OrderStatus.dest_branch, OrderStatus.out_for_delivery, OrderStatus.cancelled},
     OrderStatus.out_for_delivery: {OrderStatus.delivered, OrderStatus.failed},
     OrderStatus.failed: {OrderStatus.out_for_delivery, OrderStatus.rto},
     OrderStatus.delivered: set(),
@@ -397,12 +417,48 @@ def handle_dest_hub_arrival(db: Session, order: Order, hub_id: str, actor: User 
     maybe_auto_assign_last_mile_rider(db, order, actor=actor)
 
 
-# Scan actions shared by the hub, staff, and local-office consoles. Each maps
-# to a single legal edge of the state machine so a mis-scan can't skip a stage.
-_SCAN_ACTIONS = {
-    "in": (OrderStatus.in_hub, "Scanned in at {facility} (created/picked_up -> in_hub)"),
-    "out": (OrderStatus.in_transit, "Departed {facility} on the bus network (in_hub -> in_transit)"),
-    "arrive": (OrderStatus.dest_hub, "Arrived at destination hub (in_transit -> dest_hub)"),
+# Facility levels a scanner can sit at. A counter (local office) feeds the
+# branch, the branch feeds the hub, and the hub runs the inter-city bus.
+FACILITY_LEVELS = ("local_office", "branch", "hub")
+
+
+def _facility_level_for_role(role_name: str | None) -> str:
+    if role_name in ("local_office_manager", "staff_local_branch"):
+        return "local_office"
+    if role_name in ("staff_branch",):
+        return "branch"
+    return "hub"
+
+
+def _scan_in_target(level: str) -> OrderStatus:
+    """A parcel is received/scanned into the actor's facility."""
+    if level == "local_office":
+        return OrderStatus.in_local_office
+    if level == "branch":
+        return OrderStatus.in_branch
+    return OrderStatus.in_hub
+
+
+def _scan_out_target(level: str) -> OrderStatus:
+    """A parcel departs the actor's facility, moving one level toward the bus."""
+    if level == "local_office":
+        return OrderStatus.in_branch
+    if level == "branch":
+        return OrderStatus.in_hub
+    return OrderStatus.in_transit  # hub -> bus network
+
+
+# Generic "advance to the next facility" along the full hierarchy route. Used by
+# the manager "transfer" action so a single button walks the parcel all the way
+# from a local office to the recipient's door.
+_HIERARCHY_NEXT: dict[OrderStatus, OrderStatus] = {
+    OrderStatus.in_local_office: OrderStatus.in_branch,
+    OrderStatus.in_branch: OrderStatus.in_hub,
+    OrderStatus.in_hub: OrderStatus.in_transit,
+    OrderStatus.in_transit: OrderStatus.dest_hub,
+    OrderStatus.dest_hub: OrderStatus.dest_branch,
+    OrderStatus.dest_branch: OrderStatus.dest_local_office,
+    OrderStatus.dest_local_office: OrderStatus.out_for_delivery,
 }
 
 
@@ -413,17 +469,42 @@ def apply_scan_action(
     actor: User | None = None,
     facility_label: str = "facility",
     hub_id: str | None = None,
+    facility_level: str | None = None,
 ) -> Order:
-    """Drive an order through the bus network via a scanner action, returning
-    the updated order. `in` is valid from both `created` (counter hand-over)
-    and `picked_up`; `out`/`arrive` follow the normal in_hub -> in_transit ->
-    dest_hub progression. `transition()` enforces the legal edges, so an illegal
-    jump (e.g. `arrive` from `created`) is rejected with a clear error."""
-    if action not in _SCAN_ACTIONS:
+    """Drive an order through the facility hierarchy via a scanner action.
+
+    Actions:
+      - `in`       receive/scan the parcel into the actor's facility
+                   (local office -> in_local_office, branch -> in_branch, hub -> in_hub)
+      - `out`      parcel leaves the actor's facility, moving up one level
+                   (local office -> branch, branch -> hub, hub -> in_transit on the bus)
+      - `arrive`   bus arrival at the destination hub (in_transit -> dest_hub)
+      - `transfer` advance one step along the full route (local office -> ... -> out_for_delivery)
+      - `dispatch` hand off for last-mile delivery (-> out_for_delivery)
+
+    `transition()` enforces the legal edges, so an illegal jump is rejected.
+    """
+    current = order.status if isinstance(order.status, OrderStatus) else OrderStatus(order.status)
+    level = facility_level or (actor and _facility_level_for_role(actor.role.name if actor.role else None)) or "hub"
+    action = (action or "").lower()
+
+    if action == "in":
+        target = _scan_in_target(level)
+    elif action == "out":
+        target = _scan_out_target(level)
+    elif action == "arrive":
+        target = OrderStatus.dest_hub
+    elif action == "transfer":
+        if current not in _HIERARCHY_NEXT:
+            raise HTTPException(status_code=400, detail=f"Cannot transfer a parcel that is '{current.value}'.")
+        target = _HIERARCHY_NEXT[current]
+    elif action == "dispatch":
+        target = OrderStatus.out_for_delivery
+    else:
         raise HTTPException(status_code=400, detail="Unknown scan action")
-    target, note = _SCAN_ACTIONS[action]
-    transition(db, order, target, actor=actor, note=note.format(facility=facility_label))
-    if action == "arrive" and hub_id:
+
+    transition(db, order, target, actor=actor, note=f"{action} at {facility_label}")
+    if target == OrderStatus.dest_hub and hub_id:
         # The hub now physically holding the parcel is the one that scanned it in.
         handle_dest_hub_arrival(db, order, str(hub_id), actor=actor)
     return order

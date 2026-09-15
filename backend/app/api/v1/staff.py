@@ -86,15 +86,19 @@ from app.services.settlement_service import rider_wallet_limit, rider_wallet_war
 @router.post("/scan")
 def staff_scan(
     tracking_number: str,
-    action: str = Query("in", pattern="^(in|out|arrive)$"),
+    action: str = Query("in", pattern="^(in|out|arrive|transfer|dispatch)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("staff_hub", "staff_hub", "admin", "super_admin", "manager", "hub_manager")),
 ):
     """
     Counter staff scan: move a parcel through the network from the counter.
-    `in`     -> IN_HUB       (created/picked_up -> in_hub, the normal counter hand-over)
-    `out`    -> IN_TRANSIT   (out of this hub on the bus)
-    `arrive` -> DEST_HUB     (arrived at the destination hub)
+    The exact state reached depends on the staff member's facility level
+    (local office / branch / hub):
+      - in       -> receive into this facility (in_local_office / in_branch / in_hub)
+      - out      -> move up one level (local office -> branch -> hub -> in_transit)
+      - arrive   -> DEST_HUB (bus arrival)
+      - transfer -> next step along the full route
+      - dispatch -> OUT_FOR_DELIVERY (start last mile)
     The staff member is always scoped to their own hub (staff_profile.hub_id).
     """
     staff_profile = current_user.staff_profile
@@ -102,11 +106,19 @@ def staff_scan(
         raise HTTPException(status_code=400, detail="You must belong to a branch to scan parcels")
     hub_id = str(staff_profile.hub_id)
 
+    role_name = current_user.role.name if current_user.role else None
+    if role_name in ("local_office_manager", "staff_local_branch"):
+        level, label = "local_office", "local office"
+    elif role_name in ("staff_branch",):
+        level, label = "branch", "branch"
+    else:
+        level, label = "hub", f"hub {hub_id}"
+
     order = db.query(Order).filter(Order.tracking_number == tracking_number.strip().upper()).first()
     if not order:
         raise HTTPException(status_code=404, detail="No parcel found with that tracking number")
 
-    apply_scan_action(db, order, action, actor=current_user, facility_label=f"hub {hub_id}", hub_id=hub_id)
+    apply_scan_action(db, order, action, actor=current_user, facility_label=label, hub_id=hub_id, facility_level=level)
     db.commit()
     db.refresh(order)
     return {
@@ -117,7 +129,7 @@ def staff_scan(
         "dropoff_city": order.dropoff_address.city if order.dropoff_address else None,
         "updated_at": order.updated_at,
         "scan_action": action,
-        "note": f"Scanned {action} at hub {hub_id}",
+        "note": f"Scanned {action} at {label}",
     }
 
 

@@ -7,18 +7,25 @@ import { Input } from '@/components/ui/input';
 import { HubScanAction, HubScanResult, ApiError } from '@/lib/api';
 
 /**
- * Shared scan-to-change-status console used by the staff and local-office
- * portals. Captures a tracking number (typed or via the camera/barcode gun)
- * and drives it through the bus network via the hub-style scan actions:
- *   in -> in_hub, out -> in_transit, arrive -> dest_hub.
- * The actual API call is injected so the same UI works for both portals.
+ * Shared scan-to-change-status console used by the staff, branch, hub and
+ * local-office portals. Captures a tracking number (typed or via the
+ * camera/barcode gun) and drives it through the facility hierarchy via the
+ * scan actions:
+ *   in       -> receive into this facility (level-aware)
+ *   out      -> move up one level toward the bus
+ *   arrive   -> bus arrival (-> dest_hub)
+ *   transfer -> advance one step along the full route
+ *   dispatch -> start last-mile delivery (-> out_for_delivery)
+ * The actual API call is injected so the same UI works for every portal.
  */
 export function ScanConsole({
   scanFn,
   description,
+  showTransfer = true,
 }: {
   scanFn: (trackingNumber: string, action: HubScanAction) => Promise<HubScanResult>;
   description?: string;
+  showTransfer?: boolean;
 }) {
   const [tracking, setTracking] = useState('');
   const [busy, setBusy] = useState<HubScanAction | null>(null);
@@ -59,13 +66,21 @@ export function ScanConsole({
 
       <div className="flex flex-wrap gap-2 mt-4">
         <Button variant="navy" disabled={busy !== null} onClick={() => doScan('in')}>
-          {busy === 'in' ? 'Scanning…' : 'Scan In (→ Hub)'}
+          {busy === 'in' ? 'Scanning…' : 'Scan In (receive)'}
         </Button>
         <Button variant="outline" disabled={busy !== null} onClick={() => doScan('out')}>
-          {busy === 'out' ? 'Scanning…' : 'Scan Out (→ Transit)'}
+          {busy === 'out' ? 'Scanning…' : 'Move Up (→ next level)'}
         </Button>
         <Button variant="outline" disabled={busy !== null} onClick={() => doScan('arrive')}>
-          {busy === 'arrive' ? 'Scanning…' : 'Scan Arrive (→ Dest Hub)'}
+          {busy === 'arrive' ? 'Scanning…' : 'Bus Arrive (→ Dest Hub)'}
+        </Button>
+        {showTransfer && (
+          <Button variant="outline" disabled={busy !== null} onClick={() => doScan('transfer')}>
+            {busy === 'transfer' ? 'Scanning…' : 'Transfer (→ next step)'}
+          </Button>
+        )}
+        <Button variant="outline" disabled={busy !== null} onClick={() => doScan('dispatch')}>
+          {busy === 'dispatch' ? 'Scanning…' : 'Dispatch (→ Delivery)'}
         </Button>
       </div>
 
