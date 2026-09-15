@@ -1,4 +1,5 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+// const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://courier-delivery-service.onrender.com/api/v1';
 const API_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
 
 /** Resolves an uploaded file's path (e.g. product photos, POD photos) against the API origin - they're served by the backend, not the frontend, and aren't under /api/v1. Absolute URLs (a seller-pasted image link) pass through untouched. */
